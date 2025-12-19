@@ -22,6 +22,7 @@ export interface RegistrationData {
   businessName: string;
   businessType: string;
   businessSlug: string;
+  customDomain?: string;
   country: string;
   timezone: string;
   

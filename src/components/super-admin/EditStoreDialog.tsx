@@ -64,6 +64,16 @@ export function EditStoreDialog({ open, onOpenChange, store, onSubmit }: EditSto
                 required
               />
             </div>
+
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="customDomain">Custom Domain</Label>
+              <Input
+                id="customDomain"
+                value={formData.customDomain || ''}
+                onChange={(e) => setFormData({ ...formData, customDomain: e.target.value })}
+                placeholder="e.g. delish.rw"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

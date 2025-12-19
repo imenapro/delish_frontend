@@ -32,6 +32,7 @@ export function BusinessSetupStep({ data, onNext, onBack }: BusinessSetupStepPro
     businessName: data.businessName || '',
     businessType: data.businessType || '',
     businessSlug: data.businessSlug || '',
+    customDomain: data.customDomain || '',
     country: data.country || 'United States',
     timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
@@ -97,6 +98,19 @@ export function BusinessSetupStep({ data, onNext, onBack }: BusinessSetupStepPro
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="customDomain">Custom Domain (Optional)</Label>
+          <Input
+            id="customDomain"
+            value={formData.customDomain}
+            onChange={(e) => setFormData({ ...formData, customDomain: e.target.value })}
+            placeholder="e.g. delish.rw"
+          />
+          <p className="text-xs text-muted-foreground">
+            If you have your own domain, enter it here. You'll need to configure your DNS settings.
+          </p>
         </div>
 
         <div className="space-y-2">

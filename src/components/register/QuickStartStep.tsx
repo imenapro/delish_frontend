@@ -79,6 +79,7 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
           owner_id: authData.user.id,
           country: data.country,
           timezone: data.timezone || 'UTC',
+          custom_domain: data.customDomain || null,
         } as any)
         .select()
         .single() as any;
