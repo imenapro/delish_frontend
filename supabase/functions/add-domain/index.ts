@@ -19,12 +19,17 @@ serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
+    // Log for debugging
+    console.log('Authorization Header present:', !!req.headers.get('Authorization'));
+
     const {
       data: { user },
+      error: userError,
     } = await supabaseClient.auth.getUser()
 
-    if (!user) {
-      throw new Error('Unauthorized')
+    if (userError || !user) {
+      console.error('Auth Error:', userError);
+      throw new Error('Unauthorized - Invalid or missing token')
     }
 
     const { domain, storeId } = await req.json()

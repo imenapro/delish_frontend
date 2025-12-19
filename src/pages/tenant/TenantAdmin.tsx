@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { isCustomDomain } from '@/utils/domainMapping';
 
 export default function TenantAdmin() {
   const { store } = useStoreContext();
@@ -97,7 +98,11 @@ export default function TenantAdmin() {
             <Globe className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{window.location.hostname}</div>
+            <div className="text-xl font-bold truncate" title={isCustomDomain(window.location.hostname) ? window.location.hostname : `${window.location.hostname}/${store?.slug}`}>
+              {isCustomDomain(window.location.hostname) 
+                ? window.location.hostname 
+                : `${window.location.hostname}/${store?.slug}`}
+            </div>
             <p className="text-xs text-muted-foreground">Current Access Point</p>
           </CardContent>
         </Card>
