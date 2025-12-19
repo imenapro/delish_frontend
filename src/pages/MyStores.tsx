@@ -6,11 +6,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Building2, ArrowRight, Loader2, Plus } from 'lucide-react';
+import { getAbsoluteUrlForStore } from '@/utils/domainMapping';
 
 export default function MyStores() {
   const { user, loading: authLoading } = useAuth();
   const { data: businesses, isLoading: businessesLoading } = useUserBusinesses();
   const navigate = useNavigate();
+
+  const navigateToStore = (slug: string) => {
+    const url = getAbsoluteUrlForStore(slug);
+    if (url.startsWith('http')) {
+      window.location.href = url;
+    } else {
+      navigate(url);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -23,7 +33,7 @@ export default function MyStores() {
     if (!businessesLoading && businesses && businesses.length === 1) {
       const business = businesses[0];
       if (business.slug) {
-        navigate(`/${business.slug}/dashboard`);
+        navigateToStore(business.slug);
       }
     }
   }, [businesses, businessesLoading, navigate]);
@@ -110,7 +120,7 @@ export default function MyStores() {
                 <Button
                   onClick={() => {
                     if (business.slug) {
-                      navigate(`/${business.slug}/dashboard`);
+                      navigateToStore(business.slug);
                     }
                   }}
                   className="w-full"

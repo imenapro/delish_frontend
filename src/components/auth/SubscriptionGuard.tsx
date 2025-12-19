@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Clock } from 'lucide-react';
+import { MAIN_DOMAIN, isCustomDomain } from '@/utils/domainMapping';
 
 interface SubscriptionGuardProps {
   children: ReactNode;
@@ -13,6 +14,14 @@ interface SubscriptionGuardProps {
 export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   const { store, loading, isExpired, daysUntilExpiration } = useStoreContext();
   const navigate = useNavigate();
+
+  const handleGoHome = () => {
+    if (isCustomDomain(window.location.hostname)) {
+      window.location.href = `https://${MAIN_DOMAIN}`;
+    } else {
+      navigate('/');
+    }
+  };
 
   if (loading) {
     return (
@@ -31,7 +40,7 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
             <CardDescription>The store you're looking for doesn't exist.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate('/')}>Go to Home</Button>
+            <Button onClick={handleGoHome}>Go to Home</Button>
           </CardContent>
         </Card>
       </div>
@@ -78,7 +87,7 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
               <Button className="flex-1">
                 Renew Subscription
               </Button>
-              <Button variant="outline" onClick={() => navigate('/')}>
+              <Button variant="outline" onClick={handleGoHome}>
                 Go Home
               </Button>
             </div>

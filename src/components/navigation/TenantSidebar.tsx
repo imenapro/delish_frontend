@@ -37,7 +37,7 @@ interface TenantSidebarProps {
 }
 
 export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
-  const { store, daysUntilExpiration, isExpired, isCustomDomain } = useStoreContext();
+  const { store, daysUntilExpiration, isExpired, getTenantRoute } = useStoreContext();
   const { user, roles, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -45,33 +45,29 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
     return roles.some(r => roleNames.includes(r.role));
   };
 
-  const prefix = isCustomDomain ? '' : `/${store?.slug}`;
-
   const navigationItems = [
-    { name: 'Dashboard', href: `${prefix}/dashboard`, icon: LayoutDashboard, show: true },
-    { name: 'POS', href: `${prefix}/pos`, icon: CreditCard, show: hasRole(['seller', 'admin', 'branch_manager', 'store_owner']) },
-    { name: 'Shifts', href: `${prefix}/shifts`, icon: ClipboardList, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller']) },
-    { name: 'Invoices', href: `${prefix}/invoices`, icon: Receipt, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller']) },
-    { name: 'Shops', href: `${prefix}/shops`, icon: Store, show: hasRole(['admin', 'store_owner', 'branch_manager']) },
-    { name: 'Products', href: `${prefix}/products`, icon: Package, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
-    { name: 'Orders', href: `${prefix}/orders`, icon: ShoppingCart, show: true },
-    { name: 'Kitchen', href: `${prefix}/kitchen`, icon: ChefHat, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
-    { name: 'Inventory', href: `${prefix}/inventory`, icon: PackageOpen, show: hasRole(['store_keeper', 'admin', 'branch_manager', 'store_owner']) },
-    { name: 'Finance', href: `${prefix}/finance`, icon: DollarSign, show: hasRole(['accountant', 'admin', 'store_owner']) },
-    { name: 'Workforce', href: `${prefix}/workforce`, icon: Calendar, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
-    { name: 'Reports', href: `${prefix}/reports`, icon: FileText, show: hasRole(['accountant', 'admin', 'branch_manager', 'store_owner']) },
-    { name: 'Delivery', href: `${prefix}/delivery`, icon: Truck, show: hasRole(['delivery', 'admin', 'store_owner']) },
-    { name: 'Staff', href: `${prefix}/staff`, icon: Users, show: hasRole(['branch_manager', 'store_owner']) },
-    { name: 'Admin', href: `${prefix}/admin`, icon: Shield, show: hasRole(['admin', 'store_owner']) },
-    { name: 'Chat', href: `${prefix}/chat`, icon: MessageSquare, show: true },
-    { name: 'Wallet', href: `${prefix}/wallet`, icon: Wallet, show: true },
+    { name: 'Dashboard', href: getTenantRoute('/dashboard'), icon: LayoutDashboard, show: true },
+    { name: 'POS', href: getTenantRoute('/pos'), icon: CreditCard, show: hasRole(['seller', 'admin', 'branch_manager', 'store_owner']) },
+    { name: 'Shifts', href: getTenantRoute('/shifts'), icon: ClipboardList, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller']) },
+    { name: 'Invoices', href: getTenantRoute('/invoices'), icon: Receipt, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller']) },
+    { name: 'Shops', href: getTenantRoute('/shops'), icon: Store, show: hasRole(['admin', 'store_owner', 'branch_manager']) },
+    { name: 'Products', href: getTenantRoute('/products'), icon: Package, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
+    { name: 'Orders', href: getTenantRoute('/orders'), icon: ShoppingCart, show: true },
+    { name: 'Kitchen', href: getTenantRoute('/kitchen'), icon: ChefHat, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
+    { name: 'Inventory', href: getTenantRoute('/inventory'), icon: PackageOpen, show: hasRole(['store_keeper', 'admin', 'branch_manager', 'store_owner']) },
+    { name: 'Finance', href: getTenantRoute('/finance'), icon: DollarSign, show: hasRole(['accountant', 'admin', 'store_owner']) },
+    { name: 'Workforce', href: getTenantRoute('/workforce'), icon: Calendar, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
+    { name: 'Reports', href: getTenantRoute('/reports'), icon: FileText, show: hasRole(['accountant', 'admin', 'branch_manager', 'store_owner']) },
+    { name: 'Delivery', href: getTenantRoute('/delivery'), icon: Truck, show: hasRole(['delivery', 'admin', 'store_owner']) },
+    { name: 'Staff', href: getTenantRoute('/staff'), icon: Users, show: hasRole(['branch_manager', 'store_owner']) },
+    { name: 'Admin', href: getTenantRoute('/admin'), icon: Shield, show: hasRole(['admin', 'store_owner']) },
+    { name: 'Chat', href: getTenantRoute('/chat'), icon: MessageSquare, show: true },
+    { name: 'Wallet', href: getTenantRoute('/wallet'), icon: Wallet, show: true },
   ].filter(item => item.show);
 
   const handleLogout = async () => {
     await signOut();
-    if (store?.slug) {
-      navigate(isCustomDomain ? '/login' : `/${store.slug}/login`);
-    }
+    navigate(getTenantRoute('/login'));
   };
 
   const getUserInitials = () => {

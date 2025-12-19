@@ -19,7 +19,6 @@ export type Database = {
           business_type: string | null
           country: string | null
           created_at: string | null
-          custom_domain: string | null
           id: string
           logo_url: string | null
           metadata: Json | null
@@ -43,7 +42,6 @@ export type Database = {
           business_type?: string | null
           country?: string | null
           created_at?: string | null
-          custom_domain?: string | null
           id?: string
           logo_url?: string | null
           metadata?: Json | null
@@ -67,7 +65,6 @@ export type Database = {
           business_type?: string | null
           country?: string | null
           created_at?: string | null
-          custom_domain?: string | null
           id?: string
           logo_url?: string | null
           metadata?: Json | null

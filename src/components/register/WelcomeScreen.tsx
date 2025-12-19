@@ -14,15 +14,11 @@ export function WelcomeScreen({ data }: WelcomeScreenProps) {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (data.customDomain) {
-        window.location.href = `https://${data.customDomain}/dashboard`;
-      } else {
-        navigate(`/${data.businessSlug}/dashboard`);
-      }
+      navigate(`/${data.businessSlug}/dashboard`);
     }, 10000);
 
     return () => clearTimeout(timer);
-  }, [data.businessSlug, data.customDomain, navigate]);
+  }, [data.businessSlug, navigate]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -47,7 +43,7 @@ export function WelcomeScreen({ data }: WelcomeScreenProps) {
               <div>
                 <p className="font-medium">Your Business URL</p>
                 <p className="text-sm text-muted-foreground">
-                  {data.customDomain ? data.customDomain : `${window.location.host}/${data.businessSlug}`}
+                  kazimas.com/{data.businessSlug}
                 </p>
               </div>
             </div>
@@ -89,13 +85,7 @@ export function WelcomeScreen({ data }: WelcomeScreenProps) {
         <div className="space-y-3">
           <Button
             size="lg"
-            onClick={() => {
-              if (data.customDomain) {
-                window.location.href = `https://${data.customDomain}/dashboard`;
-              } else {
-                navigate(`/${data.businessSlug}/dashboard`);
-              }
-            }}
+            onClick={() => navigate(`/${data.businessSlug}/dashboard`)}
             className="w-full"
           >
             Go to Dashboard

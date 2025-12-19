@@ -1,39 +1,9 @@
-import { useState } from 'react';
 import { TenantPageWrapper } from '@/components/tenant/TenantPageWrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Shield, Settings, Database, Key, Globe } from 'lucide-react';
-import { useStoreContext } from '@/contexts/StoreContext';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { Shield, Settings, Database, Key } from 'lucide-react';
 
 export default function TenantAdmin() {
-  const { store, refreshStore } = useStoreContext();
-  const [customDomain, setCustomDomain] = useState(store?.customDomain || '');
-  const [loading, setLoading] = useState(false);
-
-  const handleUpdateDomain = async () => {
-    if (!store) return;
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('businesses')
-        .update({ custom_domain: customDomain || null } as any)
-        .eq('id', store.id);
-
-      if (error) throw error;
-      
-      toast.success('Custom domain updated successfully');
-      refreshStore();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update custom domain');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <TenantPageWrapper
       title="Administration"
@@ -57,7 +27,7 @@ export default function TenantAdmin() {
             <Settings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1</div>
+            <div className="text-2xl font-bold">0</div>
             <p className="text-xs text-muted-foreground">Custom settings</p>
           </CardContent>
         </Card>
@@ -85,36 +55,22 @@ export default function TenantAdmin() {
         </Card>
       </div>
 
-      <div className="mt-6 grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
-              Domain Settings
-            </CardTitle>
-            <CardDescription>Configure your custom domain for white-labeling</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4 items-end max-w-md">
-              <div className="space-y-2 flex-1">
-                <Label htmlFor="customDomain">Custom Domain</Label>
-                <Input
-                  id="customDomain"
-                  placeholder="e.g. delish.rw"
-                  value={customDomain}
-                  onChange={(e) => setCustomDomain(e.target.value)}
-                />
-              </div>
-              <Button onClick={handleUpdateDomain} disabled={loading}>
-                {loading ? 'Saving...' : 'Save'}
-              </Button>
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>System Administration</CardTitle>
+          <CardDescription>Configure business settings and system preferences</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center min-h-[300px]">
+          <div className="text-center space-y-4">
+            <Shield className="h-16 w-16 mx-auto text-muted-foreground" />
+            <div>
+              <h3 className="font-semibold text-lg">Admin Panel</h3>
+              <p className="text-muted-foreground">Manage system settings and configurations</p>
             </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              Point your domain's A record to our server IP or CNAME to our app domain before saving.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+            <Button variant="outline">Open Settings</Button>
+          </div>
+        </CardContent>
+      </Card>
     </TenantPageWrapper>
   );
 }
