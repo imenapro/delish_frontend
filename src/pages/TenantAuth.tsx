@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function TenantAuth() {
-  const { store, loading, themeConfig } = useStoreContext();
+  const { store, loading, themeConfig, isCustomDomain } = useStoreContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -86,7 +86,7 @@ export default function TenantAuth() {
 
       toast.success('Welcome back!');
       // Use full page redirect to ensure auth state is properly established
-      window.location.href = `/${store.slug}/dashboard`;
+      window.location.href = isCustomDomain ? '/dashboard' : `/${store.slug}/dashboard`;
     } catch (error: any) {
       console.error('Login error:', error);
       toast.error(error.message || 'Invalid credentials');

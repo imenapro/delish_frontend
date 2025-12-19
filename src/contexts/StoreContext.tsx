@@ -32,6 +32,7 @@ interface StoreContextType {
   loading: boolean;
   isExpired: boolean;
   daysUntilExpiration: number;
+  isCustomDomain: boolean;
   themeConfig: ThemeConfig;
   setStore: (store: Store | null) => void;
   refreshStore: () => void;
@@ -44,12 +45,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isCustomDomain, setIsCustomDomain] = useState(false);
 
   const loadStore = async () => {
     const hostname = window.location.hostname;
     // Define platform domains where path-based routing is used
     const platformDomains = ['dev.delish.rw', 'localhost', '127.0.0.1'];
     const isPlatformDomain = platformDomains.some(d => hostname === d || hostname.endsWith('.ondigitalocean.app'));
+    
+    setIsCustomDomain(!isPlatformDomain);
 
     try {
       // Check auth status
@@ -162,6 +166,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const getTenantRoute = (path: string): string => {
     if (!store) return path;
+    if (isCustomDomain) return path;
     return `/${store.slug}${path}`;
   };
 
@@ -172,6 +177,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         loading,
         isExpired,
         daysUntilExpiration,
+        isCustomDomain,
         themeConfig,
         setStore,
         refreshStore: loadStore,
