@@ -1,0 +1,49 @@
+name: Development Pipeline
+
+on:
+  push:
+    branches: [ "development" ]
+  pull_request:
+    branches: [ "development" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Lint
+      # Assuming lint script exists, otherwise this might fail. standard vite creates one.
+      run: npm run lint --if-present
+      
+    - name: Build
+      run: npm run build
+      
+    # - name: Test
+    #   run: npm test
+
+  deploy:
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - name: Deploy to DigitalOcean App Platform (Dev)
+        # This is a placeholder for the official DO action. 
+        # Ensure you configure the App Spec or connect the repo directly in DO.
+        # If using DO App Platform's auto-deploy, this step is redundant but good for control.
+        uses: digitalocean/app_action@v2
+        with:
+          app_name: delish-frontend-dev
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        continue-on-error: true # Allow to pass if secrets aren't set yet
