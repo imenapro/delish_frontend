@@ -40,10 +40,21 @@ export default function TenantAdmin() {
 
     setIsConnecting(true);
     try {
+      // Explicitly get the session token to ensure it's passed
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      if (!token) {
+        throw new Error("No active session. Please log in again.");
+      }
+
       console.log('Sending request for:', { domain: customDomain, storeId: store.id });
       
       const { data, error } = await supabase.functions.invoke('add-domain', {
-        body: { domain: customDomain, storeId: store.id }
+        body: { domain: customDomain, storeId: store.id },
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
 
       if (error) {
