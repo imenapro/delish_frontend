@@ -28,13 +28,33 @@ export default function TenantAdmin() {
       return;
     }
 
+    if (!store?.id) {
+      toast({
+        title: "System Error",
+        description: "Store ID is missing. Please refresh the page.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsConnecting(true);
     try {
+      console.log('Sending request for:', { domain: customDomain, storeId: store.id });
+      
       const { data, error } = await supabase.functions.invoke('add-domain', {
-        body: { domain: customDomain, storeId: store?.id }
+        body: { domain: customDomain, storeId: store.id }
       });
 
-      if (error) throw error;
+      if (error) {
+        // Try to parse the error body if available
+        let errorMessage = error.message;
+        if (error instanceof Error && 'context' in error) {
+            // @ts-ignore
+            const body = await error.context.json().catch(() => ({}));
+            if (body.error) errorMessage = body.error;
+        }
+        throw new Error(errorMessage);
+      }
 
       toast({
         title: "Domain Connected!",
