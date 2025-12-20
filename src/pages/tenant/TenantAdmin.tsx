@@ -14,8 +14,10 @@ export default function TenantAdmin() {
   const { toast } = useToast();
   const [customDomain, setCustomDomain] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   const handleConnectDomain = async () => {
+    setLastError(null);
     if (!customDomain) return;
     
     // Basic validation
@@ -40,33 +42,31 @@ export default function TenantAdmin() {
 
     setIsConnecting(true);
     try {
-      // Explicitly get the session token to ensure it's passed
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-
-      if (!token) {
-        throw new Error("No active session. Please log in again.");
-      }
-
       console.log('Sending request for:', { domain: customDomain, storeId: store.id });
       
       const { data, error } = await supabase.functions.invoke('add-domain', {
-        body: { domain: customDomain, storeId: store.id },
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        body: { domain: customDomain, storeId: store.id }
       });
 
       if (error) {
-        // Try to parse the error body if available
-        let errorMessage = error.message;
-        if (error instanceof Error && 'context' in error) {
-            // @ts-ignore
-            const body = await error.context.json().catch(() => ({}));
-            if (body.error) errorMessage = body.error;
+        console.error('Supabase Function Error:', error);
+        // Try to parse the error message from the response if possible
+        // The error object from invoke often has a 'message' or is the response text
+        let errorMessage = "Failed to connect domain";
+        try {
+           if (typeof error === 'object' && error !== null) {
+              // @ts-ignore
+              errorMessage = error.message || JSON.stringify(error);
+           } else {
+              errorMessage = String(error);
+           }
+        } catch (e) {
+           errorMessage = "Unknown error occurred";
         }
         throw new Error(errorMessage);
       }
+
+      console.log('Domain connected successfully:', data);
 
       toast({
         title: "Domain Connected!",
@@ -75,9 +75,11 @@ export default function TenantAdmin() {
       setCustomDomain('');
     } catch (error: any) {
       console.error('Error connecting domain:', error);
+      const msg = error.message || "Could not connect domain. Please try again or contact support.";
+      setLastError(msg);
       toast({
         title: "Connection Failed",
-        description: error.message || "Could not connect domain. Please try again or contact support.",
+        description: msg,
         variant: "destructive"
       });
     } finally {
@@ -90,6 +92,13 @@ export default function TenantAdmin() {
       title="Administration"
       description="System settings and business configuration"
     >
+      {lastError && (
+        <div className="mb-6 p-4 bg-destructive/15 text-destructive rounded-md flex items-center gap-2 border border-destructive/20">
+          <AlertCircle className="h-5 w-5 flex-shrink-0" />
+          <p className="text-sm font-medium">{lastError}</p>
+        </div>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* ... existing stats cards ... */}
         <Card>

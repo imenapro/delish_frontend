@@ -21,9 +21,9 @@ export default function Auth() {
   const [phone, setPhone] = useState('');
   const [shopId, setShopId] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const { data: businesses, refetch: refetchBusinesses } = useUserBusinesses();
+  const { data: businesses, refetch: refetchBusinesses, isLoading: businessesLoading } = useUserBusinesses();
 
   const { data: shops } = useQuery({
     queryKey: ['active-shops'],
@@ -39,7 +39,7 @@ export default function Auth() {
   });
 
   useEffect(() => {
-    if (user && businesses) {
+    if (user && businesses && !authLoading && !businessesLoading) {
       // Redirect based on number of businesses
       if (businesses.length === 0) {
         navigate('/create-first-shop');
@@ -54,7 +54,7 @@ export default function Auth() {
         navigate('/my-stores');
       }
     }
-  }, [user, businesses, navigate]);
+  }, [user, businesses, navigate, authLoading, businessesLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

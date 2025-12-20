@@ -85,8 +85,9 @@ export default function TenantAuth() {
       }
 
       toast.success('Welcome back!');
-      // Use full page redirect to ensure auth state is properly established
-      window.location.href = getTenantRoute('/dashboard');
+      // Use navigate instead of window.location.href to avoid server-side 404s
+      // and maintain SPA state.
+      navigate(getTenantRoute('/dashboard'));
     } catch (error: any) {
       console.error('Login error:', error);
       toast.error(error.message || 'Invalid credentials');

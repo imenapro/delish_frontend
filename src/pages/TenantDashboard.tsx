@@ -11,16 +11,17 @@ import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { Store, Clock, CreditCard, Settings, Loader2, Package, Users, ShoppingCart, TrendingUp } from 'lucide-react';
 
 export default function TenantDashboard() {
-  const { store, loading, daysUntilExpiration, isExpired } = useStoreContext();
+  const { store, loading, daysUntilExpiration, isExpired, getTenantRoute } = useStoreContext();
   const { user, loading: authLoading } = useAuth();
   const { data: metrics, isLoading: metricsLoading } = useShopMetrics(store?.id);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!authLoading && !user && store?.slug) {
-      navigate(`/${store.slug}/login`);
+      // Use navigate to handle custom domains correctly and avoid server 404s
+      navigate(getTenantRoute('/login'));
     }
-  }, [user, authLoading, store, navigate]);
+  }, [user, authLoading, store, getTenantRoute, navigate]);
 
   if (loading || authLoading || metricsLoading) {
     return (

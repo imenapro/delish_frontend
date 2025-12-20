@@ -12,7 +12,7 @@ export function useUserBusinesses() {
     .filter((id): id is string => id !== undefined);
 
   return useQuery({
-    queryKey: ['userBusinesses', user?.id],
+    queryKey: ['userBusinesses', user?.id, businessIds],
     queryFn: async () => {
       // Super admins can see all businesses
       if (isSuperAdmin) {
