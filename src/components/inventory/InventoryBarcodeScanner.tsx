@@ -119,7 +119,29 @@ export function InventoryBarcodeScanner({ businessId }: InventoryBarcodeScannerP
       const qty = parseInt(quantity);
       const adjustedQty = transactionType === 'out' ? -Math.abs(qty) : Math.abs(qty);
 
-      // Record transaction
+      // Ensure inventory row exists BEFORE recording the transaction
+      const { data: existingInventory, error: existError } = await supabase
+        .from('shop_inventory')
+        .select('id')
+        .eq('shop_id', selectedShopId)
+        .eq('product_id', foundProduct.id)
+        .maybeSingle();
+      
+      if (existError) throw existError;
+      
+      if (!existingInventory) {
+        const { error: insertInvError } = await supabase
+          .from('shop_inventory')
+          .insert({
+            shop_id: selectedShopId,
+            product_id: foundProduct.id,
+            stock: 0,
+            price: foundProduct.price,
+          });
+        if (insertInvError) throw insertInvError;
+      }
+      
+      // Record transaction (stock change handled by DB trigger)
       const { error: txError } = await supabase
         .from('inventory_transactions')
         .insert([{
@@ -132,28 +154,6 @@ export function InventoryBarcodeScanner({ businessId }: InventoryBarcodeScannerP
         }]);
 
       if (txError) throw txError;
-
-      // Update stock
-      const { data: currentInventory } = await supabase
-        .from('shop_inventory')
-        .select('stock')
-        .eq('shop_id', selectedShopId)
-        .eq('product_id', foundProduct.id)
-        .maybeSingle();
-
-      const currentStock = currentInventory?.stock || 0;
-      const newStock = Math.max(0, currentStock + adjustedQty);
-
-      const { error: updateError } = await supabase
-        .from('shop_inventory')
-        .upsert({
-          shop_id: selectedShopId,
-          product_id: foundProduct.id,
-          stock: newStock,
-          price: foundProduct.price,
-        }, { onConflict: 'shop_id,product_id' });
-
-      if (updateError) throw updateError;
     },
     onSuccess: () => {
       toast({
