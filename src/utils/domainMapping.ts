@@ -12,11 +12,21 @@ export const getStoreSlugFromDomain = (hostname: string): string | null => {
 };
 
 export const isCustomDomain = (hostname: string): boolean => {
-  return !!CUSTOM_DOMAINS[hostname];
+  // If it's in our manual list, it's definitely custom
+  if (CUSTOM_DOMAINS[hostname]) return true;
+
+  // Otherwise, it's custom if it's NOT the main domain and NOT localhost
+  // We also exclude vercel.app for preview deployments if needed, or other system domains
+  return hostname !== 'localhost' && 
+         hostname !== '127.0.0.1' &&
+         hostname !== MAIN_DOMAIN && 
+         !hostname.endsWith('.vercel.app') && 
+         !hostname.endsWith('.lovableproject.com') &&
+         !hostname.endsWith('.ngrok-free.app');
 };
 
 export const getAbsoluteUrlForStore = (slug: string, path: string = '/dashboard'): string => {
-  // Check if this slug maps to a custom domain
+  // Check if this slug maps to a known custom domain
   const domainEntry = Object.entries(CUSTOM_DOMAINS).find(([domain, s]) => s === slug);
   
   if (domainEntry) {

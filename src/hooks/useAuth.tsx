@@ -38,6 +38,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          // Only set loading if we're signing in or initial session
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+            setLoading(true);
+          }
           setTimeout(() => {
             fetchUserRoles(session.user.id);
           }, 0);

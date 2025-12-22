@@ -34,45 +34,57 @@ const App = () => {
         <AuthProvider>
           <StoreProvider>
             <Routes>
-              {/* Landing Page */}
-              <Route path="/" element={<Landing />} />
-              
-              {/* Registration */}
-              <Route path="/register" element={<Register />} />
-              
-              {/* My Stores Selection */}
-              <Route path="/my-stores" element={<MyStores />} />
-              
-              {/* Create First Shop */}
-              <Route path="/create-first-shop" element={<CreateFirstShop />} />
-              
-              {/* Super Admin Routes */}
-              <Route path="/super-admin" element={<SuperAdmin />} />
-              
-              {/* Multi-Tenant Routes */}
+              {/* Public Invoice Route - Accessible on all domains */}
+              <Route path="/i/:shortId" element={<PublicInvoice />} />
+
               {isCustom ? (
+                /* ------------------------------------------------------------------
+                   TENANT CONTEXT (Custom Domain)
+                   e.g. delish.rw
+                   ------------------------------------------------------------------ */
                 <>
                   <Route path="/login" element={<TenantAuth />} />
                   <Route path="/" element={<TenantLayout />}>
                     {TenantRoutes}
                   </Route>
+                  {/* Catch-all for tenant domain */}
+                  <Route path="*" element={<NotFound />} />
                 </>
               ) : (
+                /* ------------------------------------------------------------------
+                   GLOBAL CONTEXT (Main Domain)
+                   e.g. dev.delish.rw
+                   ------------------------------------------------------------------ */
                 <>
+                  {/* Landing Page */}
+                  <Route path="/" element={<Landing />} />
+                  
+                  {/* Registration */}
+                  <Route path="/register" element={<Register />} />
+                  
+                  {/* My Stores Selection */}
+                  <Route path="/my-stores" element={<MyStores />} />
+                  
+                  {/* Create First Shop */}
+                  <Route path="/create-first-shop" element={<CreateFirstShop />} />
+                  
+                  {/* Super Admin Routes */}
+                  <Route path="/super-admin" element={<SuperAdmin />} />
+                  
+                  {/* Multi-Tenant Routes (Subpath) */}
                   <Route path="/:storeSlug/login" element={<TenantAuth />} />
                   <Route path="/:storeSlug" element={<TenantLayout />}>
                     {TenantRoutes}
                   </Route>
+                  
+                  {/* Legacy Routes */}
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/dashboard" element={<Index />} />
+                  
+                  {/* Catch-all 404 */}
+                  <Route path="*" element={<NotFound />} />
                 </>
               )}
-              
-              {/* Legacy Routes (keeping for backward compatibility) */}
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/dashboard" element={<Index />} />
-              
-              {/* Catch-all 404 */}
-              <Route path="/i/:shortId" element={<PublicInvoice />} />
-              <Route path="*" element={<NotFound />} />
             </Routes>
           </StoreProvider>
         </AuthProvider>

@@ -25,6 +25,7 @@ export interface Store {
   subscriptionEndDate: string;
   status: 'active' | 'expiring_soon' | 'expired' | 'suspended';
   locale: 'pt' | 'en' | 'fr';
+  customDomain?: string;
 }
 
 interface StoreContextType {
@@ -48,35 +49,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const loadStore = async () => {
     // Check for custom domain first
     const hostname = window.location.hostname;
-    const customSlug = getStoreSlugFromDomain(hostname);
+    const manualSlug = getStoreSlugFromDomain(hostname);
+    const isCustom = isCustomDomain(hostname);
     
-    let storeSlug = customSlug;
-
-    if (!storeSlug) {
-      // Extract slug from pathname: /bakery-heaven/login -> bakery-heaven
-      const pathParts = location.pathname.split('/').filter(Boolean);
-      storeSlug = pathParts[0]; // First segment is the slug
-    }
-    
-    console.log('[StoreContext] Loading store for slug:', storeSlug);
+    console.log('[StoreContext] Loading store for hostname:', hostname);
     
     // Ignore legacy routes that are not tenant routes
     const legacyRoutes = ['super-admin', 'auth', 'pos', 'shops', 'products', 'orders', 'kitchen', 'delivery', 'inventory', 'finance', 'workforce', 'reports', 'admin', 'staff-management', 'wallet', 'chat', 'register'];
     
-    const shouldLoad = customSlug || (storeSlug && !legacyRoutes.includes(storeSlug));
+    try {
+      // Check auth status
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('[StoreContext] Current user:', user?.id);
 
-    if (shouldLoad) {
-      try {
-        // Check auth status
-        const { data: { user } } = await supabase.auth.getUser();
-        console.log('[StoreContext] Current user:', user?.id);
+      let query = supabase.from('businesses').select('*');
+      let shouldFetch = false;
 
-        // Load business from Supabase
-        const { data: business, error } = await supabase
-          .from('businesses' as any)
-          .select('*')
-          .ilike('slug', storeSlug)  // Use case-insensitive match
-          .maybeSingle() as any;
+      if (manualSlug) {
+        // 1. Hardcoded Custom Domain
+        console.log('[StoreContext] Using hardcoded slug:', manualSlug);
+        query = query.ilike('slug', manualSlug);
+        shouldFetch = true;
+      } else if (isCustom) {
+        // 2. Dynamic Custom Domain
+        console.log('[StoreContext] Using dynamic custom domain:', hostname);
+        // We cast to any because custom_domain might not be in the local types yet
+        query = query.eq('custom_domain', hostname);
+        shouldFetch = true;
+      } else {
+        // 3. Path-based (Main Domain / Localhost)
+        const pathParts = location.pathname.split('/').filter(Boolean);
+        const slugFromPath = pathParts[0]; // First segment is the slug
+
+        if (slugFromPath && !legacyRoutes.includes(slugFromPath)) {
+             console.log('[StoreContext] Using path slug:', slugFromPath);
+             query = query.ilike('slug', slugFromPath);
+             shouldFetch = true;
+        }
+      }
+
+      if (shouldFetch) {
+        const { data: business, error } = await query.maybeSingle();
 
         console.log('[StoreContext] Query result:', { business, error });
 
@@ -100,16 +113,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             subscriptionEndDate: business.subscription_end_date || business.trial_end_date,
             status: business.status || 'active',
             locale: business.locale || 'en',
+            customDomain: business.custom_domain,
           });
         } else {
-          console.warn('[StoreContext] No business found for slug:', storeSlug);
+          console.warn('[StoreContext] No business found');
           setStore(null);
         }
-      } catch (error) {
-        console.error('Error loading store:', error);
+      } else {
         setStore(null);
       }
-    } else {
+    } catch (error) {
+      console.error('Error loading store:', error);
       setStore(null);
     }
     setLoading(false);

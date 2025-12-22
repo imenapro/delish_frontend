@@ -94,75 +94,79 @@ serve(async (req) => {
         spec.domains = [];
     }
 
+    // Ensure catchall_document is set for SPA routing
+    const component = spec.static_sites?.find((s: any) => s.name === 'delish-frontend');
+    if (component && component.catchall_document !== 'index.html') {
+        console.log('Enforcing catchall_document: index.html');
+        component.catchall_document = 'index.html';
+    }
+
     // Check if domain already exists
     const exists = spec.domains.some((d: any) => d.domain === domain);
     if (exists) {
         console.log(`Domain ${domain} already exists in App Spec.`);
-        // Just return success if it's already there
+    } else {
+        spec.domains.push({
+            domain: domain,
+            type: 'PRIMARY', // or ALIAS
+            // zone: 'delish.rw' // If managing DNS here, but likely not needed if just adding domain
+        });
+
+        // 3. Update App Spec
+        const putUrl = `https://api.digitalocean.com/v2/apps/${doAppId}`;
+        console.log(`Updating App Spec at ${putUrl}`);
+
+        const putResponse = await fetch(putUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${DO_TOKEN}`,
+            },
+            body: JSON.stringify({ spec }),
+        });
+
+        if (!putResponse.ok) {
+            const errorText = await putResponse.text();
+            console.error('DO API Error (PUT):', putResponse.status, errorText);
+            throw new Error(`Failed to update App Spec: ${putResponse.status} ${errorText}`);
+        }
+        
+        console.log('App Spec updated successfully.');
+    }
+
+    // 4. Update Supabase Business Record
+    console.log(`Linking domain ${domain} to store ${storeId} in Supabase...`);
+    const { error: dbError } = await supabaseAdmin
+        .from('businesses')
+        .update({ custom_domain: domain })
+        .eq('id', storeId);
+
+    if (dbError) {
+        console.error('Database Update Error:', dbError);
+        // Note: We don't throw here because the DO part succeeded, 
+        // so we return success but include a warning or log it.
+        // Ideally, we might want to rollback DO change, but that's complex.
+        // For now, we return a warning.
         return new Response(
             JSON.stringify({ 
-              success: true, 
-              message: 'Domain already configured.',
-              dns_instructions: {
-                type: 'CNAME',
-                name: domain,
-                value: appData.app.default_ingress || 'delish.ondigitalocean.app'
-              }
+                success: true, 
+                message: 'Domain added to DigitalOcean, but failed to link in database. Please contact support.',
+                warning: dbError.message 
             }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-        );
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
     }
 
-    spec.domains.push({
-        domain: domain,
-        type: 'ALIAS', // Use ALIAS to avoid replacing the primary domain
-        // zone: domain // Optional, usually not needed unless we manage the zone
-    });
-
-    console.log(`Updating App Spec with new domain: ${domain}`);
-
-    // 3. Update App
-    const updateResponse = await fetch(getUrl, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${DO_TOKEN}`,
-        },
-        body: JSON.stringify({ spec: spec }),
-    });
-
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text()
-      console.error('DO API Error (PUT):', updateResponse.status, updateResponse.statusText, errorText)
-      throw new Error(`Failed to update App Spec: Status ${updateResponse.status} ${updateResponse.statusText} - Body: ${errorText || '(empty)'}`)
-    }
-
-    const updatedAppData = await updateResponse.json()
-
-    // 2. Return instructions or success
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Domain added to DigitalOcean. Please configure your DNS records.',
-        dns_instructions: {
-          type: 'CNAME',
-          name: domain, // or www
-          value: updatedAppData.app.default_ingress || 'delish.ondigitalocean.app' // This is the value they should point CNAME to
-        }
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
+      JSON.stringify({ success: true, message: 'Domain added successfully' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
+    console.error('Error:', error.message);
     return new Response(
       JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      },
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
-})
+});

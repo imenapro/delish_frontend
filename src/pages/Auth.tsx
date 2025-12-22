@@ -13,6 +13,8 @@ import { supabase } from '@/integrations/supabase/client';
 import bakeryHero from '@/assets/bakery-hero.jpg';
 import breadIcon from '@/assets/bread-icon.png';
 
+import { getAbsoluteUrlForStore } from '@/utils/domainMapping';
+
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -46,7 +48,12 @@ export default function Auth() {
       } else if (businesses.length === 1) {
         const business = businesses[0];
         if (business.slug) {
-          navigate(`/${business.slug}/dashboard`);
+          const targetUrl = getAbsoluteUrlForStore(business.slug);
+          if (targetUrl.startsWith('http')) {
+            window.location.href = targetUrl;
+          } else {
+            navigate(targetUrl);
+          }
         } else {
           navigate('/my-stores');
         }

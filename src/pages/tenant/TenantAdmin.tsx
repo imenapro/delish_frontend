@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { isCustomDomain } from '@/utils/domainMapping';
 
 export default function TenantAdmin() {
-  const { store } = useStoreContext();
+  const { store, refreshStore } = useStoreContext();
   const { toast } = useToast();
   const [customDomain, setCustomDomain] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -73,6 +73,7 @@ export default function TenantAdmin() {
         description: "We have updated our servers. Please ensure your DNS records are pointed correctly.",
       });
       setCustomDomain('');
+      refreshStore();
     } catch (error: any) {
       console.error('Error connecting domain:', error);
       const msg = error.message || "Could not connect domain. Please try again or contact support.";
@@ -118,12 +119,14 @@ export default function TenantAdmin() {
             <Globe className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold truncate" title={isCustomDomain(window.location.hostname) ? window.location.hostname : `${window.location.hostname}/${store?.slug}`}>
-              {isCustomDomain(window.location.hostname) 
+            <div className="text-xl font-bold truncate" title={store?.customDomain || (isCustomDomain(window.location.hostname) ? window.location.hostname : `${window.location.hostname}/${store?.slug}`)}>
+              {store?.customDomain || (isCustomDomain(window.location.hostname) 
                 ? window.location.hostname 
-                : `${window.location.hostname}/${store?.slug}`}
+                : `${window.location.hostname}/${store?.slug}`)}
             </div>
-            <p className="text-xs text-muted-foreground">Current Access Point</p>
+            <p className="text-xs text-muted-foreground">
+              {store?.customDomain ? 'Primary Domain' : 'Current Access Point'}
+            </p>
           </CardContent>
         </Card>
         
@@ -138,25 +141,50 @@ export default function TenantAdmin() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  To use your own domain, enter it below. Our system will automatically configure the necessary SSL certificates.
-                </p>
-                <div className="flex gap-2">
-                  <Input 
-                    placeholder="example.com" 
-                    value={customDomain}
-                    onChange={(e) => setCustomDomain(e.target.value)}
-                  />
-                  <Button onClick={handleConnectDomain} disabled={isConnecting || !customDomain}>
-                    {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
-                  </Button>
+              {store?.customDomain ? (
+                <div className="p-4 bg-green-50/50 border border-green-200 rounded-md dark:bg-green-900/20 dark:border-green-800">
+                  <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-medium mb-1">
+                    <CheckCircle className="h-5 w-5" />
+                    Domain Connected
+                  </div>
+                  <p className="text-sm text-green-600 dark:text-green-500">
+                    Your store is accessible at <a href={`https://${store.customDomain}`} target="_blank" rel="noopener noreferrer" className="underline font-bold">{store.customDomain}</a>
+                  </p>
+                  <div className="mt-4 pt-4 border-t border-green-200 dark:border-green-800">
+                     <p className="text-xs text-muted-foreground mb-2">Want to change it?</p>
+                     <div className="flex gap-2">
+                      <Input 
+                        placeholder="New domain..." 
+                        value={customDomain}
+                        onChange={(e) => setCustomDomain(e.target.value)}
+                      />
+                      <Button onClick={handleConnectDomain} disabled={isConnecting || !customDomain} variant="outline">
+                        {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  <AlertCircle className="h-3 w-3 inline mr-1" />
-                  Make sure you have added a CNAME record pointing to <strong>{window.location.hostname}</strong> in your DNS provider first.
-                </p>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    To use your own domain, enter it below. Our system will automatically configure the necessary SSL certificates.
+                  </p>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="example.com" 
+                      value={customDomain}
+                      onChange={(e) => setCustomDomain(e.target.value)}
+                    />
+                    <Button onClick={handleConnectDomain} disabled={isConnecting || !customDomain}>
+                      {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    <AlertCircle className="h-3 w-3 inline mr-1" />
+                    Make sure you have added a CNAME record pointing to <strong>{window.location.hostname}</strong> in your DNS provider first.
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
