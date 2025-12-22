@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { StockAdjustmentDialog } from './StockAdjustmentDialog';
+import { Plus, Minus } from 'lucide-react';
 
 interface ShopDetailViewProps {
   shop: any;
@@ -212,12 +214,13 @@ export function ShopDetailView({
                     <TableHead className="text-right">Price</TableHead>
                     <TableHead className="text-right">Stock</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sortedInventory.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         No products found
                       </TableCell>
                     </TableRow>
@@ -247,6 +250,32 @@ export function ShopDetailView({
                           ) : (
                             <Badge className="bg-green-500/10 text-green-500 border-green-500/20">In Stock</Badge>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <StockAdjustmentDialog
+                              shopId={shop.id}
+                              productId={item.product_id}
+                              productName={item.product?.name}
+                              type="in"
+                              trigger={
+                                <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-green-500/50 hover:bg-green-500/10 hover:text-green-600 text-green-600">
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              }
+                            />
+                            <StockAdjustmentDialog
+                              shopId={shop.id}
+                              productId={item.product_id}
+                              productName={item.product?.name}
+                              type="out"
+                              trigger={
+                                <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-red-500/50 hover:bg-red-500/10 hover:text-red-600 text-red-600">
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+                              }
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
