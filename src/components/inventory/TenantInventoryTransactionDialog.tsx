@@ -74,34 +74,8 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
         }]);
 
       if (txError) throw txError;
-
-      // Update the shop inventory stock
-      const { data: currentInventory } = await supabase
-        .from('shop_inventory')
-        .select('stock')
-        .eq('shop_id', data.shop_id)
-        .eq('product_id', data.product_id)
-        .single();
-
-      const currentStock = currentInventory?.stock || 0;
-      const newStock = Math.max(0, currentStock + adjustedQuantity);
       
-      console.log('Stock Update Debug:', {
-        shopId: data.shop_id,
-        productId: data.product_id,
-        currentStock,
-        adjustedQuantity,
-        newStock,
-        timestamp: new Date().toISOString()
-      });
-
-      const { error: updateError } = await supabase
-        .from('shop_inventory')
-        .update({ stock: newStock })
-        .eq('shop_id', data.shop_id)
-        .eq('product_id', data.product_id);
-
-      if (updateError) throw updateError;
+      // Stock update is now handled by database trigger 'on_inventory_transaction_created'
     },
     onSuccess: () => {
       toast({
