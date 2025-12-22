@@ -42,10 +42,20 @@ export function ShopDetailView({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Filter and Sort Inventory
-  const filteredInventory = inventory?.filter((item) =>
+  // Deduplicate inventory items by product_id to prevent display issues
+  const uniqueInventory = inventory?.reduce((acc: any[], current) => {
+    if (!current.product_id) return acc;
+    const exists = acc.find(item => item.product_id === current.product_id);
+    if (!exists) {
+      return acc.concat([current]);
+    }
+    return acc;
+  }, []) || [];
+
+  const filteredInventory = uniqueInventory.filter((item) =>
     item.product?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.product?.category?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  );
 
   const sortedInventory = [...filteredInventory].sort((a, b) => {
     let comparison = 0;
@@ -259,8 +269,14 @@ export function ShopDetailView({
                               productName={item.product?.name}
                               type="in"
                               trigger={
-                                <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-green-500/50 hover:bg-green-500/10 hover:text-green-600 text-green-600">
-                                  <Plus className="h-4 w-4" />
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="h-8 px-3 border-green-500/50 hover:bg-green-500/10 hover:text-green-600 text-green-600 font-medium transition-colors"
+                                  aria-label="Stock In"
+                                >
+                                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                                  Stock In
                                 </Button>
                               }
                             />
@@ -270,8 +286,14 @@ export function ShopDetailView({
                               productName={item.product?.name}
                               type="out"
                               trigger={
-                                <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-red-500/50 hover:bg-red-500/10 hover:text-red-600 text-red-600">
-                                  <Minus className="h-4 w-4" />
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="h-8 px-3 border-red-500/50 hover:bg-red-500/10 hover:text-red-600 text-red-600 font-medium transition-colors"
+                                  aria-label="Stock Out"
+                                >
+                                  <Minus className="h-3.5 w-3.5 mr-1.5" />
+                                  Stock Out
                                 </Button>
                               }
                             />
