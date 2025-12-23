@@ -504,7 +504,7 @@ export function ShopDetailView({
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="inventory" className="space-y-4" forceMount={true}>
+        <TabsContent value="inventory" className="space-y-4 data-[state=inactive]:hidden" forceMount={true}>
           <Tabs defaultValue="all" className="w-full">
             <div className="w-full overflow-x-auto pb-2">
               <TabsList className="w-full justify-start h-auto p-1 bg-muted/50">
@@ -564,7 +564,7 @@ export function ShopDetailView({
           </Tabs>
         </TabsContent>
 
-        <TabsContent value="transfers" className="space-y-4" forceMount={true}>
+        <TabsContent value="transfers" className="space-y-4 data-[state=inactive]:hidden" forceMount={true}>
           <Card>
             <CardHeader>
               <CardTitle>Stock Transfers</CardTitle>
@@ -588,7 +588,7 @@ export function ShopDetailView({
           </Card>
         </TabsContent>
 
-        <TabsContent value="history" className="space-y-4" forceMount={true}>
+        <TabsContent value="history" className="space-y-4 data-[state=inactive]:hidden" forceMount={true}>
           <Card>
             <CardHeader>
               <CardTitle>Transaction History</CardTitle>
