@@ -1,48 +1,75 @@
 export const CUSTOM_DOMAINS: Record<string, string> = {
-  'delish.rw': 'delish-bakery-ltd',
-  'www.delish.rw': 'delish-bakery-ltd',
-  // Add localhost for testing purposes if needed
-  // 'localhost': 'delish-bakery-ltd', 
+  "delish.rw": "delish-bakery-ltd",
+  "www.delish.rw": "delish-bakery-ltd",
+  // "localhost": "delish-bakery-ltd",
 };
 
-export const MAIN_DOMAIN = 'dev.delish.rw';
+/**
+ * Platform host = the shared app host (DigitalOcean default, or later your main SaaS domain).
+ * Set this in DO as: VITE_PLATFORM_HOST=lionfish-app-7g7rn.ondigitalocean.app
+ *
+ * Why host (not full URL)? Because we build URLs safely.
+ */
+export const PLATFORM_HOST =
+  (import.meta as any).env?.VITE_PLATFORM_HOST ||
+  window.location.host; // fallback (works but env var is better)
 
 export const getStoreSlugFromDomain = (hostname: string): string | null => {
   return CUSTOM_DOMAINS[hostname] || null;
 };
 
-export const isCustomDomain = (hostname: string): boolean => {
-  // If it's in our manual list, it's definitely custom
-  if (CUSTOM_DOMAINS[hostname]) return true;
-
-  // Otherwise, it's custom if it's NOT the main domain and NOT localhost
-  // We also exclude vercel.app for preview deployments if needed, or other system domains
-  return hostname !== 'localhost' && 
-         hostname !== '127.0.0.1' &&
-         hostname !== MAIN_DOMAIN && 
-         !hostname.endsWith('.vercel.app') && 
-         !hostname.endsWith('.lovableproject.com') &&
-         !hostname.endsWith('.ngrok-free.app');
+const isPlatformHost = (hostname: string) => {
+  // compare without port
+  const clean = hostname.split(":")[0];
+  const platformClean = PLATFORM_HOST.split(":")[0];
+  return clean === platformClean;
 };
 
-export const getAbsoluteUrlForStore = (slug: string, path: string = '/dashboard'): string => {
-  // Check if this slug maps to a known custom domain
-  const domainEntry = Object.entries(CUSTOM_DOMAINS).find(([domain, s]) => s === slug);
-  
+export const isCustomDomain = (hostname: string): boolean => {
+  // Manual list always wins
+  if (CUSTOM_DOMAINS[hostname]) return true;
+
+  // Not custom if local/dev or platform/system hosts
+  return (
+    hostname !== "localhost" &&
+    hostname !== "127.0.0.1" &&
+    !isPlatformHost(hostname) &&
+    !hostname.endsWith(".vercel.app") &&
+    !hostname.endsWith(".lovableproject.com") &&
+    !hostname.endsWith(".ngrok-free.app") &&
+    !hostname.endsWith(".ondigitalocean.app")
+  );
+};
+
+/**
+ * Generate an absolute URL to reach a store route.
+ * - If slug has a custom domain => go to that domain
+ * - Otherwise => go to platform host under /{slug}
+ *
+ * IMPORTANT: platform host is dynamic via VITE_PLATFORM_HOST
+ */
+export const getAbsoluteUrlForStore = (
+  slug: string,
+  path: string = "/dashboard"
+): string => {
+  // 1) Custom domain mapping (delish.rw -> delish-bakery-ltd)
+  const domainEntry = Object.entries(CUSTOM_DOMAINS).find(
+    ([, s]) => s === slug
+  );
+
   if (domainEntry) {
     const [domain] = domainEntry;
-    // If we are already on this domain, use relative path
-    if (window.location.hostname === domain) {
-        return path;
-    }
+    // already on that domain => relative
+    if (window.location.hostname === domain) return path;
     return `https://${domain}${path}`;
   }
-  
-  // If we are on a custom domain, we need to jump back to main domain for other stores
-  if (isCustomDomain(window.location.hostname)) {
-    return `https://${MAIN_DOMAIN}/${slug}${path}`;
+
+  // 2) For non-custom store: use platform host
+  // If we're already on platform host, just use relative
+  if (isPlatformHost(window.location.host)) {
+    return `/${slug}${path}`;
   }
-  
-  // We are on main domain, use relative path
-  return `/${slug}${path}`;
+
+  // If we're on a custom domain but need to jump to platform for another store
+  return `https://${PLATFORM_HOST}/${slug}${path}`;
 };
