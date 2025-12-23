@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
-  ArrowLeft, Download, 
+  ArrowLeft, Download, Printer,
   AlertTriangle, CheckCircle2, XCircle, Clock, Package, TrendingDown,
   MapPin, Eye
 } from 'lucide-react';
@@ -17,6 +17,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { HighlightedText } from "@/components/ui/highlighted-text";
+import { useReactToPrint } from 'react-to-print';
 
 interface ShopDetailViewProps {
   shop: any;
@@ -41,6 +42,25 @@ export function ShopDetailView({
 
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  const inventoryRef = useRef<HTMLDivElement>(null);
+  const transfersRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef<HTMLDivElement>(null);
+
+  const handlePrintInventory = useReactToPrint({
+    contentRef: inventoryRef,
+    documentTitle: `${shop.name}-inventory`,
+  });
+
+  const handlePrintTransfers = useReactToPrint({
+    contentRef: transfersRef,
+    documentTitle: `${shop.name}-transfers`,
+  });
+
+  const handlePrintHistory = useReactToPrint({
+    contentRef: historyRef,
+    documentTitle: `${shop.name}-history`,
+  });
 
   // Deduplicate inventory items by product_id to prevent display issues
   const uniqueInventory = useMemo(() => {
@@ -79,7 +99,21 @@ export function ShopDetailView({
       { label: "Sale", value: "sale" },
   ];
 
-  const handleExport = () => {
+  const downloadCsv = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handleExportInventory = () => {
     const headers = ['Product', 'Category', 'Stock', 'Price', 'Status'];
     const csvContent = [
       headers.join(','),
@@ -92,17 +126,41 @@ export function ShopDetailView({
       ].join(','))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `${shop.name}_inventory_report.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    downloadCsv(csvContent, `${shop.name}_inventory_report.csv`);
+  };
+
+  const handleExportTransfers = () => {
+    const headers = ['Date', 'Product', 'From', 'To', 'Quantity', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...transfers.map(item => [
+        format(new Date(item.created_at), 'yyyy-MM-dd'),
+        `"${item.product?.name}"`,
+        `"${item.from_shop?.name}"`,
+        `"${item.to_shop?.name}"`,
+        item.quantity,
+        item.status
+      ].join(','))
+    ].join('\n');
+    downloadCsv(csvContent, `${shop.name}_transfers.csv`);
+  };
+
+  const handleExportHistory = () => {
+    const headers = ['Date', 'Product', 'Type', 'Reason', 'From', 'To', 'Quantity', 'Notes'];
+    const csvContent = [
+      headers.join(','),
+      ...transactions.map(item => [
+        format(new Date(item.created_at), 'yyyy-MM-dd HH:mm'),
+        `"${item.product?.name}"`,
+        item.transaction_type,
+        `"${item.reason?.name || ''}"`,
+        `"${item.transfer_from_location || ''}"`,
+        `"${item.transfer_to_location || ''}"`,
+        item.quantity,
+        `"${item.notes || ''}"`
+      ].join(','))
+    ].join('\n');
+    downloadCsv(csvContent, `${shop.name}_history.csv`);
   };
 
   const getStatusBadge = (status: string) => {
@@ -452,12 +510,6 @@ export function ShopDetailView({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleExport}>
-            <Download className="mr-2 h-4 w-4" />
-            Export Report
-          </Button>
-        </div>
       </div>
 
       {/* Stats Summary */}
@@ -505,51 +557,45 @@ export function ShopDetailView({
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-4 data-[state=inactive]:hidden" forceMount={true}>
-          <Tabs defaultValue="all" className="w-full">
-            <div className="w-full overflow-x-auto pb-2">
-              <TabsList className="w-full justify-start h-auto p-1 bg-muted/50">
-                <TabsTrigger value="all" className="min-w-[80px]">All Items</TabsTrigger>
-                {categories.map((cat) => (
-                  <TabsTrigger key={cat.value} value={cat.value} className="whitespace-nowrap">
-                    {cat.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+          <div ref={inventoryRef} className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+               <div></div> {/* Spacer */}
+               <div className="flex gap-2 print:hidden">
+                  <Button variant="outline" size="sm" onClick={handlePrintInventory}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleExportInventory}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+               </div>
             </div>
+            <Tabs defaultValue="all" className="w-full">
+              <div className="w-full overflow-x-auto pb-2">
+                <TabsList className="w-full justify-start h-auto p-1 bg-muted/50">
+                  <TabsTrigger value="all" className="min-w-[80px]">All Items</TabsTrigger>
+                  {categories.map((cat) => (
+                    <TabsTrigger key={cat.value} value={cat.value} className="whitespace-nowrap">
+                      {cat.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
 
-            <TabsContent value="all" className="mt-4">
-              <Card>
-                <CardContent className="p-2 md:p-4">
-                  <DataTable 
-                    columns={inventoryColumns} 
-                    data={uniqueInventory} 
-                    placeholder="Search products..."
-                    filterableColumns={[
-                      {
-                        id: "product_category",
-                        title: "Category",
-                        options: categories
-                      },
-                      {
-                        id: "status",
-                        title: "Status",
-                        options: inventoryStatuses
-                      }
-                    ]}
-                  />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {categories.map((cat) => (
-              <TabsContent key={cat.value} value={cat.value} className="mt-4">
+              <TabsContent value="all" className="mt-4">
                 <Card>
                   <CardContent className="p-2 md:p-4">
                     <DataTable 
                       columns={inventoryColumns} 
-                      data={uniqueInventory.filter(item => item.product?.category === cat.value)}
-                      placeholder={`Search ${cat.label}...`}
+                      data={uniqueInventory} 
+                      placeholder="Search products..."
                       filterableColumns={[
+                        {
+                          id: "product_category",
+                          title: "Category",
+                          options: categories
+                        },
                         {
                           id: "status",
                           title: "Status",
@@ -560,55 +606,102 @@ export function ShopDetailView({
                   </CardContent>
                 </Card>
               </TabsContent>
-            ))}
-          </Tabs>
+
+              {categories.map((cat) => (
+                <TabsContent key={cat.value} value={cat.value} className="mt-4">
+                  <Card>
+                    <CardContent className="p-2 md:p-4">
+                      <DataTable 
+                        columns={inventoryColumns} 
+                        data={uniqueInventory.filter(item => item.product?.category === cat.value)}
+                        placeholder={`Search ${cat.label}...`}
+                        filterableColumns={[
+                          {
+                            id: "status",
+                            title: "Status",
+                            options: inventoryStatuses
+                          }
+                        ]}
+                      />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              ))}
+            </Tabs>
+          </div>
         </TabsContent>
 
         <TabsContent value="transfers" className="space-y-4 data-[state=inactive]:hidden" forceMount={true}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Stock Transfers</CardTitle>
-              <CardDescription>Transfers involving this shop</CardDescription>
-            </CardHeader>
-            <CardContent className="p-2 md:p-4">
-               <DataTable 
-                columns={transferColumns} 
-                data={transfers} 
-                placeholder="Search transfers..."
-                dateFilterColumn="created_at"
-                filterableColumns={[
-                    {
-                        id: "status",
-                        title: "Status",
-                        options: transferStatuses
-                    }
-                ]}
-              />
-            </CardContent>
-          </Card>
+          <div ref={transfersRef}>
+            <Card>
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle>Stock Transfers</CardTitle>
+                  <CardDescription>Transfers involving this shop</CardDescription>
+                </div>
+                <div className="flex gap-2 print:hidden">
+                  <Button variant="outline" size="sm" onClick={handlePrintTransfers}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleExportTransfers}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-2 md:p-4">
+                 <DataTable 
+                  columns={transferColumns} 
+                  data={transfers} 
+                  placeholder="Search transfers..."
+                  dateFilterColumn="created_at"
+                  filterableColumns={[
+                      {
+                          id: "status",
+                          title: "Status",
+                          options: transferStatuses
+                      }
+                  ]}
+                />
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4 data-[state=inactive]:hidden" forceMount={true}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Transaction History</CardTitle>
-            </CardHeader>
-            <CardContent className="p-2 md:p-4">
-               <DataTable 
-                columns={historyColumns} 
-                data={transactions} 
-                placeholder="Search history..."
-                dateFilterColumn="created_at"
-                filterableColumns={[
-                    {
-                        id: "transaction_type",
-                        title: "Type",
-                        options: transactionTypes
-                    }
-                ]}
-              />
-            </CardContent>
-          </Card>
+          <div ref={historyRef}>
+            <Card>
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <CardTitle>Transaction History</CardTitle>
+                <div className="flex gap-2 print:hidden">
+                  <Button variant="outline" size="sm" onClick={handlePrintHistory}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleExportHistory}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-2 md:p-4">
+                 <DataTable 
+                  columns={historyColumns} 
+                  data={transactions} 
+                  placeholder="Search history..."
+                  dateFilterColumn="created_at"
+                  filterableColumns={[
+                      {
+                          id: "transaction_type",
+                          title: "Type",
+                          options: transactionTypes
+                      }
+                  ]}
+                />
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
       
