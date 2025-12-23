@@ -505,27 +505,63 @@ export function ShopDetailView({
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-4" forceMount={true}>
-          <Card>
-            <CardContent className="p-0">
-              <DataTable 
-                columns={inventoryColumns} 
-                data={uniqueInventory} 
-                placeholder="Search products..."
-                filterableColumns={[
-                  {
-                    id: "product_category",
-                    title: "Category",
-                    options: categories
-                  },
-                  {
-                    id: "status",
-                    title: "Status",
-                    options: inventoryStatuses
-                  }
-                ]}
-              />
-            </CardContent>
-          </Card>
+          <Tabs defaultValue="all" className="w-full">
+            <div className="w-full overflow-x-auto pb-2">
+              <TabsList className="w-full justify-start h-auto p-1 bg-muted/50">
+                <TabsTrigger value="all" className="min-w-[80px]">All Items</TabsTrigger>
+                {categories.map((cat) => (
+                  <TabsTrigger key={cat.value} value={cat.value} className="whitespace-nowrap">
+                    {cat.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+
+            <TabsContent value="all" className="mt-4">
+              <Card>
+                <CardContent className="p-2 md:p-4">
+                  <DataTable 
+                    columns={inventoryColumns} 
+                    data={uniqueInventory} 
+                    placeholder="Search products..."
+                    filterableColumns={[
+                      {
+                        id: "product_category",
+                        title: "Category",
+                        options: categories
+                      },
+                      {
+                        id: "status",
+                        title: "Status",
+                        options: inventoryStatuses
+                      }
+                    ]}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {categories.map((cat) => (
+              <TabsContent key={cat.value} value={cat.value} className="mt-4">
+                <Card>
+                  <CardContent className="p-2 md:p-4">
+                    <DataTable 
+                      columns={inventoryColumns} 
+                      data={uniqueInventory.filter(item => item.product?.category === cat.value)}
+                      placeholder={`Search ${cat.label}...`}
+                      filterableColumns={[
+                        {
+                          id: "status",
+                          title: "Status",
+                          options: inventoryStatuses
+                        }
+                      ]}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            ))}
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="transfers" className="space-y-4" forceMount={true}>
@@ -534,7 +570,7 @@ export function ShopDetailView({
               <CardTitle>Stock Transfers</CardTitle>
               <CardDescription>Transfers involving this shop</CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-2 md:p-4">
                <DataTable 
                 columns={transferColumns} 
                 data={transfers} 
@@ -557,7 +593,7 @@ export function ShopDetailView({
             <CardHeader>
               <CardTitle>Transaction History</CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-2 md:p-4">
                <DataTable 
                 columns={historyColumns} 
                 data={transactions} 
