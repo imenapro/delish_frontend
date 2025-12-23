@@ -4,12 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Package, ArrowLeftRight, History } from 'lucide-react';
+import { Package, ArrowLeftRight, History, Download, Printer } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { StockTransferDialog } from '@/components/inventory/StockTransferDialog';
 import { InventoryTransactionDialog } from '@/components/inventory/InventoryTransactionDialog';
 import { format } from 'date-fns';
+import { useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
 
 export default function Inventory() {
   const { data: inventory, isLoading: inventoryLoading } = useQuery({
@@ -76,6 +78,88 @@ export default function Inventory() {
     return colors[status] || 'bg-secondary';
   };
 
+  const stockRef = useRef<HTMLDivElement>(null);
+  const transfersRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef<HTMLDivElement>(null);
+
+  const handlePrintStock = useReactToPrint({
+    contentRef: stockRef,
+    documentTitle: 'Inventory-Stock',
+  });
+
+  const handlePrintTransfers = useReactToPrint({
+    contentRef: transfersRef,
+    documentTitle: 'Inventory-Transfers',
+  });
+
+  const handlePrintHistory = useReactToPrint({
+    contentRef: historyRef,
+    documentTitle: 'Inventory-History',
+  });
+
+  const downloadCsv = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handleExportStock = () => {
+    if (!inventory) return;
+    const headers = ['Product', 'Category', 'Shop', 'Stock', 'Quota'];
+    const csvContent = [
+      headers.join(','),
+      ...inventory.map(item => [
+        `"${item.product?.name}"`,
+        `"${item.product?.category}"`,
+        `"${item.shop?.name}"`,
+        item.stock,
+        item.quota_per_day
+      ].join(','))
+    ].join('\n');
+    downloadCsv(csvContent, 'inventory_stock.csv');
+  };
+
+  const handleExportTransfers = () => {
+    if (!transfers) return;
+    const headers = ['Date', 'Product', 'From', 'To', 'Quantity', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...transfers.map(item => [
+        format(new Date(item.created_at), 'yyyy-MM-dd HH:mm'),
+        `"${item.product?.name}"`,
+        `"${item.from_shop?.name}"`,
+        `"${item.to_shop?.name}"`,
+        item.quantity,
+        item.status
+      ].join(','))
+    ].join('\n');
+    downloadCsv(csvContent, 'inventory_transfers.csv');
+  };
+
+  const handleExportHistory = () => {
+    if (!transactions) return;
+    const headers = ['Date', 'Product', 'Type', 'Shop', 'Quantity'];
+    const csvContent = [
+      headers.join(','),
+      ...transactions.map(item => [
+        format(new Date(item.created_at), 'yyyy-MM-dd HH:mm'),
+        `"${item.product?.name}"`,
+        item.transaction_type,
+        `"${item.shop?.name}"`,
+        item.quantity
+      ].join(','))
+    ].join('\n');
+    downloadCsv(csvContent, 'inventory_history.csv');
+  };
+
   return (
     <ProtectedRoute requiredRoles={['admin', 'branch_manager', 'store_keeper']}>
       <Layout>
@@ -104,6 +188,17 @@ export default function Inventory() {
             </TabsList>
 
             <TabsContent value="stock" className="space-y-4">
+              <div className="flex justify-end gap-2 print:hidden">
+                <Button variant="outline" size="sm" onClick={handlePrintStock}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleExportStock}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export
+                </Button>
+              </div>
+              <div ref={stockRef}>
               {inventoryLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -141,9 +236,21 @@ export default function Inventory() {
                   </CardContent>
                 </Card>
               )}
+              </div>
             </TabsContent>
 
             <TabsContent value="transfers" className="space-y-4">
+              <div className="flex justify-end gap-2 print:hidden">
+                <Button variant="outline" size="sm" onClick={handlePrintTransfers}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleExportTransfers}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export
+                </Button>
+              </div>
+              <div ref={transfersRef}>
               {transfersLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -185,9 +292,21 @@ export default function Inventory() {
                   </CardContent>
                 </Card>
               )}
+              </div>
             </TabsContent>
 
             <TabsContent value="history" className="space-y-4">
+              <div className="flex justify-end gap-2 print:hidden">
+                <Button variant="outline" size="sm" onClick={handlePrintHistory}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleExportHistory}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export
+                </Button>
+              </div>
+              <div ref={historyRef}>
               {transactionsLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -227,6 +346,7 @@ export default function Inventory() {
                   </CardContent>
                 </Card>
               )}
+              </div>
             </TabsContent>
           </Tabs>
         </div>
