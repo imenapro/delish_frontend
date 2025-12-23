@@ -58,6 +58,7 @@ interface DataTableProps<TData, TValue> {
     }[]
   }[]
   dateFilterColumn?: string
+  actions?: React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -67,6 +68,7 @@ export function DataTable<TData, TValue>({
   placeholder = "Search...",
   filterableColumns = [],
   dateFilterColumn,
+  actions,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -219,6 +221,7 @@ export function DataTable<TData, TValue>({
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
+          {actions}
         </div>
       </div>
       <div className="rounded-md border">

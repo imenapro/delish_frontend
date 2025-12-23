@@ -30,6 +30,8 @@ interface ShopDetailViewProps {
 
 const LOW_STOCK_THRESHOLD = 10;
 
+import { transactionTypeFilterFn, getTransactionLabel } from './inventory-utils';
+
 export function ShopDetailView({ 
   shop, 
   inventory, 
@@ -436,10 +438,8 @@ export function ShopDetailView({
     {
         accessorKey: "transaction_type",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Type" />,
-        cell: ({ row }) => <Badge variant="outline">{row.original.transaction_type}</Badge>,
-        filterFn: (row, id, value) => {
-            return value.includes(row.getValue(id))
-        },
+        cell: ({ row }) => <Badge variant="outline">{getTransactionLabel(row.original.transaction_type)}</Badge>,
+        filterFn: transactionTypeFilterFn,
     },
     {
         accessorKey: "reason.name",
@@ -560,16 +560,6 @@ export function ShopDetailView({
           <div ref={inventoryRef} className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                <div></div> {/* Spacer */}
-               <div className="flex gap-2 print:hidden">
-                  <Button variant="outline" size="sm" onClick={handlePrintInventory}>
-                    <Printer className="mr-2 h-4 w-4" />
-                    Print
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleExportInventory}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Export
-                  </Button>
-               </div>
             </div>
             <Tabs defaultValue="all" className="w-full">
               <div className="w-full overflow-x-auto pb-2">
@@ -602,6 +592,18 @@ export function ShopDetailView({
                           options: inventoryStatuses
                         }
                       ]}
+                      actions={
+                        <div className="flex gap-2 print:hidden">
+                          <Button variant="outline" size="sm" onClick={handlePrintInventory}>
+                            <Printer className="mr-2 h-4 w-4" />
+                            Print
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={handleExportInventory}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Export
+                          </Button>
+                        </div>
+                      }
                     />
                   </CardContent>
                 </Card>
@@ -622,6 +624,18 @@ export function ShopDetailView({
                             options: inventoryStatuses
                           }
                         ]}
+                        actions={
+                            <div className="flex gap-2 print:hidden">
+                              <Button variant="outline" size="sm" onClick={handlePrintInventory}>
+                                <Printer className="mr-2 h-4 w-4" />
+                                Print
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={handleExportInventory}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Export
+                              </Button>
+                            </div>
+                          }
                       />
                     </CardContent>
                   </Card>
@@ -639,16 +653,6 @@ export function ShopDetailView({
                   <CardTitle>Stock Transfers</CardTitle>
                   <CardDescription>Transfers involving this shop</CardDescription>
                 </div>
-                <div className="flex gap-2 print:hidden">
-                  <Button variant="outline" size="sm" onClick={handlePrintTransfers}>
-                    <Printer className="mr-2 h-4 w-4" />
-                    Print
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleExportTransfers}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Export
-                  </Button>
-                </div>
               </CardHeader>
               <CardContent className="p-2 md:p-4">
                  <DataTable 
@@ -663,6 +667,18 @@ export function ShopDetailView({
                           options: transferStatuses
                       }
                   ]}
+                  actions={
+                    <div className="flex gap-2 print:hidden">
+                      <Button variant="outline" size="sm" onClick={handlePrintTransfers}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Print
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleExportTransfers}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Export
+                      </Button>
+                    </div>
+                  }
                 />
               </CardContent>
             </Card>
@@ -674,16 +690,6 @@ export function ShopDetailView({
             <Card>
               <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <CardTitle>Transaction History</CardTitle>
-                <div className="flex gap-2 print:hidden">
-                  <Button variant="outline" size="sm" onClick={handlePrintHistory}>
-                    <Printer className="mr-2 h-4 w-4" />
-                    Print
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleExportHistory}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Export
-                  </Button>
-                </div>
               </CardHeader>
               <CardContent className="p-2 md:p-4">
                  <DataTable 
@@ -698,6 +704,18 @@ export function ShopDetailView({
                           options: transactionTypes
                       }
                   ]}
+                  actions={
+                    <div className="flex gap-2 print:hidden">
+                      <Button variant="outline" size="sm" onClick={handlePrintHistory}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Print
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleExportHistory}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Export
+                      </Button>
+                    </div>
+                  }
                 />
               </CardContent>
             </Card>
