@@ -317,6 +317,47 @@ export type Database = {
           },
         ]
       }
+      inventory_reasons: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          is_system: boolean | null
+          name: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system?: boolean | null
+          name: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system?: boolean | null
+          name?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_reasons_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_transactions: {
         Row: {
           created_at: string | null
@@ -326,6 +367,10 @@ export type Database = {
           notes: string | null
           product_id: string
           quantity: number
+          reason_id: string | null
+          purchase_price: number | null
+          transfer_from_location: string | null
+          transfer_to_location: string | null
           reference_order_id: string | null
           shop_id: string
           to_shop_id: string | null
@@ -339,6 +384,10 @@ export type Database = {
           notes?: string | null
           product_id: string
           quantity: number
+          reason_id?: string | null
+          purchase_price?: number | null
+          transfer_from_location?: string | null
+          transfer_to_location?: string | null
           reference_order_id?: string | null
           shop_id: string
           to_shop_id?: string | null
@@ -352,6 +401,10 @@ export type Database = {
           notes?: string | null
           product_id?: string
           quantity?: number
+          reason_id?: string | null
+          purchase_price?: number | null
+          transfer_from_location?: string | null
+          transfer_to_location?: string | null
           reference_order_id?: string | null
           shop_id?: string
           to_shop_id?: string | null

@@ -26,6 +26,26 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
     product_id: '',
     quantity: '',
     notes: '',
+    reason_id: '',
+    purchase_price: '',
+    transfer_from_location: '',
+    transfer_to_location: '',
+  });
+
+  const { data: reasons } = useQuery({
+    queryKey: ['inventory-reasons', businessId, type],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('inventory_reasons')
+        .select('*')
+        .or(`type.eq.${type},type.eq.both`)
+        .eq('is_active', true)
+        .order('name');
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!businessId,
   });
 
   const { data: shops } = useQuery({
@@ -56,12 +76,15 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
     enabled: !!businessId,
   });
 
+  const selectedReason = reasons?.find(r => r.id === formData.reason_id);
+  const isPurchase = selectedReason?.name === 'Purchase';
+  const isTransfer = selectedReason?.name.includes('Transfer');
+
   const createTransactionMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const quantity = parseInt(data.quantity);
       const adjustedQuantity = type === 'out' ? -Math.abs(quantity) : Math.abs(quantity);
 
-      // Record the transaction
       const { error: txError } = await supabase
         .from('inventory_transactions')
         .insert([{
@@ -69,13 +92,15 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
           product_id: data.product_id,
           quantity: adjustedQuantity,
           transaction_type: type === 'in' ? 'in' : 'out',
-          notes: data.notes || null,
+          notes: data.notes,
+          reason_id: data.reason_id,
+          purchase_price: data.purchase_price ? parseFloat(data.purchase_price) : null,
+          transfer_from_location: data.transfer_from_location || null,
+          transfer_to_location: data.transfer_to_location || null,
           created_by: user?.id,
         }]);
 
       if (txError) throw txError;
-      
-      // Stock update is now handled by database trigger 'on_inventory_transaction_created'
     },
     onSuccess: () => {
       toast({
@@ -86,7 +111,16 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
       queryClient.invalidateQueries({ queryKey: ['shop-inventory', businessId] });
       queryClient.invalidateQueries({ queryKey: ['business-inventory', businessId] });
       setOpen(false);
-      setFormData({ shop_id: '', product_id: '', quantity: '', notes: '' });
+      setFormData({ 
+        shop_id: '', 
+        product_id: '', 
+        quantity: '', 
+        notes: '',
+        reason_id: '',
+        purchase_price: '',
+        transfer_from_location: '',
+        transfer_to_location: '',
+      });
     },
     onError: (error: any) => {
       toast({
@@ -105,7 +139,7 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
           Stock {type === 'in' ? 'In' : 'Out'}
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Stock {type === 'in' ? 'In' : 'Out'}</DialogTitle>
           <DialogDescription>
@@ -114,7 +148,7 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Shop</Label>
+            <Label>Shop <span className="text-red-500">*</span></Label>
             <Select value={formData.shop_id} onValueChange={(value) => setFormData({ ...formData, shop_id: value })}>
               <SelectTrigger>
                 <SelectValue placeholder="Select shop" />
@@ -126,8 +160,9 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
               </SelectContent>
             </Select>
           </div>
+
           <div className="space-y-2">
-            <Label>Product</Label>
+            <Label>Product <span className="text-red-500">*</span></Label>
             <Select value={formData.product_id} onValueChange={(value) => setFormData({ ...formData, product_id: value })}>
               <SelectTrigger>
                 <SelectValue placeholder="Select product" />
@@ -139,8 +174,58 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
               </SelectContent>
             </Select>
           </div>
+
           <div className="space-y-2">
-            <Label>Quantity</Label>
+            <Label>Reason <span className="text-red-500">*</span></Label>
+            <Select value={formData.reason_id} onValueChange={(value) => setFormData({ ...formData, reason_id: value })}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select reason" />
+              </SelectTrigger>
+              <SelectContent>
+                {reasons?.map((reason) => (
+                  <SelectItem key={reason.id} value={reason.id}>{reason.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isPurchase && (
+            <div className="space-y-2">
+              <Label>Purchase Price</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.purchase_price}
+                onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })}
+                placeholder="Enter purchase price"
+              />
+            </div>
+          )}
+
+          {isTransfer && (
+            <>
+              <div className="space-y-2">
+                <Label>Transfer From <span className="text-red-500">*</span></Label>
+                <Input
+                  value={formData.transfer_from_location}
+                  onChange={(e) => setFormData({ ...formData, transfer_from_location: e.target.value })}
+                  placeholder="Source location"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Transfer To <span className="text-red-500">*</span></Label>
+                <Input
+                  value={formData.transfer_to_location}
+                  onChange={(e) => setFormData({ ...formData, transfer_to_location: e.target.value })}
+                  placeholder="Destination location"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="space-y-2">
+            <Label>Quantity <span className="text-red-500">*</span></Label>
             <Input
               type="number"
               min="1"
@@ -149,12 +234,13 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
               placeholder={`Enter quantity to ${type === 'in' ? 'add' : 'remove'}`}
             />
           </div>
+
           <div className="space-y-2">
-            <Label>Notes (Optional)</Label>
+            <Label>Notes <span className="text-red-500">*</span></Label>
             <Textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder={type === 'in' ? 'e.g., New shipment received' : 'e.g., Damaged goods, expired items'}
+              placeholder="Mandatory comment..."
             />
           </div>
         </div>
@@ -165,7 +251,15 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
             if (createTransactionMutation.isPending) return;
             createTransactionMutation.mutate(formData);
           }}
-          disabled={createTransactionMutation.isPending || !formData.shop_id || !formData.product_id || !formData.quantity}
+          disabled={
+            createTransactionMutation.isPending || 
+            !formData.shop_id || 
+            !formData.product_id || 
+            !formData.quantity || 
+            !formData.reason_id || 
+            !formData.notes ||
+            (isTransfer && (!formData.transfer_from_location || !formData.transfer_to_location))
+          }
           className="w-full"
         >
           {createTransactionMutation.isPending ? "Processing..." : `Confirm Stock ${type === 'in' ? 'In' : 'Out'}`}
