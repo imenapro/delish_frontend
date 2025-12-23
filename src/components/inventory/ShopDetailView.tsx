@@ -9,11 +9,12 @@ import { Input } from '@/components/ui/input';
 import { 
   ArrowLeft, Download, Search, Filter, ArrowUpDown, 
   AlertTriangle, CheckCircle2, XCircle, Clock, Package, TrendingDown,
-  MapPin, Calendar
+  MapPin, Calendar, Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TenantInventoryTransactionDialog } from './TenantInventoryTransactionDialog';
+import { InventoryTransactionDetailsDialog } from './InventoryTransactionDetailsDialog';
 import { Plus, Minus } from 'lucide-react';
 
 interface ShopDetailViewProps {
@@ -40,6 +41,8 @@ export function ShopDetailView({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   // Filter and Sort Inventory
   // Deduplicate inventory items by product_id to prevent display issues
@@ -397,14 +400,17 @@ export function ShopDetailView({
                     <TableHead>Product</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Reason</TableHead>
+                    <TableHead>Transfer From</TableHead>
+                    <TableHead>Transfer To</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead>Notes</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {transactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         No transactions found
                       </TableCell>
                     </TableRow>
@@ -419,10 +425,28 @@ export function ShopDetailView({
                         <TableCell>
                           {transaction.reason?.name || '-'}
                         </TableCell>
+                        <TableCell>
+                          {transaction.transfer_from_location || '-'}
+                        </TableCell>
+                        <TableCell>
+                          {transaction.transfer_to_location || '-'}
+                        </TableCell>
                         <TableCell className="text-right">
                           {transaction.quantity > 0 ? '+' : ''}{transaction.quantity}
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm">{transaction.notes || '-'}</TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => {
+                              setSelectedTransaction(transaction);
+                              setIsDetailsOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -432,6 +456,12 @@ export function ShopDetailView({
           </Card>
         </TabsContent>
       </Tabs>
+      
+      <InventoryTransactionDetailsDialog 
+        transaction={selectedTransaction}
+        open={isDetailsOpen}
+        onOpenChange={setIsDetailsOpen}
+      />
     </div>
   );
 }
