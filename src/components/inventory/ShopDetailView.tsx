@@ -1,21 +1,22 @@
-
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { 
-  ArrowLeft, Download, Search, Filter, ArrowUpDown, 
+  ArrowLeft, Download, 
   AlertTriangle, CheckCircle2, XCircle, Clock, Package, TrendingDown,
-  MapPin, Calendar, Eye
+  MapPin, Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TenantInventoryTransactionDialog } from './TenantInventoryTransactionDialog';
 import { InventoryTransactionDetailsDialog } from './InventoryTransactionDetailsDialog';
 import { Plus, Minus } from 'lucide-react';
+import { DataTable } from '@/components/ui/data-table';
+import { ColumnDef } from '@tanstack/react-table';
+import { Checkbox } from "@/components/ui/checkbox";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { HighlightedText } from "@/components/ui/highlighted-text";
 
 interface ShopDetailViewProps {
   shop: any;
@@ -38,45 +39,51 @@ export function ShopDetailView({
 }: ShopDetailViewProps) {
   if (!shop) return null;
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-  // Filter and Sort Inventory
   // Deduplicate inventory items by product_id to prevent display issues
-  const uniqueInventory = inventory?.reduce((acc: any[], current) => {
-    if (!current.product_id) return acc;
-    const exists = acc.find(item => item.product_id === current.product_id);
-    if (!exists) {
-      return acc.concat([current]);
-    }
-    return acc;
-  }, []) || [];
+  const uniqueInventory = useMemo(() => {
+    return inventory?.reduce((acc: any[], current) => {
+      if (!current.product_id) return acc;
+      const exists = acc.find(item => item.product_id === current.product_id);
+      if (!exists) {
+        return acc.concat([current]);
+      }
+      return acc;
+    }, []) || [];
+  }, [inventory]);
 
-  const filteredInventory = uniqueInventory.filter((item) =>
-    item.product?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.product?.category?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const categories = useMemo(() => {
+    const cats = new Set(uniqueInventory.map(item => item.product?.category).filter(Boolean));
+    return Array.from(cats).map(cat => ({ label: cat, value: cat }));
+  }, [uniqueInventory]);
 
-  const sortedInventory = [...filteredInventory].sort((a, b) => {
-    let comparison = 0;
-    if (sortBy === 'name') {
-      comparison = (a.product?.name || '').localeCompare(b.product?.name || '');
-    } else if (sortBy === 'category') {
-      comparison = (a.product?.category || '').localeCompare(b.product?.category || '');
-    } else if (sortBy === 'stock') {
-      comparison = (a.stock || 0) - (b.stock || 0);
-    }
-    return sortOrder === 'asc' ? comparison : -comparison;
-  });
+  const inventoryStatuses = [
+    { label: "In Stock", value: "In Stock" },
+    { label: "Low Stock", value: "Low Stock" },
+    { label: "Out of Stock", value: "Out of Stock" },
+  ];
+
+  const transferStatuses = [
+      { label: "Pending", value: "pending" },
+      { label: "Approved", value: "approved" },
+      { label: "Rejected", value: "rejected" },
+  ];
+
+  const transactionTypes = [
+      { label: "Stock In", value: "stock_in" },
+      { label: "Stock Out", value: "stock_out" },
+      { label: "Transfer In", value: "transfer_in" },
+      { label: "Transfer Out", value: "transfer_out" },
+      { label: "Sale", value: "sale" },
+  ];
 
   const handleExport = () => {
     const headers = ['Product', 'Category', 'Stock', 'Price', 'Status'];
     const csvContent = [
       headers.join(','),
-      ...sortedInventory.map(item => [
+      ...uniqueInventory.map(item => [
         `"${item.product?.name}"`,
         `"${item.product?.category}"`,
         item.stock,
@@ -108,6 +115,319 @@ export function ShopDetailView({
         return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
     }
   };
+
+  const inventoryColumns: ColumnDef<any>[] = useMemo(() => [
+    {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected() ||
+              (table.getIsSomePageRowsSelected() && "indeterminate")
+            }
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+    },
+    {
+      accessorKey: "product.name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Product" />,
+      cell: ({ row, table }) => {
+        const item = row.original;
+        const searchTerm = (table.getState().globalFilter as string) || "";
+        return (
+          <div className="flex items-center gap-3">
+            {item.product?.image_url && (
+              <img 
+                src={item.product.image_url} 
+                alt={item.product.name} 
+                className="w-8 h-8 rounded object-cover"
+              />
+            )}
+            <span className="font-medium">
+                <HighlightedText text={item.product?.name} searchTerm={searchTerm} />
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "product.category",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Category" />,
+      filterFn: (row, id, value) => {
+        return value.includes(row.getValue(id))
+      },
+    },
+    {
+      accessorKey: "price",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Price" />,
+      cell: ({ row }) => <div className="text-right">{row.original.price?.toLocaleString()} RWF</div>,
+    },
+    {
+      accessorKey: "stock",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Stock" />,
+      cell: ({ row }) => <div className="text-right font-medium">{row.original.stock}</div>,
+    },
+    {
+      id: "status",
+      accessorFn: (row) => {
+          if (row.stock === 0) return "Out of Stock";
+          if (row.stock <= LOW_STOCK_THRESHOLD) return "Low Stock";
+          return "In Stock";
+      },
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => {
+        const stock = row.original.stock;
+        if (stock === 0) return <Badge variant="destructive">Out of Stock</Badge>;
+        if (stock <= LOW_STOCK_THRESHOLD) return <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">Low Stock</Badge>;
+        return <Badge className="bg-green-500/10 text-green-500 border-green-500/20">In Stock</Badge>;
+      },
+      filterFn: (row, id, value) => {
+        return value.includes(row.getValue(id))
+      },
+    },
+    {
+      id: "actions",
+      header: "Action",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <TenantInventoryTransactionDialog
+            businessId={shop.business_id}
+            type="in"
+            initialShopId={shop.id}
+            initialProductId={row.original.product_id}
+            trigger={
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="h-8 px-3 border-green-500/50 hover:bg-green-500/10 hover:text-green-600 text-green-600 font-medium transition-colors"
+                aria-label="Stock In"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Stock In
+              </Button>
+            }
+          />
+          <TenantInventoryTransactionDialog
+            businessId={shop.business_id}
+            type="out"
+            initialShopId={shop.id}
+            initialProductId={row.original.product_id}
+            trigger={
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="h-8 px-3 border-red-500/50 hover:bg-red-500/10 hover:text-red-600 text-red-600 font-medium transition-colors"
+                aria-label="Stock Out"
+              >
+                <Minus className="h-3.5 w-3.5 mr-1.5" />
+                Stock Out
+              </Button>
+            }
+          />
+        </div>
+      ),
+    },
+  ], [shop.business_id, shop.id]);
+
+  const transferColumns: ColumnDef<any>[] = useMemo(() => [
+    {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected() ||
+              (table.getIsSomePageRowsSelected() && "indeterminate")
+            }
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+    },
+    {
+      accessorKey: "created_at",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
+      cell: ({ row }) => format(new Date(row.original.created_at), 'MMM d, yyyy'),
+    },
+    {
+      accessorKey: "product.name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Product" />,
+      cell: ({ row, table }) => {
+          const searchTerm = (table.getState().globalFilter as string) || "";
+          return <span className="font-medium"><HighlightedText text={row.original.product?.name} searchTerm={searchTerm} /></span>
+      },
+    },
+    {
+      accessorKey: "from_shop.name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="From" />,
+    },
+    {
+      accessorKey: "to_shop.name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="To" />,
+    },
+    {
+      accessorKey: "quantity",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Qty" />,
+      cell: ({ row }) => <div className="text-right">{row.original.quantity}</div>,
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => getStatusBadge(row.original.status),
+      filterFn: (row, id, value) => {
+        return value.includes(row.getValue(id))
+      },
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const transfer = row.original;
+        if (transfer.status === 'pending' && transfer.to_shop_id === shop.id) {
+            return (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (updateTransferMutation.isPending) return;
+                      updateTransferMutation.mutate({ transferId: transfer.id, status: 'approved' });
+                    }}
+                    disabled={updateTransferMutation.isPending}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (updateTransferMutation.isPending) return;
+                      updateTransferMutation.mutate({ transferId: transfer.id, status: 'rejected' });
+                    }}
+                    disabled={updateTransferMutation.isPending}
+                  >
+                    Reject
+                  </Button>
+                </div>
+            )
+        }
+        return null;
+      }
+    },
+  ], [shop.id, updateTransferMutation]);
+
+  const historyColumns: ColumnDef<any>[] = useMemo(() => [
+    {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected() ||
+              (table.getIsSomePageRowsSelected() && "indeterminate")
+            }
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+    },
+    {
+        accessorKey: "created_at",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
+        cell: ({ row }) => format(new Date(row.original.created_at), 'MMM d, yyyy HH:mm'),
+    },
+    {
+        accessorKey: "product.name",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Product" />,
+        cell: ({ row, table }) => {
+            const searchTerm = (table.getState().globalFilter as string) || "";
+            return <span className="font-medium"><HighlightedText text={row.original.product?.name} searchTerm={searchTerm} /></span>
+        },
+    },
+    {
+        accessorKey: "transaction_type",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Type" />,
+        cell: ({ row }) => <Badge variant="outline">{row.original.transaction_type}</Badge>,
+        filterFn: (row, id, value) => {
+            return value.includes(row.getValue(id))
+        },
+    },
+    {
+        accessorKey: "reason.name",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Reason" />,
+        cell: ({ row }) => row.original.reason?.name || '-',
+    },
+    {
+        accessorKey: "transfer_from_location",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Transfer From" />,
+        cell: ({ row }) => row.original.transfer_from_location || '-',
+    },
+    {
+        accessorKey: "transfer_to_location",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Transfer To" />,
+        cell: ({ row }) => row.original.transfer_to_location || '-',
+    },
+    {
+        accessorKey: "quantity",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Quantity" />,
+        cell: ({ row }) => {
+            const qty = row.original.quantity;
+            return <div className="text-right">{qty > 0 ? '+' : ''}{qty}</div>
+        },
+    },
+    {
+        accessorKey: "notes",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Notes" />,
+        cell: ({ row }) => <span className="text-muted-foreground text-sm">{row.original.notes || '-'}</span>,
+    },
+    {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+            <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => {
+                setSelectedTransaction(row.original);
+                setIsDetailsOpen(true);
+            }}
+            >
+            <Eye className="h-4 w-4" />
+            </Button>
+        ),
+    },
+  ], []);
 
   return (
     <div className="space-y-6">
@@ -184,274 +504,73 @@ export function ShopDetailView({
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="inventory" className="space-y-4">
+        <TabsContent value="inventory" className="space-y-4" forceMount={true}>
           <Card>
-            <CardHeader>
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search products..."
-                    className="pl-8"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Sort by" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="name">Name</SelectItem>
-                      <SelectItem value="category">Category</SelectItem>
-                      <SelectItem value="stock">Stock Level</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                  >
-                    <ArrowUpDown className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                    <TableHead className="text-right">Stock</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedInventory.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        No products found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    sortedInventory.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            {item.product?.image_url && (
-                              <img 
-                                src={item.product.image_url} 
-                                alt={item.product.name} 
-                                className="w-8 h-8 rounded object-cover"
-                              />
-                            )}
-                            <span className="font-medium">{item.product?.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{item.product?.category}</TableCell>
-                        <TableCell className="text-right">{item.price?.toLocaleString()} RWF</TableCell>
-                        <TableCell className="text-right font-medium">{item.stock}</TableCell>
-                        <TableCell>
-                          {item.stock === 0 ? (
-                            <Badge variant="destructive">Out of Stock</Badge>
-                          ) : item.stock <= LOW_STOCK_THRESHOLD ? (
-                            <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">Low Stock</Badge>
-                          ) : (
-                            <Badge className="bg-green-500/10 text-green-500 border-green-500/20">In Stock</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <TenantInventoryTransactionDialog
-                              businessId={shop.business_id}
-                              type="in"
-                              initialShopId={shop.id}
-                              initialProductId={item.product_id}
-                              trigger={
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  className="h-8 px-3 border-green-500/50 hover:bg-green-500/10 hover:text-green-600 text-green-600 font-medium transition-colors"
-                                  aria-label="Stock In"
-                                >
-                                  <Plus className="h-3.5 w-3.5 mr-1.5" />
-                                  Stock In
-                                </Button>
-                              }
-                            />
-                            <TenantInventoryTransactionDialog
-                              businessId={shop.business_id}
-                              type="out"
-                              initialShopId={shop.id}
-                              initialProductId={item.product_id}
-                              trigger={
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  className="h-8 px-3 border-red-500/50 hover:bg-red-500/10 hover:text-red-600 text-red-600 font-medium transition-colors"
-                                  aria-label="Stock Out"
-                                >
-                                  <Minus className="h-3.5 w-3.5 mr-1.5" />
-                                  Stock Out
-                                </Button>
-                              }
-                            />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+            <CardContent className="p-0">
+              <DataTable 
+                columns={inventoryColumns} 
+                data={uniqueInventory} 
+                placeholder="Search products..."
+                filterableColumns={[
+                  {
+                    id: "product_category",
+                    title: "Category",
+                    options: categories
+                  },
+                  {
+                    id: "status",
+                    title: "Status",
+                    options: inventoryStatuses
+                  }
+                ]}
+              />
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="transfers" className="space-y-4">
+        <TabsContent value="transfers" className="space-y-4" forceMount={true}>
           <Card>
             <CardHeader>
               <CardTitle>Stock Transfers</CardTitle>
               <CardDescription>Transfers involving this shop</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>From</TableHead>
-                    <TableHead>To</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {transfers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No transfers found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    transfers.map((transfer) => (
-                      <TableRow key={transfer.id}>
-                        <TableCell>{format(new Date(transfer.created_at), 'MMM d, yyyy')}</TableCell>
-                        <TableCell className="font-medium">{transfer.product?.name}</TableCell>
-                        <TableCell>{transfer.from_shop?.name}</TableCell>
-                        <TableCell>{transfer.to_shop?.name}</TableCell>
-                        <TableCell className="text-right">{transfer.quantity}</TableCell>
-                        <TableCell>{getStatusBadge(transfer.status)}</TableCell>
-                        <TableCell>
-                          {transfer.status === 'pending' && transfer.to_shop_id === shop.id && (
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (updateTransferMutation.isPending) return;
-                                  updateTransferMutation.mutate({ transferId: transfer.id, status: 'approved' });
-                                }}
-                                disabled={updateTransferMutation.isPending}
-                              >
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (updateTransferMutation.isPending) return;
-                                  updateTransferMutation.mutate({ transferId: transfer.id, status: 'rejected' });
-                                }}
-                                disabled={updateTransferMutation.isPending}
-                              >
-                                Reject
-                              </Button>
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+            <CardContent className="p-0">
+               <DataTable 
+                columns={transferColumns} 
+                data={transfers} 
+                placeholder="Search transfers..."
+                dateFilterColumn="created_at"
+                filterableColumns={[
+                    {
+                        id: "status",
+                        title: "Status",
+                        options: transferStatuses
+                    }
+                ]}
+              />
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="history" className="space-y-4">
+        <TabsContent value="history" className="space-y-4" forceMount={true}>
           <Card>
             <CardHeader>
               <CardTitle>Transaction History</CardTitle>
             </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Reason</TableHead>
-                    <TableHead>Transfer From</TableHead>
-                    <TableHead>Transfer To</TableHead>
-                    <TableHead className="text-right">Quantity</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {transactions.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                        No transactions found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    transactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell>{format(new Date(transaction.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
-                        <TableCell className="font-medium">{transaction.product?.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{transaction.transaction_type}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {transaction.reason?.name || '-'}
-                        </TableCell>
-                        <TableCell>
-                          {transaction.transfer_from_location || '-'}
-                        </TableCell>
-                        <TableCell>
-                          {transaction.transfer_to_location || '-'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {transaction.quantity > 0 ? '+' : ''}{transaction.quantity}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{transaction.notes || '-'}</TableCell>
-                        <TableCell>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => {
-                              setSelectedTransaction(transaction);
-                              setIsDetailsOpen(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+            <CardContent className="p-0">
+               <DataTable 
+                columns={historyColumns} 
+                data={transactions} 
+                placeholder="Search history..."
+                dateFilterColumn="created_at"
+                filterableColumns={[
+                    {
+                        id: "transaction_type",
+                        title: "Type",
+                        options: transactionTypes
+                    }
+                ]}
+              />
             </CardContent>
           </Card>
         </TabsContent>
