@@ -45,7 +45,12 @@ export default function TenantAdmin() {
       console.log('Sending request for:', { domain: customDomain, storeId: store.id });
       
       const { data, error } = await supabase.functions.invoke('add-domain', {
-        body: { domain: customDomain, storeId: store.id }
+        body: { 
+          domain: customDomain, 
+          storeId: store.id,
+          // Pass environment info to help server decide which DO App to update
+          appEnv: (import.meta as any).env.VITE_APP_ENV || (import.meta as any).env.MODE
+        }
       });
 
       if (error) {

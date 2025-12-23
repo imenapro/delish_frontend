@@ -39,7 +39,7 @@ serve(async (req) => {
       )
     }
 
-    const { domain, storeId } = await req.json()
+    const { domain, storeId, appEnv } = await req.json()
 
     if (!domain || !storeId) {
       throw new Error('Missing domain or storeId')
@@ -54,7 +54,9 @@ serve(async (req) => {
     let doAppId = (Deno.env.get('DIGITALOCEAN_APP_ID_PROD') || '').trim() // Default to Prod
 
     // If request comes from dev environment, use Dev App ID
-    if (origin.includes('dev.delish.rw') || origin.includes('localhost')) {
+    const isDev = appEnv === 'development' || origin.includes('localhost');
+    
+    if (isDev) {
       const devId = (Deno.env.get('DIGITALOCEAN_APP_ID_DEV') || '').trim()
       if (devId) {
         console.log('Request from dev environment. Using Dev App ID.')

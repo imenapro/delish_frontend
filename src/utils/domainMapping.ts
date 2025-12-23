@@ -7,12 +7,19 @@ export const CUSTOM_DOMAINS: Record<string, string> = {
 /**
  * Platform host = the shared app host (DigitalOcean default, or later your main SaaS domain).
  * Set this in DO as: VITE_PLATFORM_HOST=lionfish-app-7g7rn.ondigitalocean.app
- *
+ * 
  * Why host (not full URL)? Because we build URLs safely.
  */
 export const PLATFORM_HOST =
   (import.meta as any).env?.VITE_PLATFORM_HOST ||
-  window.location.host; // fallback (works but env var is better)
+  (typeof window !== 'undefined' ? window.location.host : 'localhost:3000'); // fallback
+
+/**
+ * MAIN_DOMAIN is the primary entry point. 
+ * We dynamically set this to the configured PLATFORM_HOST.
+ * This eliminates hardcoded references like "dev.delish.rw".
+ */
+export const MAIN_DOMAIN = PLATFORM_HOST;
 
 export const getStoreSlugFromDomain = (hostname: string): string | null => {
   return CUSTOM_DOMAINS[hostname] || null;
@@ -60,13 +67,13 @@ export const getAbsoluteUrlForStore = (
   if (domainEntry) {
     const [domain] = domainEntry;
     // already on that domain => relative
-    if (window.location.hostname === domain) return path;
+    if (typeof window !== 'undefined' && window.location.hostname === domain) return path;
     return `https://${domain}${path}`;
   }
 
   // 2) For non-custom store: use platform host
   // If we're already on platform host, just use relative
-  if (isPlatformHost(window.location.host)) {
+  if (typeof window !== 'undefined' && isPlatformHost(window.location.host)) {
     return `/${slug}${path}`;
   }
 
