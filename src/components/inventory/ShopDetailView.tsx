@@ -19,13 +19,61 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { HighlightedText } from "@/components/ui/highlighted-text";
 import { useReactToPrint } from 'react-to-print';
 
+import { UseMutationResult } from '@tanstack/react-query';
+
+interface Shop {
+  id: string;
+  name: string;
+  business_id: string;
+  address?: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  category: string;
+  image_url?: string;
+}
+
+interface InventoryItem {
+  product_id: string;
+  stock: number;
+  price: number;
+  product?: Product;
+}
+
+interface Transfer {
+  id: string;
+  created_at: string;
+  quantity: number;
+  status: string;
+  product?: Product;
+  from_shop?: Shop;
+  to_shop?: Shop;
+  to_shop_id?: string;
+}
+
+interface Transaction {
+  id: string;
+  created_at: string;
+  transaction_type: string;
+  quantity: number;
+  notes?: string;
+  transfer_from_location?: string;
+  transfer_to_location?: string;
+  product?: Product;
+  reason?: {
+    name: string;
+  };
+}
+
 interface ShopDetailViewProps {
-  shop: any;
-  inventory: any[];
-  transfers: any[];
-  transactions: any[];
+  shop: Shop;
+  inventory: InventoryItem[];
+  transfers: Transfer[];
+  transactions: Transaction[];
   onBack: () => void;
-  updateTransferMutation: any;
+  updateTransferMutation: UseMutationResult<unknown, Error, { transferId: string; status: string }>;
 }
 
 const LOW_STOCK_THRESHOLD = 10;
@@ -40,9 +88,7 @@ export function ShopDetailView({
   onBack,
   updateTransferMutation 
 }: ShopDetailViewProps) {
-  if (!shop) return null;
-
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const inventoryRef = useRef<HTMLDivElement>(null);
@@ -51,22 +97,22 @@ export function ShopDetailView({
 
   const handlePrintInventory = useReactToPrint({
     contentRef: inventoryRef,
-    documentTitle: `${shop.name}-inventory`,
+    documentTitle: shop ? `${shop.name}-inventory` : 'inventory',
   });
 
   const handlePrintTransfers = useReactToPrint({
     contentRef: transfersRef,
-    documentTitle: `${shop.name}-transfers`,
+    documentTitle: shop ? `${shop.name}-transfers` : 'transfers',
   });
 
   const handlePrintHistory = useReactToPrint({
     contentRef: historyRef,
-    documentTitle: `${shop.name}-history`,
+    documentTitle: shop ? `${shop.name}-history` : 'history',
   });
 
   // Deduplicate inventory items by product_id to prevent display issues
   const uniqueInventory = useMemo(() => {
-    return inventory?.reduce((acc: any[], current) => {
+    return inventory?.reduce((acc: InventoryItem[], current) => {
       if (!current.product_id) return acc;
       const exists = acc.find(item => item.product_id === current.product_id);
       if (!exists) {
@@ -77,93 +123,9 @@ export function ShopDetailView({
   }, [inventory]);
 
   const categories = useMemo(() => {
-    const cats = new Set(uniqueInventory.map(item => item.product?.category).filter(Boolean));
+    const cats = new Set(uniqueInventory.map(item => item.product?.category).filter((c): c is string => !!c));
     return Array.from(cats).map(cat => ({ label: cat, value: cat }));
   }, [uniqueInventory]);
-
-  const inventoryStatuses = [
-    { label: "In Stock", value: "In Stock" },
-    { label: "Low Stock", value: "Low Stock" },
-    { label: "Out of Stock", value: "Out of Stock" },
-  ];
-
-  const transferStatuses = [
-      { label: "Pending", value: "pending" },
-      { label: "Approved", value: "approved" },
-      { label: "Rejected", value: "rejected" },
-  ];
-
-  const transactionTypes = [
-      { label: "Stock In", value: "stock_in" },
-      { label: "Stock Out", value: "stock_out" },
-      { label: "Transfer In", value: "transfer_in" },
-      { label: "Transfer Out", value: "transfer_out" },
-      { label: "Sale", value: "sale" },
-  ];
-
-  const downloadCsv = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  };
-
-  const handleExportInventory = () => {
-    const headers = ['Product', 'Category', 'Stock', 'Price', 'Status'];
-    const csvContent = [
-      headers.join(','),
-      ...uniqueInventory.map(item => [
-        `"${item.product?.name}"`,
-        `"${item.product?.category}"`,
-        item.stock,
-        item.price,
-        item.stock === 0 ? 'Out of Stock' : item.stock <= LOW_STOCK_THRESHOLD ? 'Low Stock' : 'In Stock'
-      ].join(','))
-    ].join('\n');
-
-    downloadCsv(csvContent, `${shop.name}_inventory_report.csv`);
-  };
-
-  const handleExportTransfers = () => {
-    const headers = ['Date', 'Product', 'From', 'To', 'Quantity', 'Status'];
-    const csvContent = [
-      headers.join(','),
-      ...transfers.map(item => [
-        format(new Date(item.created_at), 'yyyy-MM-dd'),
-        `"${item.product?.name}"`,
-        `"${item.from_shop?.name}"`,
-        `"${item.to_shop?.name}"`,
-        item.quantity,
-        item.status
-      ].join(','))
-    ].join('\n');
-    downloadCsv(csvContent, `${shop.name}_transfers.csv`);
-  };
-
-  const handleExportHistory = () => {
-    const headers = ['Date', 'Product', 'Type', 'Reason', 'From', 'To', 'Quantity', 'Notes'];
-    const csvContent = [
-      headers.join(','),
-      ...transactions.map(item => [
-        format(new Date(item.created_at), 'yyyy-MM-dd HH:mm'),
-        `"${item.product?.name}"`,
-        item.transaction_type,
-        `"${item.reason?.name || ''}"`,
-        `"${item.transfer_from_location || ''}"`,
-        `"${item.transfer_to_location || ''}"`,
-        item.quantity,
-        `"${item.notes || ''}"`
-      ].join(','))
-    ].join('\n');
-    downloadCsv(csvContent, `${shop.name}_history.csv`);
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -176,7 +138,9 @@ export function ShopDetailView({
     }
   };
 
-  const inventoryColumns: ColumnDef<any>[] = useMemo(() => [
+  const inventoryColumns: ColumnDef<InventoryItem>[] = useMemo(() => {
+    if (!shop) return [];
+    return [
     {
         id: "select",
         header: ({ table }) => (
@@ -298,9 +262,12 @@ export function ShopDetailView({
         </div>
       ),
     },
-  ], [shop.business_id, shop.id]);
+    ];
+  }, [shop]);
 
-  const transferColumns: ColumnDef<any>[] = useMemo(() => [
+  const transferColumns: ColumnDef<Transfer>[] = useMemo(() => {
+    if (!shop) return [];
+    return [
     {
         id: "select",
         header: ({ table }) => (
@@ -397,9 +364,10 @@ export function ShopDetailView({
         return null;
       }
     },
-  ], [shop.id, updateTransferMutation]);
+    ];
+  }, [shop?.id, updateTransferMutation]);
 
-  const historyColumns: ColumnDef<any>[] = useMemo(() => [
+  const historyColumns: ColumnDef<Transaction>[] = useMemo(() => [
     {
         id: "select",
         header: ({ table }) => (
@@ -486,6 +454,92 @@ export function ShopDetailView({
         ),
     },
   ], []);
+
+  if (!shop) return null;
+
+  const inventoryStatuses = [
+    { label: "In Stock", value: "In Stock" },
+    { label: "Low Stock", value: "Low Stock" },
+    { label: "Out of Stock", value: "Out of Stock" },
+  ];
+
+  const transferStatuses = [
+      { label: "Pending", value: "pending" },
+      { label: "Approved", value: "approved" },
+      { label: "Rejected", value: "rejected" },
+  ];
+
+  const transactionTypes = [
+      { label: "Stock In", value: "stock_in" },
+      { label: "Stock Out", value: "stock_out" },
+      { label: "Transfer In", value: "transfer_in" },
+      { label: "Transfer Out", value: "transfer_out" },
+      { label: "Sale", value: "sale" },
+  ];
+
+  const downloadCsv = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handleExportInventory = () => {
+    const headers = ['Product', 'Category', 'Stock', 'Price', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...uniqueInventory.map(item => [
+        `"${item.product?.name}"`,
+        `"${item.product?.category}"`,
+        item.stock,
+        item.price,
+        item.stock === 0 ? 'Out of Stock' : item.stock <= LOW_STOCK_THRESHOLD ? 'Low Stock' : 'In Stock'
+      ].join(','))
+    ].join('\n');
+
+    downloadCsv(csvContent, `${shop.name}_inventory_report.csv`);
+  };
+
+  const handleExportTransfers = () => {
+    const headers = ['Date', 'Product', 'From', 'To', 'Quantity', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...transfers.map(item => [
+        format(new Date(item.created_at), 'yyyy-MM-dd'),
+        `"${item.product?.name}"`,
+        `"${item.from_shop?.name}"`,
+        `"${item.to_shop?.name}"`,
+        item.quantity,
+        item.status
+      ].join(','))
+    ].join('\n');
+    downloadCsv(csvContent, `${shop.name}_transfers.csv`);
+  };
+
+  const handleExportHistory = () => {
+    const headers = ['Date', 'Product', 'Type', 'Reason', 'From', 'To', 'Quantity', 'Notes'];
+    const csvContent = [
+      headers.join(','),
+      ...transactions.map(item => [
+        format(new Date(item.created_at), 'yyyy-MM-dd HH:mm'),
+        `"${item.product?.name}"`,
+        item.transaction_type,
+        `"${item.reason?.name || ''}"`,
+        `"${item.transfer_from_location || ''}"`,
+        `"${item.transfer_to_location || ''}"`,
+        item.quantity,
+        `"${item.notes || ''}"`
+      ].join(','))
+    ].join('\n');
+    downloadCsv(csvContent, `${shop.name}_history.csv`);
+  };
 
   return (
     <div className="space-y-6">

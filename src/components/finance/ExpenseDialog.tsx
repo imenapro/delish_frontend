@@ -58,7 +58,7 @@ export function ExpenseDialog() {
       setOpen(false);
       setFormData({ shop_id: '', category: '', amount: '', description: '', expense_date: new Date().toISOString().split('T')[0] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message,

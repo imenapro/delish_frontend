@@ -24,7 +24,7 @@ export function SystemSettings() {
         .in('setting_key', ['revenue_percentage', 'iva_percentage']);
       if (error) throw error;
       
-      const settingsMap: Record<string, any> = {};
+      const settingsMap: Record<string, string | number | boolean> = {};
       data?.forEach(s => {
         settingsMap[s.setting_key] = s.setting_value;
       });
@@ -45,7 +45,7 @@ export function SystemSettings() {
   });
 
   const updateSettingMutation = useMutation({
-    mutationFn: async ({ key, value }: { key: string; value: any }) => {
+    mutationFn: async ({ key, value }: { key: string; value: string | number | boolean }) => {
       const { error } = await supabase
         .from('system_settings')
         .upsert({ 
@@ -64,9 +64,10 @@ export function SystemSettings() {
 
   const updateSalaryMutation = useMutation({
     mutationFn: async ({ role, amount }: { role: string; amount: number }) => {
+      // Cast role to string as it's an enum in DB but string in JS
       const { error } = await supabase
         .from('salary_settings')
-        .upsert({ role: role as any, amount, currency: 'RWF' }, { onConflict: 'role' });
+        .upsert({ role: role as "manager" | "sales_person" | "baker", amount, currency: 'RWF' }, { onConflict: 'role' });
       if (error) throw error;
     },
     onSuccess: () => {

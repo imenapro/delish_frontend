@@ -21,7 +21,7 @@ export default function TenantAdmin() {
     if (!customDomain) return;
     
     // Basic validation
-    const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
+    const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
     if (!domainRegex.test(customDomain)) {
       toast({
         title: "Invalid Domain",
@@ -44,12 +44,13 @@ export default function TenantAdmin() {
     try {
       console.log('Sending request for:', { domain: customDomain, storeId: store.id });
       
+      const env = import.meta.env as unknown as Record<string, string>;
       const { data, error } = await supabase.functions.invoke('add-domain', {
         body: { 
           domain: customDomain, 
           storeId: store.id,
           // Pass environment info to help server decide which DO App to update
-          appEnv: (import.meta as any).env.VITE_APP_ENV || (import.meta as any).env.MODE
+          appEnv: env.VITE_APP_ENV || env.MODE
         }
       });
 
@@ -60,7 +61,7 @@ export default function TenantAdmin() {
         let errorMessage = "Failed to connect domain";
         try {
            if (typeof error === 'object' && error !== null) {
-              // @ts-ignore
+              // @ts-expect-error - error object structure is unknown
               errorMessage = error.message || JSON.stringify(error);
            } else {
               errorMessage = String(error);
@@ -79,9 +80,9 @@ export default function TenantAdmin() {
       });
       setCustomDomain('');
       refreshStore();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error connecting domain:', error);
-      const msg = error.message || "Could not connect domain. Please try again or contact support.";
+      const msg = error instanceof Error ? error.message : "Could not connect domain. Please try again or contact support.";
       setLastError(msg);
       toast({
         title: "Connection Failed",

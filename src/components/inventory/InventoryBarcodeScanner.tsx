@@ -16,6 +16,13 @@ interface InventoryBarcodeScannerProps {
   businessId: string;
 }
 
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+}
+
 export function InventoryBarcodeScanner({ businessId }: InventoryBarcodeScannerProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -23,7 +30,7 @@ export function InventoryBarcodeScanner({ businessId }: InventoryBarcodeScannerP
   const [open, setOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scannedBarcode, setScannedBarcode] = useState('');
-  const [foundProduct, setFoundProduct] = useState<any>(null);
+  const [foundProduct, setFoundProduct] = useState<Product | null>(null);
   const [transactionType, setTransactionType] = useState<'in' | 'out'>('in');
   const [selectedShopId, setSelectedShopId] = useState('');
   const [quantity, setQuantity] = useState('1');
@@ -164,7 +171,7 @@ export function InventoryBarcodeScanner({ businessId }: InventoryBarcodeScannerP
       queryClient.invalidateQueries({ queryKey: ['inventory-transactions', businessId] });
       resetForm();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     },
   });

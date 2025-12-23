@@ -69,7 +69,7 @@ export function StockTransferDialog() {
       setOpen(false);
       setFormData({ from_shop_id: '', to_shop_id: '', product_id: '', quantity: '', notes: '' });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message,
