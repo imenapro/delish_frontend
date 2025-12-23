@@ -14,16 +14,25 @@ import { Plus, Minus } from 'lucide-react';
 interface TenantInventoryTransactionDialogProps {
   businessId: string;
   type: 'in' | 'out';
+  initialShopId?: string;
+  initialProductId?: string;
+  trigger?: React.ReactNode;
 }
 
-export function TenantInventoryTransactionDialog({ businessId, type }: TenantInventoryTransactionDialogProps) {
+export function TenantInventoryTransactionDialog({ 
+  businessId, 
+  type,
+  initialShopId,
+  initialProductId,
+  trigger
+}: TenantInventoryTransactionDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
-    shop_id: '',
-    product_id: '',
+    shop_id: initialShopId || '',
+    product_id: initialProductId || '',
     quantity: '',
     notes: '',
     reason_id: '',
@@ -112,8 +121,8 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
       queryClient.invalidateQueries({ queryKey: ['business-inventory', businessId] });
       setOpen(false);
       setFormData({ 
-        shop_id: '', 
-        product_id: '', 
+        shop_id: initialShopId || '', 
+        product_id: initialProductId || '', 
         quantity: '', 
         notes: '',
         reason_id: '',
@@ -134,10 +143,12 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={type === 'in' ? 'default' : 'outline'}>
-          {type === 'in' ? <Plus className="mr-2 h-4 w-4" /> : <Minus className="mr-2 h-4 w-4" />}
-          Stock {type === 'in' ? 'In' : 'Out'}
-        </Button>
+        {trigger || (
+          <Button variant={type === 'in' ? 'default' : 'outline'}>
+            {type === 'in' ? <Plus className="mr-2 h-4 w-4" /> : <Minus className="mr-2 h-4 w-4" />}
+            Stock {type === 'in' ? 'In' : 'Out'}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -149,7 +160,11 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Shop <span className="text-red-500">*</span></Label>
-            <Select value={formData.shop_id} onValueChange={(value) => setFormData({ ...formData, shop_id: value })}>
+            <Select 
+              value={formData.shop_id} 
+              onValueChange={(value) => setFormData({ ...formData, shop_id: value })}
+              disabled={!!initialShopId}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select shop" />
               </SelectTrigger>
@@ -163,7 +178,11 @@ export function TenantInventoryTransactionDialog({ businessId, type }: TenantInv
 
           <div className="space-y-2">
             <Label>Product <span className="text-red-500">*</span></Label>
-            <Select value={formData.product_id} onValueChange={(value) => setFormData({ ...formData, product_id: value })}>
+            <Select 
+              value={formData.product_id} 
+              onValueChange={(value) => setFormData({ ...formData, product_id: value })}
+              disabled={!!initialProductId}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select product" />
               </SelectTrigger>

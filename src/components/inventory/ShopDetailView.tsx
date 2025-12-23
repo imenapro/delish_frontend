@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { StockAdjustmentDialog } from './StockAdjustmentDialog';
+import { TenantInventoryTransactionDialog } from './TenantInventoryTransactionDialog';
 import { Plus, Minus } from 'lucide-react';
 
 interface ShopDetailViewProps {
@@ -263,11 +263,11 @@ export function ShopDetailView({
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <StockAdjustmentDialog
-                              shopId={shop.id}
-                              productId={item.product_id}
-                              productName={item.product?.name}
+                            <TenantInventoryTransactionDialog
+                              businessId={shop.business_id}
                               type="in"
+                              initialShopId={shop.id}
+                              initialProductId={item.product_id}
                               trigger={
                                 <Button 
                                   size="sm" 
@@ -280,11 +280,11 @@ export function ShopDetailView({
                                 </Button>
                               }
                             />
-                            <StockAdjustmentDialog
-                              shopId={shop.id}
-                              productId={item.product_id}
-                              productName={item.product?.name}
+                            <TenantInventoryTransactionDialog
+                              businessId={shop.business_id}
                               type="out"
+                              initialShopId={shop.id}
+                              initialProductId={item.product_id}
                               trigger={
                                 <Button 
                                   size="sm" 
@@ -396,6 +396,7 @@ export function ShopDetailView({
                     <TableHead>Date</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Type</TableHead>
+                    <TableHead>Reason</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead>Notes</TableHead>
                   </TableRow>
@@ -403,7 +404,7 @@ export function ShopDetailView({
                 <TableBody>
                   {transactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         No transactions found
                       </TableCell>
                     </TableRow>
@@ -414,6 +415,9 @@ export function ShopDetailView({
                         <TableCell className="font-medium">{transaction.product?.name}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{transaction.transaction_type}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {transaction.reason?.name || '-'}
                         </TableCell>
                         <TableCell className="text-right">
                           {transaction.quantity > 0 ? '+' : ''}{transaction.quantity}

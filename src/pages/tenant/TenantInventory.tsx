@@ -93,7 +93,8 @@ export default function TenantInventory() {
         .select(`
           *,
           product:products (name),
-          shop:shops!inventory_transactions_shop_id_fkey (name)
+          shop:shops!inventory_transactions_shop_id_fkey (name),
+          reason:inventory_reasons (name)
         `)
         .in('shop_id', shopIds)
         .order('created_at', { ascending: false })
