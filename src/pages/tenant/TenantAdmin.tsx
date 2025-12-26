@@ -8,6 +8,7 @@ import { useStoreContext } from '@/contexts/StoreContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { isCustomDomain } from '@/utils/domainMapping';
+import { TenantEmailSettings } from '@/components/tenant/TenantEmailSettings';
 
 export default function TenantAdmin() {
   const { store, refreshStore } = useStoreContext();
@@ -212,6 +213,10 @@ export default function TenantAdmin() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-6">
+        <TenantEmailSettings />
       </div>
     </TenantPageWrapper>
   );

@@ -7,13 +7,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
-import { Settings, DollarSign } from 'lucide-react';
+import { Settings, DollarSign, Mail, Loader2 } from 'lucide-react';
 
 export function SystemSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [revenue, setRevenue] = useState('');
   const [iva, setIva] = useState('');
+  const [testEmail, setTestEmail] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const { data: settings } = useQuery({
     queryKey: ['system-settings'],
@@ -75,6 +77,37 @@ export function SystemSettings() {
       toast({ title: 'Salary updated successfully' });
     },
   });
+
+  const handleSendTestEmail = async () => {
+    if (!testEmail) return;
+    setSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-email', {
+        body: {
+          to: testEmail,
+          subject: 'Test Email from BakeSync',
+          html: '<h1>It Works!</h1><p>This is a test email from your BakeSync system to verify the email configuration.</p>',
+          text: 'It Works! This is a test email from your BakeSync system.'
+        }
+      });
+
+      if (error) throw error;
+      
+      toast({ 
+        title: 'Email Sent', 
+        description: `Test email sent to ${testEmail}` 
+      });
+    } catch (error) {
+      console.error('Email error:', error);
+      toast({ 
+        title: 'Failed to send email', 
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'destructive'
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -165,6 +198,43 @@ export function SystemSettings() {
                 </div>
               );
             })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-[var(--shadow-medium)]">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Email Configuration Test
+          </CardTitle>
+          <CardDescription>Verify your email service settings (Gmail / Fallback)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-4">
+            <div className="space-y-2 flex-1">
+              <Label htmlFor="test-email">Recipient Email</Label>
+              <Input
+                id="test-email"
+                type="email"
+                placeholder="you@example.com"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+              />
+            </div>
+            <Button 
+              onClick={handleSendTestEmail} 
+              disabled={!testEmail || sendingEmail}
+            >
+              {sendingEmail ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                'Send Test Email'
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>
