@@ -91,7 +91,7 @@ export function EditStoreDialog({ open, onOpenChange, store, onSubmit }: EditSto
               <Label htmlFor="planType">Plan</Label>
               <Select
                 value={formData.planType}
-                onValueChange={(value: any) => setFormData({ ...formData, planType: value })}
+                onValueChange={(value: 'trial' | 'monthly' | 'quarterly' | 'annual') => setFormData({ ...formData, planType: value })}
               >
                 <SelectTrigger id="planType">
                   <SelectValue />
@@ -109,7 +109,7 @@ export function EditStoreDialog({ open, onOpenChange, store, onSubmit }: EditSto
               <Label htmlFor="status">Status</Label>
               <Select
                 value={formData.status}
-                onValueChange={(value: any) => setFormData({ ...formData, status: value })}
+                onValueChange={(value: 'active' | 'expiring_soon' | 'expired' | 'suspended') => setFormData({ ...formData, status: value })}
               >
                 <SelectTrigger id="status">
                   <SelectValue />
@@ -127,7 +127,7 @@ export function EditStoreDialog({ open, onOpenChange, store, onSubmit }: EditSto
               <Label htmlFor="locale">Language</Label>
               <Select
                 value={formData.locale}
-                onValueChange={(value: any) => setFormData({ ...formData, locale: value })}
+                onValueChange={(value: string) => setFormData({ ...formData, locale: value as 'en' | 'pt' | 'fr' })}
               >
                 <SelectTrigger id="locale">
                   <SelectValue />

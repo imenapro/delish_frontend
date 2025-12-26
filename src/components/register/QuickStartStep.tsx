@@ -63,7 +63,7 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
       trialEndDate.setDate(trialEndDate.getDate() + 14);
 
       const { data: business, error: businessError } = await supabase
-        .from('businesses' as any)
+        .from('businesses')
         .insert({
           name: data.businessName!,
           slug: data.businessSlug!,
@@ -79,27 +79,27 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
           owner_id: authData.user.id,
           country: data.country,
           timezone: data.timezone || 'UTC',
-        } as any)
+        })
         .select()
-        .single() as any;
+        .single();
 
       if (businessError) throw businessError;
 
       // 3. Create user role (store_owner)
       const { error: roleError } = await supabase
-        .from('user_roles' as any)
+        .from('user_roles')
         .insert({
           user_id: authData.user.id,
           business_id: business?.id,
           role: 'store_owner',
-        } as any);
+        });
 
       if (roleError) throw roleError;
 
       // 4. Create first shop/location
       if (data.shops && data.shops.length > 0) {
         const { data: shopsData, error: shopsError } = await supabase
-          .from('shops' as any)
+          .from('shops')
           .insert(
             data.shops.map((shop) => ({
               name: shop.shopName,
@@ -111,16 +111,16 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
               owner_id: authData.user.id,
               primary_color: data.primaryColor || '#3B82F6',
               secondary_color: data.secondaryColor || '#10B981',
-            })) as any
+            }))
           )
-          .select() as any;
+          .select();
 
         if (shopsError) throw shopsError;
 
         // 5. Create products if provided
         if (option === 'manual' && products[0].name) {
           const { error: productsError } = await supabase
-            .from('products' as any)
+            .from('products')
             .insert(
               products
                 .filter((p) => p.name)
@@ -130,7 +130,7 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
                   price: product.price,
                   business_id: business?.id,
                   is_active: true,
-                })) as any
+                }))
             );
 
           if (productsError) throw productsError;
@@ -156,11 +156,12 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
       });
 
       onComplete({ products: option === 'manual' ? products : [] });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Registration error:', error);
+      const message = error instanceof Error ? error.message : 'Failed to create business';
       toast({
         title: 'Registration Error',
-        description: error.message || 'Failed to create business',
+        description: message,
         variant: 'destructive',
       });
       setLoading(false);
@@ -174,7 +175,7 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
         <p className="text-muted-foreground">How would you like to add products?</p>
       </div>
 
-      <RadioGroup value={option} onValueChange={(val) => setOption(val as any)}>
+      <RadioGroup value={option} onValueChange={(val) => setOption(val as 'skip' | 'import' | 'manual')}>
         <Card className="p-4">
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="skip" id="skip" />

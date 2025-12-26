@@ -16,7 +16,21 @@ export default function TenantShops() {
   const queryClient = useQueryClient();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [selectedShop, setSelectedShop] = useState<any>(null);
+  
+  interface ShopWithCounts {
+    id: string;
+    business_id: string;
+    name: string;
+    address: string | null;
+    phone: string | null;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    staff_count: number;
+    product_count: number;
+  }
+
+  const [selectedShop, setSelectedShop] = useState<ShopWithCounts | null>(null);
 
   // Fetch shops for this business
   const { data: shops = [], isLoading: shopsLoading } = useQuery({

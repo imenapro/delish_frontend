@@ -64,7 +64,7 @@ export function AddShopDialog() {
       setOpen(false);
       resetForm();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: 'Failed to add shop',
         description: error.message,

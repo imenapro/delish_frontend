@@ -29,7 +29,17 @@ export default function InventorySettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingReason, setEditingReason] = useState<any>(null);
+  
+  interface InventoryReason {
+    id: string;
+    name: string;
+    type: string;
+    is_active: boolean;
+    business_id: string;
+    created_at?: string;
+  }
+
+  const [editingReason, setEditingReason] = useState<InventoryReason | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     type: 'both',
@@ -70,7 +80,7 @@ export default function InventorySettings() {
   });
 
   const mutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: { name: string; type: string; is_active: boolean }) => {
       if (editingReason) {
         const { error } = await supabase
           .from('inventory_reasons')
@@ -103,7 +113,7 @@ export default function InventorySettings() {
       setIsDialogOpen(false);
       resetForm();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message,
@@ -139,7 +149,7 @@ export default function InventorySettings() {
     mutation.mutate(formData);
   };
 
-  const handleEdit = (reason: any) => {
+  const handleEdit = (reason: InventoryReason) => {
     setEditingReason(reason);
     setFormData({
       name: reason.name,

@@ -87,11 +87,12 @@ export default function CreateFirstShop() {
 
       // Redirect to the shop dashboard
       navigate(`/${business.slug}/dashboard`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating shop:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: 'Erro ao criar loja',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
     } finally {

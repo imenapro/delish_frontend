@@ -95,11 +95,11 @@ export default function Reports() {
     },
   });
 
-  const exportToCSV = (data: any[], filename: string) => {
+  const exportToCSV = (data: Record<string, unknown>[], filename: string) => {
     if (!data || data.length === 0) return;
     
     const headers = Object.keys(data[0]).join(',');
-    const rows = data.map(row => Object.values(row).join(',')).join('\n');
+    const rows = data.map(row => Object.values(row).map(v => String(v)).join(',')).join('\n');
     const csv = `${headers}\n${rows}`;
     
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -110,7 +110,7 @@ export default function Reports() {
     a.click();
   };
 
-  const calculateTotals = (orders: any[]) => {
+  const calculateTotals = (orders: { total_amount: number }[]) => {
     const total = orders?.reduce((sum, order) => sum + Number(order.total_amount), 0) || 0;
     const count = orders?.length || 0;
     const avgOrder = count > 0 ? total / count : 0;

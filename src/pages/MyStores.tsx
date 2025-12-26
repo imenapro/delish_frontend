@@ -13,14 +13,14 @@ export default function MyStores() {
   const { data: businesses, isLoading: businessesLoading } = useUserBusinesses();
   const navigate = useNavigate();
 
-  const navigateToStore = (slug: string) => {
+  const navigateToStore = useCallback((slug: string) => {
     const url = getAbsoluteUrlForStore(slug);
     if (url.startsWith('http')) {
       window.location.href = url;
     } else {
       navigate(url);
     }
-  };
+  }, [navigate]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -36,7 +36,7 @@ export default function MyStores() {
         navigateToStore(business.slug);
       }
     }
-  }, [businesses, businessesLoading, navigate]);
+  }, [businesses, businessesLoading, navigateToStore]);
 
   if (authLoading || businessesLoading) {
     return (

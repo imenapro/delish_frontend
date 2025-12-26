@@ -19,11 +19,21 @@ import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 10;
 
+interface Invoice {
+  id: string;
+  invoice_number: string;
+  created_at: string;
+  shop?: { name: string };
+  customer_info?: { name: string };
+  total_amount: number;
+  status: string;
+}
+
 export default function TenantInvoiceManagement() {
   const { store } = useStoreContext();
   const [selectedShop, setSelectedShop] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: subDays(new Date(), 30),
@@ -230,7 +240,7 @@ export default function TenantInvoiceManagement() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    invoicesData?.data?.map((invoice: any) => (
+                    invoicesData?.data?.map((invoice: Invoice) => (
                       <TableRow key={invoice.id}>
                         <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
                         <TableCell>

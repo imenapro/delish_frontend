@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useStoreContext } from '@/contexts/StoreContext';
+import { UserRole } from '@/hooks/useAuth';
 import { UserPlus, Mail, Phone, Shield } from 'lucide-react';
 
 interface InviteStaffDialogProps {
@@ -57,9 +58,9 @@ export function InviteStaffDialog({ open, onOpenChange, shops, onSuccess }: Invi
       const tempPassword = generateTempPassword();
 
       // Create a temporary client to avoid switching the current session
-      // @ts-ignore - Accessing internal properties
+      // @ts-expect-error - Accessing internal properties
       const supabaseUrl = supabase.supabaseUrl;
-      // @ts-ignore - Accessing internal properties
+      // @ts-expect-error - Accessing internal properties
       const supabaseKey = supabase.supabaseKey;
       
       const tempClient = createClient(supabaseUrl, supabaseKey, {
@@ -102,7 +103,7 @@ export function InviteStaffDialog({ open, onOpenChange, shops, onSuccess }: Invi
       // Assign role with business and shop context
       const { error: roleError } = await supabase.from('user_roles').insert({
         user_id: authData.user.id,
-        role: formData.role as any,
+        role: formData.role as UserRole['role'],
         business_id: store.id,
         shop_id: formData.shopId || null,
       });
@@ -152,9 +153,9 @@ export function InviteStaffDialog({ open, onOpenChange, shops, onSuccess }: Invi
       setFormData({ name: '', email: '', phone: '', role: '', shopId: '' });
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error inviting staff:', error);
-      toast.error(error.message || 'Failed to invite staff member');
+      toast.error(error instanceof Error ? error.message : 'Failed to invite staff member');
     } finally {
       setIsLoading(false);
     }

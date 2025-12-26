@@ -119,8 +119,8 @@ export function EditProductDialog({ open, onOpenChange, product, onSuccess }: Ed
       toast.success('Product updated successfully!');
       onOpenChange(false);
       onSuccess?.();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update product');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update product');
     } finally {
       setSaving(false);
     }

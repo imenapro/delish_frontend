@@ -1,5 +1,5 @@
 
-export const transactionTypeFilterFn = (row: any, id: string, value: string[]) => {
+export const transactionTypeFilterFn = (row: { getValue: (id: string) => unknown }, id: string, value: string[]) => {
     const rowValue = String(row.getValue(id)).toLowerCase();
     return value.some((filterVal: string) => {
         // Map filter values to possible data values

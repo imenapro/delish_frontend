@@ -25,6 +25,34 @@ import { POSParkedOrdersDialog } from '@/components/pos/POSParkedOrdersDialog';
 import { POSParkOrderDialog } from '@/components/pos/POSParkOrderDialog';
 import { POSRefundDialog } from '@/components/pos/POSRefundDialog';
 
+interface POSProduct {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  image_url: string | null;
+  stock?: number;
+  barcode: string | null;
+  discount_price: number | null;
+  promotion_description: string | null;
+}
+
+interface WakeLockSentinel {
+  release: () => Promise<void>;
+}
+
+interface NavigatorWithWakeLock extends Navigator {
+  wakeLock: {
+    request: (type: 'screen') => Promise<WakeLockSentinel>;
+  };
+}
+
+interface Shop {
+  id: string;
+  name: string;
+  business?: Record<string, unknown>;
+}
+
 export default function TenantPOS() {
   const { store } = useStoreContext();
   const { user, roles } = useAuth();
@@ -33,7 +61,7 @@ export default function TenantPOS() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [closeShiftDialogOpen, setCloseShiftDialogOpen] = useState(false);
   const [openShiftDialogOpen, setOpenShiftDialogOpen] = useState(true);
-  const [lastOrder, setLastOrder] = useState<any>(null);
+  const [lastOrder, setLastOrder] = useState<unknown>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const receiptRef = useRef<HTMLDivElement>(null);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
@@ -41,7 +69,7 @@ export default function TenantPOS() {
   const [parkedOrdersDialogOpen, setParkedOrdersDialogOpen] = useState(false);
   const [parkOrderDialogOpen, setParkOrderDialogOpen] = useState(false);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
-  const wakeLock = useRef<any>(null);
+  const wakeLock = useRef<WakeLockSentinel | null>(null);
 
 
   useEffect(() => {
@@ -71,7 +99,7 @@ export default function TenantPOS() {
     const requestWakeLock = async () => {
       try {
         if ('wakeLock' in navigator) {
-          wakeLock.current = await (navigator as any).wakeLock.request('screen');
+          wakeLock.current = await (navigator as unknown as NavigatorWithWakeLock).wakeLock.request('screen');
         }
       } catch (err) {
         console.error('Wake Lock error:', err);
@@ -186,7 +214,7 @@ export default function TenantPOS() {
     setCart([]);
   };
 
-  const handleResumeOrder = (order: any) => {
+  const handleResumeOrder = (order: { items: CartItem[]; id: string }) => {
       setCart(order.items);
       removeOrder(order.id);
       toast.success("Order resumed");
@@ -274,7 +302,7 @@ export default function TenantPOS() {
           shop_id_origin: activeSession.shop_id,
           shop_id_fulfill: activeSession.shop_id,
           total_amount: total,
-          payment_method: paymentMethod as any,
+          payment_method: paymentMethod,
           customer_phone: customerPhone,
           status: 'confirmed',
           confirmed_at: new Date().toISOString(),
@@ -502,12 +530,12 @@ export default function TenantPOS() {
 
       toast.success('Order completed successfully!');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to create order');
     },
   });
 
-  const addToCart = (product: any) => {
+  const addToCart = (product: POSProduct) => {
     if (product.stock !== undefined && product.stock <= 0) {
       toast.error('Product is out of stock');
       return;
@@ -566,7 +594,8 @@ export default function TenantPOS() {
     contentRef: receiptRef,
   });
 
-  const handleShiftOpened = (session: any) => {
+  const handleShiftOpened = (_session: unknown) => {
+    setOpenShiftDialogOpen(false);
     queryClient.invalidateQueries({ queryKey: ['active-pos-session'] });
   };
 
@@ -854,8 +883,8 @@ export default function TenantPOS() {
               price: item.price,
               subtotal: item.price * item.quantity,
             })) || []}
-            shop={shops?.find((s: any) => s.id === selectedShop) || { name: store?.name, address: '', phone: '' }}
-            business={shops?.find((s: any) => s.id === selectedShop)?.business}
+            shop={shops?.find((s: Shop) => s.id === selectedShop) || { name: store?.name, address: '', phone: '', id: '' }}
+            business={shops?.find((s: Shop) => s.id === selectedShop)?.business}
           />
         )}
       </div>

@@ -215,7 +215,7 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
                                                                 <span className="uppercase">{order.payment_method?.replace('_', ' ')}</span>
                                                             </div>
                                                             <div className="text-xs space-y-1">
-                                                                {order.order_items?.map((item: any) => (
+                                                                {order.order_items?.map((item: OrderItem) => (
                                                                     <div key={item.id} className="flex justify-between items-center">
                                                                         <span className="flex-1 truncate pr-2">
                                                                             <span className="font-medium">{item.quantity}x</span> {item.product?.name}

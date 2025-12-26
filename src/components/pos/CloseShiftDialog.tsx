@@ -62,6 +62,15 @@ interface CloseShiftDialogProps {
   onShiftClosed: () => void;
 }
 
+interface OrderItem {
+  id: string;
+  quantity: number;
+  product?: {
+    name: string;
+  };
+  subtotal: number;
+}
+
 export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }: CloseShiftDialogProps) {
   const queryClient = useQueryClient();
   const [closingCash, setClosingCash] = useState('');
@@ -118,7 +127,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
             .eq('shop_id', session.shop_id)
             .eq('role', 'branch_manager');
             
-        let managerEmails: string[] = [];
+        const managerEmails: string[] = [];
         if (managers && managers.length > 0) {
             // Placeholder logic for managers
         }
@@ -194,10 +203,10 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
       onOpenChange(false);
       setIsSending(false);
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to close shift');
-      setIsSending(false);
-    },
+    onError: (error: Error) => {
+        toast.error(error.message || 'Failed to close shift');
+        setIsSending(false);
+      },
   });
 
   const shiftDuration = () => {
@@ -371,7 +380,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                                                         <span>{order.payment_method}</span>
                                                     </div>
                                                     <div className="text-xs space-y-1">
-                                                        {order.order_items?.map((item: any) => (
+                                                        {order.order_items?.map((item: OrderItem) => (
                                                             <div key={item.id} className="flex justify-between">
                                                                 <span>{item.quantity}x {item.product?.name}</span>
                                                                 <span>{item.subtotal.toLocaleString()}</span>

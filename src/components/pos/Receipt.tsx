@@ -2,11 +2,43 @@ import React, { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { QRCodeSVG } from 'qrcode.react';
 
+interface ReceiptItem {
+  name: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+}
+
+interface ReceiptShop {
+  name: string;
+  address: string;
+  phone: string;
+  city: string;
+  country?: string;
+}
+
+interface ReceiptBusiness {
+  website?: string;
+  logo_url?: string;
+  metadata?: {
+    registration_number?: string;
+  };
+}
+
+interface ReceiptOrder {
+  order_code: string;
+  created_at: string;
+  invoice_number?: string;
+  customer_phone?: string;
+  total_amount: number;
+  payment_method?: string;
+}
+
 interface ReceiptProps {
-  order: any;
-  items: any[];
-  shop: any;
-  business?: any;
+  order: ReceiptOrder;
+  items: ReceiptItem[];
+  shop: ReceiptShop;
+  business?: ReceiptBusiness;
   payment?: {
     amountPaid: number;
     change: number;

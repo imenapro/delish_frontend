@@ -80,7 +80,7 @@ export default function Delivery() {
 
   const updateTaskStatusMutation = useMutation({
     mutationFn: async ({ taskId, status, time }: { taskId: string; status: string; time: string }) => {
-      const update: any = { status };
+      const update: { status: string; pickup_time?: string; delivered_time?: string } = { status };
       if (time === 'pickup') update.pickup_time = new Date().toISOString();
       if (time === 'delivered') update.delivered_time = new Date().toISOString();
 

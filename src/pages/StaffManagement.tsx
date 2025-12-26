@@ -140,7 +140,7 @@ export default function StaffManagement() {
         .from('user_roles')
         .insert([{
           user_id: authData.user.id,
-          role: staffData.role as any,
+          role: staffData.role as "owner" | "manager" | "staff", // Casting to expected union if possible, or string
           shop_id: staffData.shopId || null,
         }]);
 
@@ -158,10 +158,11 @@ export default function StaffManagement() {
       setNewStaff({ email: '', password: '', name: '', phone: '', role: '', shopId: '' });
       setGeneratedPassword('');
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "An error occurred";
       toast({
         title: "Error",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     },
@@ -187,10 +188,11 @@ export default function StaffManagement() {
       });
       queryClient.invalidateQueries({ queryKey: ['staffMembers'] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "An error occurred";
       toast({
         title: "Error",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     },

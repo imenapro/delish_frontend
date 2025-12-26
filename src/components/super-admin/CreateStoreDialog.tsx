@@ -148,7 +148,7 @@ export function CreateStoreDialog({ open, onOpenChange, onSubmit }: CreateStoreD
               <Label htmlFor="planType">Subscription Plan *</Label>
               <Select
                 value={formData.planType}
-                onValueChange={(value: any) => setFormData({ ...formData, planType: value })}
+                onValueChange={(value: string) => setFormData({ ...formData, planType: value as 'trial' | 'monthly' | 'quarterly' | 'annual' })}
               >
                 <SelectTrigger id="planType">
                   <SelectValue />
@@ -166,7 +166,7 @@ export function CreateStoreDialog({ open, onOpenChange, onSubmit }: CreateStoreD
               <Label htmlFor="locale">Language</Label>
               <Select
                 value={formData.locale}
-                onValueChange={(value: any) => setFormData({ ...formData, locale: value })}
+                onValueChange={(value: string) => setFormData({ ...formData, locale: value as 'en' | 'pt' | 'fr' })}
               >
                 <SelectTrigger id="locale">
                   <SelectValue />

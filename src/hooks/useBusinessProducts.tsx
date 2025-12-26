@@ -63,7 +63,15 @@ export function useUpdateProduct() {
       discount_price?: number | null;
       promotion_description?: string | null;
     }) => {
-      const updates: Record<string, any> = {};
+      const updates: {
+        name?: string;
+        description?: string | null;
+        category?: string;
+        price?: number;
+        barcode?: string | null;
+        discount_price?: number | null;
+        promotion_description?: string | null;
+      } = {};
       if (name !== undefined) updates.name = name;
       if (description !== undefined) updates.description = description;
       if (category !== undefined) updates.category = category;

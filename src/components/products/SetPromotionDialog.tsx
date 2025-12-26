@@ -28,10 +28,16 @@ const formSchema = z.object({
   promotion_description: z.string().optional(),
 });
 
+interface Product {
+  id: string;
+  name: string;
+  promotion_description?: string | null;
+}
+
 interface SetPromotionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  product: any;
+  product: Product | null;
   onSuccess: () => void;
 }
 

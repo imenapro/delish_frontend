@@ -160,10 +160,11 @@ export default function TenantInventory() {
       queryClient.invalidateQueries({ queryKey: ['stock-transfers', businessId] });
       queryClient.invalidateQueries({ queryKey: ['business-inventory', businessId] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'An error occurred';
       toast({
         title: 'Error',
-        description: error.message,
+        description: message,
         variant: 'destructive',
         duration: 5000,
       });

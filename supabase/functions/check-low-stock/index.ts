@@ -67,7 +67,7 @@ serve(async (req) => {
 
       if (invError || !lowStockItems?.length) continue;
 
-      const items: LowStockItem[] = lowStockItems.map((item: any) => ({
+      const items: LowStockItem[] = lowStockItems.map((item: { shop_id: string; stock: number; product: { name: string } | null }) => ({
         productName: item.product?.name || "Unknown Product",
         shopName: shopMap.get(item.shop_id) || "Unknown Shop",
         currentStock: item.stock || 0,

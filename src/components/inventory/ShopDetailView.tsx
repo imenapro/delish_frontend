@@ -80,6 +80,17 @@ const LOW_STOCK_THRESHOLD = 10;
 
 import { transactionTypeFilterFn, getTransactionLabel } from './inventory-utils';
 
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'approved':
+      return <Badge className="bg-green-500/10 text-green-500 border-green-500/20"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
+    case 'rejected':
+      return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
+    default:
+      return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
+  }
+};
+
 export function ShopDetailView({ 
   shop, 
   inventory, 
@@ -126,17 +137,6 @@ export function ShopDetailView({
     const cats = new Set(uniqueInventory.map(item => item.product?.category).filter((c): c is string => !!c));
     return Array.from(cats).map(cat => ({ label: cat, value: cat }));
   }, [uniqueInventory]);
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <Badge className="bg-green-500/10 text-green-500 border-green-500/20"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
-      default:
-        return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
-    }
-  };
 
   const inventoryColumns: ColumnDef<InventoryItem>[] = useMemo(() => {
     if (!shop) return [];
@@ -365,7 +365,7 @@ export function ShopDetailView({
       }
     },
     ];
-  }, [shop?.id, updateTransferMutation]);
+  }, [shop, updateTransferMutation]);
 
   const historyColumns: ColumnDef<Transaction>[] = useMemo(() => [
     {

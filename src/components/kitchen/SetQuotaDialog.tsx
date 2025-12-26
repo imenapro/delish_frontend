@@ -63,7 +63,7 @@ export function SetQuotaDialog() {
       setOpen(false);
       resetForm();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: 'Failed to set quota',
         description: error.message,
