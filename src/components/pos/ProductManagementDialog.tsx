@@ -80,7 +80,7 @@ export function ProductManagementDialog() {
       });
       setActiveTab('view');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error('Failed to add product: ' + error.message);
     },
   });
@@ -99,7 +99,7 @@ export function ProductManagementDialog() {
       queryClient.invalidateQueries({ queryKey: ['products-all'] });
       setDeleteProductId(null);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error('Failed to delete product: ' + error.message);
     },
   });

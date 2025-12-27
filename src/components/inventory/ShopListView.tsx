@@ -6,9 +6,24 @@ import { Button } from '@/components/ui/button';
 import { Search, MapPin, Package, DollarSign, Layers, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
+interface Shop {
+  id: string;
+  name: string;
+  address?: string;
+}
+
+interface InventoryItem {
+  shop_id: string;
+  stock: number | string;
+  price: number | string;
+  product?: {
+    category?: string;
+  };
+}
+
 interface ShopListViewProps {
-  shops: any[];
-  inventory: any[];
+  shops: Shop[];
+  inventory: InventoryItem[];
   onSelectShop: (shopId: string) => void;
 }
 
@@ -23,7 +38,7 @@ export function ShopListView({ shops, inventory, onSelectShop }: ShopListViewPro
       const price = Number(item.price) || 0;
       return sum + (stock * price);
     }, 0);
-    const categories = [...new Set(shopItems.map((i) => i.product?.category).filter(Boolean))].slice(0, 3);
+    const categories = [...new Set(shopItems.map((i) => i.product?.category).filter((c): c is string => !!c))].slice(0, 3);
     
     return { totalProducts, totalValue, categories };
   };
@@ -96,7 +111,7 @@ export function ShopListView({ shops, inventory, onSelectShop }: ShopListViewPro
                         <Layers className="h-3 w-3" /> Top Categories
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        {stats.categories.map((cat: any) => (
+                        {stats.categories.map((cat) => (
                           <Badge key={cat} variant="secondary" className="text-xs">
                             {cat}
                           </Badge>

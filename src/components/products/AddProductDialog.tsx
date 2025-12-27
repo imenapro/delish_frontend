@@ -84,7 +84,7 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
       resetForm();
       onSuccess?.();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to add product');
     },
   });

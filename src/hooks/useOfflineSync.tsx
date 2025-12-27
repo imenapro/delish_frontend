@@ -2,54 +2,39 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+interface CartItem {
+  product_id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  subtotal: number;
+}
+
+interface OrderData {
+  customer_id?: string;
+  seller_id?: string;
+  shop_id: string;
+  items: CartItem[];
+  total: number;
+  payment_method: string;
+  customer_phone?: string;
+}
+
 interface QueuedOrder {
   id: string;
   timestamp: number;
-  orderData: any;
+  orderData: OrderData;
 }
 
 export function useOfflineSync() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      toast.success('Connection restored - syncing data...');
-      syncQueuedOrders();
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-      toast.warning('Working offline - orders will be synced when connection is restored');
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  const queueOrder = useCallback((orderData: any) => {
-    const queued = getQueuedOrders();
-    const newOrder: QueuedOrder = {
-      id: `offline-${Date.now()}`,
-      timestamp: Date.now(),
-      orderData,
-    };
-    queued.push(newOrder);
-    localStorage.setItem('pos_queued_orders', JSON.stringify(queued));
-    toast.info('Order queued for sync');
-    return newOrder.id;
-  }, []);
-
-  const getQueuedOrders = (): QueuedOrder[] => {
+  // Defined before useEffect to be used in it
+  const getQueuedOrders = useCallback((): QueuedOrder[] => {
     const stored = localStorage.getItem('pos_queued_orders');
     return stored ? JSON.parse(stored) : [];
-  };
+  }, []);
 
   const syncQueuedOrders = useCallback(async () => {
     const queued = getQueuedOrders();
@@ -83,11 +68,11 @@ export function useOfflineSync() {
         if (orderError) throw orderError;
 
         // Create order items
-        const items = queuedOrder.orderData.items.map((item: any) => ({
+        const items = queuedOrder.orderData.items.map((item) => ({
           order_id: order.id,
           product_id: item.product_id,
           quantity: item.quantity,
-          unit_price: item.price,
+          price: item.price,
           subtotal: item.subtotal,
         }));
 
@@ -99,9 +84,10 @@ export function useOfflineSync() {
 
         successful.push(queuedOrder.id);
         toast.success(`Order synced: ${order.order_code}`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to sync order:', error);
-        toast.error(`Failed to sync order: ${error.message}`);
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        toast.error(`Failed to sync order: ${message}`);
       }
     }
 
@@ -114,7 +100,41 @@ export function useOfflineSync() {
     if (successful.length > 0) {
       toast.success(`Successfully synced ${successful.length} order(s)`);
     }
-  }, []);
+  }, [getQueuedOrders]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast.success('Connection restored - syncing data...');
+      syncQueuedOrders();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.warning('Working offline - orders will be synced when connection is restored');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [syncQueuedOrders]);
+
+  const queueOrder = useCallback((orderData: OrderData) => {
+    const queued = getQueuedOrders();
+    const newOrder: QueuedOrder = {
+      id: `offline-${Date.now()}`,
+      timestamp: Date.now(),
+      orderData,
+    };
+    queued.push(newOrder);
+    localStorage.setItem('pos_queued_orders', JSON.stringify(queued));
+    toast.info('Order queued for sync');
+    return newOrder.id;
+  }, [getQueuedOrders]);
 
   return {
     isOnline,
@@ -125,14 +145,14 @@ export function useOfflineSync() {
   };
 }
 
-export function cacheProducts(products: any[]) {
+export function cacheProducts(products: Record<string, unknown>[]) {
   localStorage.setItem('pos_products_cache', JSON.stringify({
     timestamp: Date.now(),
     products,
   }));
 }
 
-export function getCachedProducts(): any[] | null {
+export function getCachedProducts(): Record<string, unknown>[] | null {
   const cached = localStorage.getItem('pos_products_cache');
   if (!cached) return null;
   
@@ -145,14 +165,14 @@ export function getCachedProducts(): any[] | null {
   return products;
 }
 
-export function cacheShops(shops: any[]) {
+export function cacheShops(shops: Record<string, unknown>[]) {
   localStorage.setItem('pos_shops_cache', JSON.stringify({
     timestamp: Date.now(),
     shops,
   }));
 }
 
-export function getCachedShops(): any[] | null {
+export function getCachedShops(): Record<string, unknown>[] | null {
   const cached = localStorage.getItem('pos_shops_cache');
   if (!cached) return null;
   
@@ -164,11 +184,11 @@ export function getCachedShops(): any[] | null {
   return shops;
 }
 
-export function saveCart(cart: any[]) {
+export function saveCart(cart: CartItem[]) {
   localStorage.setItem('pos_cart', JSON.stringify(cart));
 }
 
-export function loadCart(): any[] {
+export function loadCart(): CartItem[] {
   const stored = localStorage.getItem('pos_cart');
   return stored ? JSON.parse(stored) : [];
 }

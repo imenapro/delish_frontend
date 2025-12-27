@@ -70,12 +70,12 @@ export default function TenantAuth() {
       const { data: userRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('business_id, role')
-        .eq('user_id', authData.user.id) as any;
+        .eq('user_id', authData.user.id);
 
       if (rolesError) throw rolesError;
 
       // Check if user has access to this specific business
-      const hasAccess = userRoles?.some((ur: any) => ur.business_id === store.id);
+      const hasAccess = userRoles?.some((ur: { business_id: string; role: string }) => ur.business_id === store.id);
 
       if (!hasAccess) {
         await supabase.auth.signOut();
@@ -88,9 +88,10 @@ export default function TenantAuth() {
       // Use navigate instead of window.location.href to avoid server-side 404s
       // and maintain SPA state.
       navigate(getTenantRoute('/dashboard'));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error);
-      toast.error(error.message || 'Invalid credentials');
+      const message = error instanceof Error ? error.message : 'Invalid credentials';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }

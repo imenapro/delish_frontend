@@ -91,20 +91,25 @@ serve(async (req) => {
     const appData = await getResponse.json();
     const spec = appData.app.spec;
 
+interface AppSpec {
+  domains: { domain: string; type: string }[];
+  static_sites?: { name: string; catchall_document?: string }[];
+}
+
     // 2. Add domain to spec
     if (!spec.domains) {
         spec.domains = [];
     }
 
     // Ensure catchall_document is set for SPA routing
-    const component = spec.static_sites?.find((s: any) => s.name === 'delish-frontend');
+    const component = spec.static_sites?.find((s: { name: string; catchall_document?: string }) => s.name === 'delish-frontend');
     if (component && component.catchall_document !== 'index.html') {
         console.log('Enforcing catchall_document: index.html');
         component.catchall_document = 'index.html';
     }
 
     // Check if domain already exists
-    const exists = spec.domains.some((d: any) => d.domain === domain);
+    const exists = spec.domains.some((d: { domain: string }) => d.domain === domain);
     if (exists) {
         console.log(`Domain ${domain} already exists in App Spec.`);
     } else {

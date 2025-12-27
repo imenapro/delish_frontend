@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserBusinesses } from '@/hooks/useUserBusinesses';
@@ -13,14 +13,14 @@ export default function MyStores() {
   const { data: businesses, isLoading: businessesLoading } = useUserBusinesses();
   const navigate = useNavigate();
 
-  const navigateToStore = (slug: string) => {
+  const navigateToStore = useCallback((slug: string) => {
     const url = getAbsoluteUrlForStore(slug);
     if (url.startsWith('http')) {
       window.location.href = url;
     } else {
       navigate(url);
     }
-  };
+  }, [navigate]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -36,7 +36,7 @@ export default function MyStores() {
         navigateToStore(business.slug);
       }
     }
-  }, [businesses, businessesLoading, navigate]);
+  }, [businesses, businessesLoading, navigateToStore]);
 
   if (authLoading || businessesLoading) {
     return (
@@ -57,7 +57,7 @@ export default function MyStores() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate('/create-first-shop')} className="w-full">
+            <Button onClick={() => navigate('/register')} className="w-full">
               <Plus className="mr-2 h-4 w-4" />
               Criar Primeira Loja
             </Button>
@@ -137,7 +137,7 @@ export default function MyStores() {
         <div className="mt-8 text-center">
           <Button
             variant="outline"
-            onClick={() => navigate('/create-first-shop')}
+            onClick={() => navigate('/register')}
           >
             <Plus className="mr-2 h-4 w-4" />
             Criar Nova Loja

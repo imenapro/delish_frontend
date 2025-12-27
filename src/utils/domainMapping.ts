@@ -1,7 +1,6 @@
 export const CUSTOM_DOMAINS: Record<string, string> = {
-  "delish.rw": "delish-bakery-ltd",
-  "www.delish.rw": "delish-bakery-ltd",
-  // "localhost": "delish-bakery-ltd",
+  // Hardcoded domains are removed in favor of database lookup
+  // "delish.rw": "delish-bakery-ltd",
 };
 
 /**
@@ -11,7 +10,7 @@ export const CUSTOM_DOMAINS: Record<string, string> = {
  * Why host (not full URL)? Because we build URLs safely.
  */
 export const PLATFORM_HOST =
-  (import.meta as any).env?.VITE_PLATFORM_HOST ||
+  (import.meta.env as unknown as Record<string, string>)?.VITE_PLATFORM_HOST ||
   (typeof window !== 'undefined' ? window.location.host : 'localhost:3000'); // fallback
 
 /**

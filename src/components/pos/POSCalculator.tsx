@@ -128,11 +128,10 @@ export function POSCalculator({ open, onOpenChange }: POSCalculatorProps) {
         .replace(/÷/g, '/');
       
       // Basic safety check - only allow numbers and math operators
-      if (!/^[\d\.\s\+\-\*\/\(\)]+$/.test(evalExpression)) {
+      if (!/^[\d\s+\-*/().]+$/.test(evalExpression)) {
         throw new Error('Invalid expression');
       }
 
-      // eslint-disable-next-line no-new-func
       const result = new Function(`return ${evalExpression}`)();
       
       if (!isFinite(result) || isNaN(result)) {

@@ -17,7 +17,7 @@ export default function Orders() {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['orders', store?.id],
     queryFn: async () => {
-      let query = supabase
+      const query = supabase
         .from('orders')
         .select(`
           *,

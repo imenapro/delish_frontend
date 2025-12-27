@@ -56,7 +56,7 @@ export default function TenantOrders() {
         .limit(100);
 
       if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter as any);
+        query = query.eq('status', statusFilter);
       }
 
       const { data, error } = await query;
@@ -77,7 +77,7 @@ export default function TenantOrders() {
   // Update order status
   const updateStatusMutation = useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
-      const updates: any = { status };
+      const updates: { status: string; confirmed_at?: string; prepared_at?: string; delivered_at?: string; cancelled_at?: string } = { status };
       
       if (status === 'confirmed') updates.confirmed_at = new Date().toISOString();
       if (status === 'prepared') updates.prepared_at = new Date().toISOString();

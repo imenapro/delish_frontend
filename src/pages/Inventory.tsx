@@ -64,6 +64,9 @@ export default function Inventory() {
         `)
         .order('created_at', { ascending: false })
         .limit(50);
+      
+      if (error) throw error;
+      return data;
     },
   });
 

@@ -17,20 +17,41 @@ import { ViewShiftReportDialog } from '@/components/shifts/ViewShiftReportDialog
 import { generateShiftReportPDF } from '@/utils/pdfGenerator';
 import { toast } from 'sonner';
 
+interface Session {
+  id: string;
+  opened_at: string;
+  closed_at?: string | null;
+  opening_cash: number;
+  total_sales: number;
+  total_orders: number;
+  expected_cash?: number;
+  closing_cash?: number;
+  status: string;
+  notes?: string;
+  shop_id: string;
+  user_id: string;
+  user?: {
+    name: string;
+  };
+  shop?: {
+    name: string;
+  };
+}
+
 export default function TenantShiftManagement() {
   const { store } = useStoreContext();
   const [selectedShop, setSelectedShop] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
-  const [selectedSession, setSelectedSession] = useState<any>(null);
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [printingSessionId, setPrintingSessionId] = useState<string | null>(null);
 
-  const handleViewReport = (session: any) => {
+  const handleViewReport = (session: Session) => {
     setSelectedSession(session);
     setViewDialogOpen(true);
   };
 
-  const handlePrintReport = async (session: any) => {
+  const handlePrintReport = async (session: Session) => {
     setPrintingSessionId(session.id);
     try {
         // Fetch orders for this session

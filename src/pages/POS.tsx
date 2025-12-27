@@ -36,6 +36,27 @@ interface CartItem {
   subtotal: number;
 }
 
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  image_url: string | null;
+  barcode: string | null;
+  description: string | null;
+  discount_price: number | null;
+  promotion_description: string | null;
+}
+
+interface Order {
+  id: string;
+  order_code: string;
+  total_amount: number;
+  payment_method: string;
+  created_at: string;
+  queued?: boolean;
+}
+
 export default function POS() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -45,7 +66,7 @@ export default function POS() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'wallet'>('cash');
   const [customerPhone, setCustomerPhone] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [lastOrder, setLastOrder] = useState<any>(null);
+  const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [lastItems, setLastItems] = useState<CartItem[]>([]);
   const [lastPayment, setLastPayment] = useState<{amountPaid: number, change: number} | null>(null);
   const [amountTendered, setAmountTendered] = useState<string>('');
@@ -116,7 +137,13 @@ export default function POS() {
   });
 
   const createOrderMutation = useMutation({
-    mutationFn: async (orderData: any) => {
+    mutationFn: async (orderData: {
+      shop_id: string;
+      items: CartItem[];
+      total: number;
+      payment_method: string;
+      customer_phone: string;
+    }) => {
       // If offline, queue the order
       if (!isOnline) {
         const queuedId = queueOrder({
@@ -128,7 +155,7 @@ export default function POS() {
           payment_method: orderData.payment_method,
           customer_phone: orderData.customer_phone,
         });
-        return { id: queuedId, order_code: queuedId, queued: true };
+        return { id: queuedId, order_code: queuedId, queued: true } as Order;
       }
 
       // Generate order code
@@ -171,7 +198,8 @@ export default function POS() {
           payment_method: orderData.payment_method,
           customer_phone: orderData.customer_phone || undefined,
           status: 'confirmed',
-          order_code: codeData || 'ORD-' + Date.now(),
+          order_code: codeData,
+          items_snapshot: orderData.items,
         })
         .select()
         .single();
@@ -179,12 +207,12 @@ export default function POS() {
       if (orderError) throw orderError;
 
       // Create order items
-      const items = orderData.items.map((item: CartItem) => ({
+      const items = orderData.items.map(item => ({
         order_id: order.id,
         product_id: item.product_id,
         quantity: item.quantity,
-        unit_price: item.price,
-        subtotal: item.subtotal,
+        price: item.price,
+        subtotal: item.subtotal
       }));
 
       const { error: itemsError } = await supabase
@@ -195,7 +223,7 @@ export default function POS() {
 
       return order;
     },
-    onSuccess: (order: any) => {
+    onSuccess: (order: Order) => {
       if (order.queued) {
         toast.success('Order queued for sync (offline mode)');
       } else {
@@ -213,7 +241,7 @@ export default function POS() {
       setAmountTendered('');
       queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error('Failed to create order: ' + error.message);
     },
   });
@@ -222,7 +250,7 @@ export default function POS() {
     contentRef: receiptRef,
   });
 
-  const addToCart = (product: any) => {
+  const addToCart = (product: Product) => {
     const existingItem = cart.find(item => item.product_id === product.id);
     
     if (existingItem) {
@@ -508,7 +536,7 @@ export default function POS() {
                   {/* Payment Method */}
                   <div>
                     <Label htmlFor="payment">Payment Method *</Label>
-                    <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
+                    <Select value={paymentMethod} onValueChange={(v: 'cash' | 'card' | 'wallet') => setPaymentMethod(v)}>
                       <SelectTrigger id="payment">
                         <SelectValue />
                       </SelectTrigger>

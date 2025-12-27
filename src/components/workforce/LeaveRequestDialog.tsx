@@ -55,7 +55,7 @@ export function LeaveRequestDialog() {
       setOpen(false);
       setFormData({ leave_type: '', start_date: '', end_date: '', reason: '' });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message,

@@ -2,7 +2,43 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 
-export const generateInvoicePDF = (invoice: any) => {
+interface InvoiceItem {
+  name: string;
+  quantity: number;
+  price: number;
+  subtotal?: number;
+}
+
+interface Invoice {
+  shop?: {
+    name?: string;
+    address?: string;
+    city?: string;
+    country?: string;
+    phone?: string;
+    email?: string;
+  };
+  customer_info?: {
+    name?: string;
+    phone?: string;
+    email?: string;
+  };
+  items_snapshot?: InvoiceItem[];
+  invoice_number?: string;
+  created_at: string;
+  status?: string;
+  subtotal?: number;
+  tax_amount?: number;
+  total_amount?: number;
+}
+
+interface jsPDFWithAutoTable extends jsPDF {
+  lastAutoTable: {
+    finalY: number;
+  };
+}
+
+export const generateInvoicePDF = (invoice: Invoice) => {
   const doc = new jsPDF();
   const shop = invoice.shop || {};
   const customer = invoice.customer_info || {};
@@ -92,7 +128,7 @@ export const generateInvoicePDF = (invoice: any) => {
   // Items Table
   const tableY = billToY + 40;
   
-  const tableData = items.map((item: any) => [
+  const tableData = items.map((item) => [
     item.name,
     item.quantity,
     Number(item.price).toLocaleString(),
@@ -127,8 +163,7 @@ export const generateInvoicePDF = (invoice: any) => {
   });
 
   // Totals
-  // @ts-ignore
-  const finalY = doc.lastAutoTable.finalY + 10;
+  const finalY = (doc as unknown as jsPDFWithAutoTable).lastAutoTable.finalY + 10;
   
   const subtotal = Number(invoice.subtotal || 0).toLocaleString();
   const tax = Number(invoice.tax_amount || 0).toLocaleString();

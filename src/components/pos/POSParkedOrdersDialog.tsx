@@ -15,7 +15,7 @@ interface POSParkedOrdersDialogProps {
   orders: ParkedOrder[];
   onResume: (order: ParkedOrder) => void;
   onDelete: (id: string) => void;
-  inventory?: any[];
+  inventory?: { id: string; stock: number }[];
 }
 
 interface ValidationIssue {

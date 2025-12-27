@@ -10,9 +10,40 @@ import { Button } from '@/components/ui/button';
 import { useReactToPrint } from 'react-to-print';
 import { InvoiceA4 } from '@/components/invoices/InvoiceA4';
 
+interface InvoiceItem {
+  id?: string;
+  name?: string;
+  product?: { name: string };
+  quantity: number;
+  price?: number;
+  unit_price?: number;
+  subtotal?: number;
+}
+
+interface Invoice {
+  id: string;
+  invoice_number: string;
+  shop: {
+    name: string;
+    address?: string;
+    phone?: string;
+    logo_url?: string;
+  };
+  status: 'paid' | 'pending' | 'overdue' | 'cancelled';
+  created_at: string;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  items_snapshot: InvoiceItem[];
+  customer_info: {
+    name?: string;
+    phone?: string;
+  };
+}
+
 export default function PublicInvoice() {
   const { shortId } = useParams<{ shortId: string }>();
-  const [invoice, setInvoice] = useState<any>(null);
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
@@ -57,7 +88,7 @@ export default function PublicInvoice() {
         } else {
           setInvoice(data);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error fetching invoice:', err);
         // Fallback: If the shortId is actually a full UUID (e.g. from a different link), try exact match
         if (shortId.length > 20) {
@@ -165,13 +196,13 @@ export default function PublicInvoice() {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {items.map((item: any, index: number) => (
+                                    {items.map((item: InvoiceItem, index: number) => (
                                         <tr key={index}>
                                             <td className="px-4 py-3 text-sm text-gray-900">{item.name || item.product?.name}</td>
                                             <td className="px-4 py-3 text-sm text-gray-500 text-right">{item.quantity}</td>
                                             <td className="px-4 py-3 text-sm text-gray-500 text-right">{Number(item.price || item.unit_price).toLocaleString()}</td>
                                             <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
-                                                {(item.subtotal || (item.unit_price * item.quantity)).toLocaleString()}
+                                                {(item.subtotal || ((item.unit_price || 0) * item.quantity)).toLocaleString()}
                                             </td>
                                         </tr>
                                     ))}

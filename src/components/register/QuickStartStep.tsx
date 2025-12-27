@@ -63,7 +63,7 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
       trialEndDate.setDate(trialEndDate.getDate() + 14);
 
       const { data: business, error: businessError } = await supabase
-        .from('businesses' as any)
+        .from('businesses')
         .insert({
           name: data.businessName!,
           slug: data.businessSlug!,
@@ -79,27 +79,27 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
           owner_id: authData.user.id,
           country: data.country,
           timezone: data.timezone || 'UTC',
-        } as any)
+        })
         .select()
-        .single() as any;
+        .single();
 
       if (businessError) throw businessError;
 
       // 3. Create user role (store_owner)
       const { error: roleError } = await supabase
-        .from('user_roles' as any)
+        .from('user_roles')
         .insert({
           user_id: authData.user.id,
           business_id: business?.id,
           role: 'store_owner',
-        } as any);
+        });
 
       if (roleError) throw roleError;
 
       // 4. Create first shop/location
       if (data.shops && data.shops.length > 0) {
         const { data: shopsData, error: shopsError } = await supabase
-          .from('shops' as any)
+          .from('shops')
           .insert(
             data.shops.map((shop) => ({
               name: shop.shopName,
@@ -111,16 +111,16 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
               owner_id: authData.user.id,
               primary_color: data.primaryColor || '#3B82F6',
               secondary_color: data.secondaryColor || '#10B981',
-            })) as any
+            }))
           )
-          .select() as any;
+          .select();
 
         if (shopsError) throw shopsError;
 
         // 5. Create products if provided
         if (option === 'manual' && products[0].name) {
           const { error: productsError } = await supabase
-            .from('products' as any)
+            .from('products')
             .insert(
               products
                 .filter((p) => p.name)
@@ -130,24 +130,111 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
                   price: product.price,
                   business_id: business?.id,
                   is_active: true,
-                })) as any
+                }))
             );
 
           if (productsError) throw productsError;
 
           // Create inventory for products
           if (shopsData && shopsData.length > 0) {
-            const inventoryRecords = products
-              .filter((p) => p.name)
-              .map((product) => ({
-                shop_id: shopsData[0].id,
-                stock: product.stock,
-              }));
-
-            // We'll need to get product IDs first, then create inventory
-            // For now, skip inventory creation
+            // Inventory creation logic would go here
           }
         }
+      }
+
+      // 6. Send Notifications (Email & SMS)
+      try {
+        const loginUrl = `${window.location.origin}/${data.businessSlug}/login`;
+
+        // Send Email
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+            <h1 style="color: #2563eb;">Welcome to Kazimas!</h1>
+            <p>Hello ${data.fullName},</p>
+            <p>Congratulations! Your business <strong>${data.businessName}</strong> has been successfully registered.</p>
+            
+            <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #e5e7eb;">
+              <h3 style="margin-top: 0; color: #1f2937;">Your Account Details</h3>
+              <p style="margin: 5px 0;"><strong>Business Name:</strong> ${data.businessName}</p>
+              <p style="margin: 5px 0;"><strong>Email:</strong> ${data.email}</p>
+              <p style="margin: 5px 0;"><strong>Password:</strong> <code style="background: #fff; padding: 2px 6px; border-radius: 4px; border: 1px solid #d1d5db;">${data.password}</code></p>
+              <p style="margin: 5px 0;"><strong>Plan:</strong> 14-Day Free Trial</p>
+            </div>
+
+            <p><strong>Get Started:</strong></p>
+            <ol style="line-height: 1.6;">
+              <li>Go to your dashboard: <a href="${window.location.origin}/${data.businessSlug}/dashboard" style="color: #2563eb; text-decoration: none;">${window.location.origin}/${data.businessSlug}/dashboard</a></li>
+              <li>Set up your products and inventory.</li>
+              <li>Invite your team members.</li>
+            </ol>
+            
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
+            <p style="font-size: 12px; color: #6b7280; text-align: center;">
+              This is an automated message from Kazimas.
+            </p>
+          </div>
+        `;
+
+        await supabase.functions.invoke('send-email', {
+          body: {
+            to: data.email,
+            subject: `Welcome to Kazimas - Your Business is Ready!`,
+            html: emailHtml,
+          },
+        });
+
+        // Send SMS
+        if (data.phone) {
+          let cleanPhone = data.phone.replace(/\D/g, '');
+          // Auto-format for Rwanda
+          if (cleanPhone.startsWith('07') && cleanPhone.length === 10) {
+            cleanPhone = '250' + cleanPhone.substring(1);
+          } else if (cleanPhone.startsWith('7') && cleanPhone.length === 9) {
+            cleanPhone = '250' + cleanPhone;
+          }
+
+          if (cleanPhone.length >= 10) {
+            const smsMsg = `Welcome to ${data.businessName}!
+Credentials:
+Email: ${data.email}
+Pwd: ${data.password}
+Login: ${loginUrl}`;
+
+            // Check length and warn if too long (but still send)
+            if (smsMsg.length > 160) {
+              console.warn('SMS exceeds 160 chars');
+            }
+
+            const { data: smsData, error: smsError } = await supabase.functions.invoke('send-sms', {
+              body: {
+                phoneNumber: cleanPhone,
+                message: smsMsg,
+              },
+            });
+
+            // Log SMS
+            const COST_PER_UNIT = 15;
+            const length = smsMsg.length;
+            const units = Math.ceil(length / 160) || 1;
+            const cost = units * COST_PER_UNIT;
+            
+            const logStatus = (!smsError && smsData?.success) ? 'sent' : 'failed';
+            const logError = smsError?.message || smsData?.error || (smsData?.success ? null : 'Unknown error');
+
+            await supabase.from('sms_logs').insert({
+              business_id: business?.id,
+              phone_number: cleanPhone,
+              message: smsMsg,
+              status: logStatus,
+              error_message: logError,
+              cost: cost,
+              units: units
+            });
+          }
+        }
+      } catch (notifyError) {
+        console.error('Notification error:', notifyError);
+        // Don't block completion if notifications fail
       }
 
       toast({
@@ -156,11 +243,12 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
       });
 
       onComplete({ products: option === 'manual' ? products : [] });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Registration error:', error);
+      const message = error instanceof Error ? error.message : 'Failed to create business';
       toast({
         title: 'Registration Error',
-        description: error.message || 'Failed to create business',
+        description: message,
         variant: 'destructive',
       });
       setLoading(false);
@@ -174,7 +262,7 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
         <p className="text-muted-foreground">How would you like to add products?</p>
       </div>
 
-      <RadioGroup value={option} onValueChange={(val) => setOption(val as any)}>
+      <RadioGroup value={option} onValueChange={(val) => setOption(val as 'skip' | 'import' | 'manual')}>
         <Card className="p-4">
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="skip" id="skip" />

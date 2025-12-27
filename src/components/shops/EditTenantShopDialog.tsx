@@ -68,9 +68,9 @@ export function EditTenantShopDialog({ open, onOpenChange, shop, onSuccess }: Ed
       toast.success('Shop updated successfully!');
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error updating shop:', error);
-      toast.error(error.message || 'Failed to update shop');
+      toast.error(error instanceof Error ? error.message : 'Failed to update shop');
     } finally {
       setIsLoading(false);
     }

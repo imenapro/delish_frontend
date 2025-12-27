@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getStoreSlugFromDomain, isCustomDomain } from '@/utils/domainMapping';
@@ -46,7 +46,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadStore = async () => {
+  const loadStore = useCallback(async () => {
     // Check for custom domain first
     const hostname = window.location.hostname;
     const manualSlug = getStoreSlugFromDomain(hostname);
@@ -127,11 +127,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setStore(null);
     }
     setLoading(false);
-  };
+  }, [location.pathname]);
 
   useEffect(() => {
     loadStore();
-  }, [location.pathname]);
+  }, [loadStore]);
+
+
 
   const calculateDaysUntilExpiration = (): number => {
     if (!store?.subscriptionEndDate) return 0;
@@ -190,6 +192,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useStoreContext() {
   const context = useContext(StoreContext);
   if (context === undefined) {

@@ -64,7 +64,7 @@ export default function Dashboard() {
       
       if (error) throw error;
 
-      const dailySales = data.reduce((acc: any, order: any) => {
+      const dailySales = data.reduce<Record<string, { date: string; sales: number; orders: number }>>((acc, order: { created_at: string; total_amount: number }) => {
         const date = new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         if (!acc[date]) {
           acc[date] = { date, sales: 0, orders: 0 };
@@ -88,7 +88,7 @@ export default function Dashboard() {
       
       if (error) throw error;
 
-      const statusCounts = data.reduce((acc: any, order: any) => {
+      const statusCounts = data.reduce<Record<string, number>>((acc, order: { status: string }) => {
         acc[order.status] = (acc[order.status] || 0) + 1;
         return acc;
       }, {});

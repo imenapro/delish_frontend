@@ -11,7 +11,6 @@ import Register from "./pages/Register";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import MyStores from "./pages/MyStores";
-import CreateFirstShop from "./pages/CreateFirstShop";
 import SuperAdmin from "./pages/SuperAdmin";
 import TenantAuth from "./pages/TenantAuth";
 import NotFound from "./pages/NotFound";
@@ -64,9 +63,6 @@ const App = () => {
                   
                   {/* My Stores Selection */}
                   <Route path="/my-stores" element={<MyStores />} />
-                  
-                  {/* Create First Shop */}
-                  <Route path="/create-first-shop" element={<CreateFirstShop />} />
                   
                   {/* Super Admin Routes */}
                   <Route path="/super-admin" element={<SuperAdmin />} />

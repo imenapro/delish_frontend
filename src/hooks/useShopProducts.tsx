@@ -107,7 +107,7 @@ export function useUpdateShopProduct() {
       price?: number;
       stock?: number;
     }) => {
-      const updates: any = {};
+      const updates: { price?: number; stock?: number } = {};
       if (price !== undefined) updates.price = price;
       if (stock !== undefined) updates.stock = stock;
 

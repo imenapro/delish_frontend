@@ -26,7 +26,7 @@ interface OpenShiftDialogProps {
   onOpenChange: (open: boolean) => void;
   shops: Shop[];
   businessId: string;
-  onShiftOpened: (session: any) => void;
+  onShiftOpened: (session: { id: string }) => void;
 }
 
 export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShiftOpened }: OpenShiftDialogProps) {
@@ -65,7 +65,7 @@ export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShift
       toast.success('Shift opened successfully!');
       onShiftOpened(session);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to open shift');
     },
   });

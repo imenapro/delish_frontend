@@ -12,7 +12,7 @@ export function ProtectedRoute({ children, requiredRole, requiredRoles }: Protec
   const { user, roles, loading } = useAuth();
   const navigate = useNavigate();
 
-  const hasAccess = () => {
+  const hasAccess = useCallback(() => {
     if (roles.some(r => r.role === 'super_admin')) return true;
     if (roles.some(r => r.role === 'admin')) return true;
     if (requiredRoles) {
@@ -22,7 +22,7 @@ export function ProtectedRoute({ children, requiredRole, requiredRoles }: Protec
       return roles.some(r => r.role === requiredRole);
     }
     return true;
-  };
+  }, [roles, requiredRoles, requiredRole]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -32,7 +32,7 @@ export function ProtectedRoute({ children, requiredRole, requiredRoles }: Protec
     if (!loading && (requiredRole || requiredRoles) && !hasAccess()) {
       navigate('/');
     }
-  }, [user, roles, loading, requiredRole, requiredRoles, navigate]);
+  }, [user, roles, loading, requiredRole, requiredRoles, navigate, hasAccess]);
 
   if (loading) {
     return (

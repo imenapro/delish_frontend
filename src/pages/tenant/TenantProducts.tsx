@@ -30,6 +30,20 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+interface Product {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  category: string;
+  image_url: string | null;
+  business_id: string;
+  is_active: boolean;
+  barcode: string | null;
+  discount_price: number | null;
+  promotion_description: string | null;
+}
+
 export default function TenantProducts() {
   const { store } = useStoreContext();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -38,7 +52,7 @@ export default function TenantProducts() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [promotionDialogOpen, setPromotionDialogOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   
   const { data: products = [], isLoading, refetch } = useBusinessProducts(store?.id);
   const deleteProduct = useDeleteProduct();
@@ -59,8 +73,9 @@ export default function TenantProducts() {
       await deleteProduct.mutateAsync(deleteProductId);
       toast.success('Product deleted successfully');
       setDeleteProductId(null);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete product');
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Failed to delete product';
+      toast.error(msg);
     }
   };
 

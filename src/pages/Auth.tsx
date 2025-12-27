@@ -43,9 +43,7 @@ export default function Auth() {
   useEffect(() => {
     if (user && businesses && !authLoading && !businessesLoading) {
       // Redirect based on number of businesses
-      if (businesses.length === 0) {
-        navigate('/create-first-shop');
-      } else if (businesses.length === 1) {
+      if (businesses.length === 1) {
         const business = businesses[0];
         if (business.slug) {
           const targetUrl = getAbsoluteUrlForStore(business.slug);
@@ -100,8 +98,9 @@ export default function Auth() {
           toast.success('Account created! Please check your email to verify.');
         }
       }
-    } catch (error: any) {
-      toast.error(error.message || 'An error occurred');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'An error occurred';
+      toast.error(message);
     } finally {
       setLoading(false);
     }

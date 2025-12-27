@@ -1,10 +1,10 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { PasswordChangeDialog } from '@/components/auth/PasswordChangeDialog';
 
-interface UserRole {
+export interface UserRole {
   role: 'super_admin' | 'branch_manager' | 'admin' | 'seller' | 'manager' | 'delivery' | 'customer' | 'store_keeper' | 'manpower' | 'accountant' | 'store_owner';
   shop_id?: string;
   business_id?: string;
@@ -16,8 +16,8 @@ interface AuthContextType {
   roles: UserRole[];
   loading: boolean;
   mustChangePassword: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, name: string, phone: string, shopId: string) => Promise<{ error: any }>;
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, name: string, phone: string, shopId: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -30,6 +30,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const navigate = useNavigate();
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    setRoles([]);
+    navigate('/auth');
+  }, [navigate]);
+
+  const fetchUserRoles = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role, shop_id, business_id')
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      setRoles(data || []);
+
+      // Check if password change is required
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('must_change_password, is_suspended')
+        .eq('id', userId)
+        .single();
+
+      if (profile?.is_suspended) {
+        await signOut();
+        return;
+      }
+
+      setMustChangePassword(profile?.must_change_password || false);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+      setRoles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [signOut]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -62,38 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
-
-  const fetchUserRoles = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role, shop_id, business_id')
-        .eq('user_id', userId);
-
-      if (error) throw error;
-      setRoles(data || []);
-
-      // Check if password change is required
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('must_change_password, is_suspended')
-        .eq('id', userId)
-        .single();
-
-      if (profile?.is_suspended) {
-        await signOut();
-        return;
-      }
-
-      setMustChangePassword(profile?.must_change_password || false);
-    } catch (error) {
-      console.error('Error fetching roles:', error);
-      setRoles([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchUserRoles]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -121,12 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setRoles([]);
-    navigate('/auth');
-  };
-
   return (
     <AuthContext.Provider value={{ user, session, roles, loading, mustChangePassword, signIn, signUp, signOut }}>
       {mustChangePassword && user && (
@@ -144,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

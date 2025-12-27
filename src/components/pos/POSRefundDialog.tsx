@@ -29,6 +29,7 @@ interface OrderItem {
   product: {
     name: string;
   };
+  remaining_quantity?: number;
 }
 
 interface RefundItem {
@@ -37,9 +38,23 @@ interface RefundItem {
   price: number;
 }
 
+interface Refund {
+  items: RefundItem[];
+}
+
+interface Order {
+  id: string;
+  order_code: string;
+  created_at: string;
+  customer_phone?: string;
+  total_amount: number;
+  order_items: OrderItem[];
+  refunds?: Refund[];
+}
+
 export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefundDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchedOrder, setSearchedOrder] = useState<any>(null);
+  const [searchedOrder, setSearchedOrder] = useState<Order | null>(null);
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({}); // itemId -> quantity
   const [reason, setReason] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
@@ -86,12 +101,12 @@ export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefund
       const order = orders[0];
       
       // Calculate remaining quantities
-      const processedOrder = {
+      const processedOrder: Order = {
         ...order,
-        order_items: order.order_items.map((item: any) => {
-          const refundedQty = order.refunds?.reduce((acc: number, refund: any) => {
-            const refundItems = refund.items as Record<string, any>[];
-            const itemRefund = refundItems.find((ri: any) => ri.id === item.id); // Matches by Order Item ID (or Product ID if we structured it that way, but let's use Order Item ID)
+        order_items: order.order_items.map((item: OrderItem) => {
+          const refundedQty = order.refunds?.reduce((acc: number, refund: Refund) => {
+            const refundItems = refund.items as unknown as RefundItem[];
+            const itemRefund = refundItems.find((ri) => ri.id === item.id); // Matches by Order Item ID (or Product ID if we structured it that way, but let's use Order Item ID)
              // Wait, the JSON structure in database will be array of objects. 
              // In the implementation below, I'll store it as array of { id: string, quantity: number, ... } where id is order_item_id
             return acc + (itemRefund?.quantity || 0);
@@ -110,11 +125,11 @@ export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefund
       setReason('');
       setPhoto(null);
       setPhotoPreview('');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast({
         title: "Error searching",
-        description: err.message,
+        description: err instanceof Error ? err.message : "An unknown error occurred",
         variant: "destructive"
       });
     }
@@ -159,7 +174,8 @@ export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefund
 
       // Prepare items JSON
       const itemsToRefund = Object.entries(selectedItems).map(([itemId, qty]) => {
-        const originalItem = searchedOrder.order_items.find((i: any) => i.id === itemId);
+        const originalItem = searchedOrder.order_items.find((i: OrderItem) => i.id === itemId);
+        if (!originalItem) throw new Error(`Item ${itemId} not found in order`);
         return {
           id: itemId, // order_item_id
           product_id: originalItem.product_id,
@@ -195,7 +211,7 @@ export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefund
       setSearchQuery('');
       setSearchedOrder(null);
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({
         title: "Refund Failed",
         description: err.message,
@@ -241,7 +257,7 @@ export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefund
   const calculateTotalRefund = () => {
     if (!searchedOrder) return 0;
     return Object.entries(selectedItems).reduce((acc, [itemId, qty]) => {
-      const item = searchedOrder.order_items.find((i: any) => i.id === itemId);
+      const item = searchedOrder.order_items.find((i: OrderItem) => i.id === itemId);
       return acc + (item ? item.unit_price * qty : 0);
     }, 0);
   };
@@ -318,7 +334,7 @@ export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefund
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {searchedOrder.order_items.map((item: any) => (
+                  {searchedOrder.order_items.map((item: OrderItem) => (
                     <TableRow key={item.id} className={item.remaining_quantity === 0 ? "opacity-50" : ""}>
                       <TableCell>{item.product.name}</TableCell>
                       <TableCell>{item.unit_price.toLocaleString()}</TableCell>

@@ -96,8 +96,9 @@ export default function TenantStaff() {
       queryClient.invalidateQueries({ queryKey: ['tenant-staff'] });
       toast.success(suspend ? 'Staff member suspended' : 'Staff member reactivated');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Operation failed');
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Operation failed';
+      toast.error(message);
     },
   });
 

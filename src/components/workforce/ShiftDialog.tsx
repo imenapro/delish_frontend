@@ -67,7 +67,7 @@ export function ShiftDialog() {
       setOpen(false);
       setFormData({ user_id: '', shop_id: '', shift_date: new Date().toISOString().split('T')[0], shift_type: '', start_time: '', end_time: '' });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message,

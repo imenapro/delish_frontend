@@ -28,10 +28,17 @@ const formSchema = z.object({
   discount_price: z.string().optional(),
 });
 
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  discount_price?: number | null;
+}
+
 interface SetDiscountDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  product: any;
+  product: Product | null;
   onSuccess: () => void;
 }
 

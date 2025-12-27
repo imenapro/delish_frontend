@@ -13,6 +13,15 @@ import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 
 const TAX_RATE = 0.18; // 18% VAT
 
+interface Expense {
+  id: string;
+  description: string;
+  category: string;
+  expense_date: string;
+  amount: number;
+  status: string;
+}
+
 export default function TenantFinance() {
   const { store } = useStoreContext();
   const [period, setPeriod] = useState('this_month');
@@ -23,9 +32,10 @@ export default function TenantFinance() {
     switch (period) {
       case 'this_month':
         return { start: startOfMonth(now), end: endOfMonth(now) };
-      case 'last_month':
+      case 'last_month': {
         const lastMonth = subMonths(now, 1);
         return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+      }
       case 'last_3_months':
         return { start: startOfMonth(subMonths(now, 2)), end: endOfMonth(now) };
       default:
@@ -256,7 +266,7 @@ export default function TenantFinance() {
             <CardContent>
               {expenseData?.items && expenseData.items.length > 0 ? (
                 <div className="space-y-4">
-                  {expenseData.items.map((expense: any) => (
+                  {expenseData.items.map((expense: Expense) => (
                     <div key={expense.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div>
                         <p className="font-medium">{expense.description}</p>

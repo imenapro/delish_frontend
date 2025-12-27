@@ -47,6 +47,7 @@ export default function Admin() {
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
       const { error } = await supabase
         .from('user_roles')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .insert([{ user_id: userId, role: role as any }]);
       
       if (error) throw error;

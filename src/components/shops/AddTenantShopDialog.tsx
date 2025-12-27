@@ -57,9 +57,9 @@ export function AddTenantShopDialog({ open, onOpenChange, onSuccess }: AddTenant
       setFormData({ name: '', address: '', phone: '', openHours: '' });
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error creating shop:', error);
-      toast.error(error.message || 'Failed to create shop');
+      toast.error(error instanceof Error ? error.message : 'Failed to create shop');
     } finally {
       setIsLoading(false);
     }

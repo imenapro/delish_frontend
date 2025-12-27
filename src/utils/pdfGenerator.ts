@@ -3,6 +3,21 @@ import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
+interface OrderItem {
+  quantity: number;
+  product?: {
+    name: string;
+  };
+}
+
+interface Order {
+  order_code: string;
+  created_at: string;
+  payment_method?: string;
+  total_amount: number;
+  order_items?: OrderItem[];
+}
+
 interface ShiftReportData {
   session: {
     id: string;
@@ -19,10 +34,16 @@ interface ShiftReportData {
       name: string;
     };
   };
-  shiftOrders: any[];
+  shiftOrders: Order[];
   closingCash: number;
   expectedCash: number;
   description?: string;
+}
+
+interface jsPDFWithAutoTable extends jsPDF {
+  lastAutoTable: {
+    finalY: number;
+  };
 }
 
 export const generateShiftReportPDF = ({
@@ -65,9 +86,9 @@ export const generateShiftReportPDF = ({
 
     let metaY = 48;
     metadata.forEach(([label, value]) => {
-      doc.font = "helvetica", "bold";
+      doc.setFont("helvetica", "bold");
       doc.text(label as string, 14, metaY);
-      doc.font = "helvetica", "normal";
+      doc.setFont("helvetica", "normal");
       doc.text(value as string, 50, metaY);
       metaY += 6;
     });
@@ -89,7 +110,7 @@ export const generateShiftReportPDF = ({
 
     // Detailed Orders Table
     if (shiftOrders && shiftOrders.length > 0) {
-      const finalY = (doc as any).lastAutoTable.finalY || 100;
+      const finalY = (doc as unknown as jsPDFWithAutoTable).lastAutoTable.finalY || 100;
       doc.setFontSize(12);
       doc.text("Detailed Order History", 14, finalY + 15);
 
@@ -98,7 +119,7 @@ export const generateShiftReportPDF = ({
         format(new Date(order.created_at), 'HH:mm:ss'),
         order.payment_method?.replace('_', ' ').toUpperCase(),
         `${order.total_amount.toLocaleString()} RWF`,
-        order.order_items?.map((i: any) => `${i.quantity}x ${i.product?.name}`).join(', ') || ''
+        order.order_items?.map((i) => `${i.quantity}x ${i.product?.name}`).join(', ') || ''
       ]);
 
       autoTable(doc, {
@@ -115,7 +136,7 @@ export const generateShiftReportPDF = ({
 
     // Notes Section
     if (description) {
-      const finalY = (doc as any).lastAutoTable.finalY || 150;
+      const finalY = (doc as unknown as jsPDFWithAutoTable).lastAutoTable.finalY || 150;
       doc.setFontSize(12);
       doc.text("Shift Notes", 14, finalY + 15);
       doc.setFontSize(10);
@@ -124,7 +145,7 @@ export const generateShiftReportPDF = ({
     }
 
     // Footer
-    const pageCount = (doc as any).internal.getNumberOfPages();
+    const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
