@@ -61,9 +61,6 @@ const App = () => {
                   {/* Registration */}
                   <Route path="/register" element={<Register />} />
                   
-                  {/* My Stores Selection */}
-                  <Route path="/my-stores" element={<MyStores />} />
-                  
                   {/* Super Admin Routes */}
                   <Route path="/super-admin" element={<SuperAdmin />} />
                   

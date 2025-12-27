@@ -43,7 +43,7 @@ export default function Auth() {
   useEffect(() => {
     if (user && businesses && !authLoading && !businessesLoading) {
       // Redirect based on number of businesses
-      if (businesses.length === 1) {
+      if (businesses.length > 0) {
         const business = businesses[0];
         if (business.slug) {
           const targetUrl = getAbsoluteUrlForStore(business.slug);
@@ -52,11 +52,9 @@ export default function Auth() {
           } else {
             navigate(targetUrl);
           }
-        } else {
-          navigate('/my-stores');
         }
       } else {
-        navigate('/my-stores');
+        navigate('/register');
       }
     }
   }, [user, businesses, navigate, authLoading, businessesLoading]);
