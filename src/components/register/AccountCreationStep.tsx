@@ -14,6 +14,7 @@ interface AccountCreationStepProps {
 export function AccountCreationStep({ data, onNext }: AccountCreationStepProps) {
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: data.email || '',
     password: data.password || '',
@@ -29,6 +30,24 @@ export function AccountCreationStep({ data, onNext }: AccountCreationStepProps) 
       toast({
         title: 'Missing Information',
         description: 'Please fill in all required fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      toast({
+        title: 'Invalid Email',
+        description: 'Please enter a valid email address',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!formData.phone || formData.phone.length < 10) {
+      toast({
+        title: 'Invalid Phone',
+        description: 'Please enter a valid phone number',
         variant: 'destructive',
       });
       return;
@@ -128,14 +147,25 @@ export function AccountCreationStep({ data, onNext }: AccountCreationStepProps) 
 
         <div className="space-y-2">
           <Label htmlFor="confirmPassword">Confirm Password *</Label>
-          <Input
-            id="confirmPassword"
-            type="password"
-            value={formData.confirmPassword}
-            onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-            placeholder="Re-enter your password"
-            required
-          />
+          <div className="relative">
+            <Input
+              id="confirmPassword"
+              type={showConfirmPassword ? 'text' : 'password'}
+              value={formData.confirmPassword}
+              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+              placeholder="Re-enter your password"
+              required
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            >
+              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
 
         <Button type="submit" className="w-full" size="lg">
