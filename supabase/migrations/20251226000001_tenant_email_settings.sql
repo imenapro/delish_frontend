@@ -1,6 +1,6 @@
 -- Create tenant_email_settings table
 CREATE TABLE IF NOT EXISTS public.tenant_email_settings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id UUID NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
     sender_name TEXT NOT NULL,
     sender_email TEXT NOT NULL,
@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS public.tenant_email_settings (
 ALTER TABLE public.tenant_email_settings ENABLE ROW LEVEL SECURITY;
 
 -- Policies
+DROP POLICY IF EXISTS "Admins can do everything on tenant_email_settings" ON public.tenant_email_settings;
 CREATE POLICY "Admins can do everything on tenant_email_settings"
     ON public.tenant_email_settings
     FOR ALL
@@ -29,6 +30,7 @@ CREATE POLICY "Admins can do everything on tenant_email_settings"
         )
     );
 
+DROP POLICY IF EXISTS "Business owners can view their own settings" ON public.tenant_email_settings;
 CREATE POLICY "Business owners can view their own settings"
     ON public.tenant_email_settings
     FOR SELECT
@@ -38,6 +40,7 @@ CREATE POLICY "Business owners can view their own settings"
         )
     );
 
+DROP POLICY IF EXISTS "Business owners can update their own settings" ON public.tenant_email_settings;
 CREATE POLICY "Business owners can update their own settings"
     ON public.tenant_email_settings
     FOR UPDATE
@@ -52,6 +55,7 @@ CREATE POLICY "Business owners can update their own settings"
         )
     );
 
+DROP POLICY IF EXISTS "Business owners can insert their own settings" ON public.tenant_email_settings;
 CREATE POLICY "Business owners can insert their own settings"
     ON public.tenant_email_settings
     FOR INSERT
@@ -62,6 +66,7 @@ CREATE POLICY "Business owners can insert their own settings"
     );
 
 -- Add updated_at trigger
+DROP TRIGGER IF EXISTS update_tenant_email_settings_updated_at ON public.tenant_email_settings;
 CREATE TRIGGER update_tenant_email_settings_updated_at
     BEFORE UPDATE ON public.tenant_email_settings
     FOR EACH ROW

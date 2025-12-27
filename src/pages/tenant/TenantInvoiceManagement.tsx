@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { TenantPageWrapper } from '@/components/tenant/TenantPageWrapper';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -23,18 +24,22 @@ interface Invoice {
   id: string;
   invoice_number: string;
   created_at: string;
-  shop?: { name: string };
-  customer_info?: { name: string };
+  shop?: { name: string; logo_url?: string; address?: string; phone?: string };
+  customer_info?: { name: string; phone?: string };
   total_amount: number;
   status: string;
+  payment_method: string;
+  subtotal: number;
+  tax_amount: number;
+  items_snapshot: any[];
+  notes?: string;
 }
 
 export default function TenantInvoiceManagement() {
   const { store } = useStoreContext();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedShop, setSelectedShop] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: subDays(new Date(), 30),
     to: new Date(),
@@ -44,6 +49,37 @@ export default function TenantInvoiceManagement() {
     key: 'created_at',
     direction: 'desc',
   });
+
+  const invoiceId = searchParams.get('invoiceId');
+  const viewDialogOpen = !!invoiceId;
+
+  // Fetch specific invoice details when URL param is present
+   const { data: selectedInvoice } = useQuery({
+     queryKey: ['invoice', invoiceId],
+     queryFn: async () => {
+       if (!invoiceId) return null;
+       const { data, error } = await supabase
+         .from('invoices')
+         .select(`
+           *,
+           shop:shops!inner (
+             name,
+             address,
+             phone,
+             logo_url,
+             business_id
+           )
+         `)
+         .eq('id', invoiceId)
+          .eq('shop.business_id', store?.id)
+          .maybeSingle();
+        
+        if (error) throw error;
+        return data as Invoice;
+      },
+      enabled: !!invoiceId && !!store?.id,
+      retry: false
+    });
 
   // Fetch shops for filtering
   const { data: shops } = useQuery({
@@ -65,17 +101,24 @@ export default function TenantInvoiceManagement() {
   const { data: invoicesData, isLoading } = useQuery({
     queryKey: ['invoices', selectedShop, store?.id, page, dateRange, searchTerm, sortConfig],
     queryFn: async () => {
-      // Use a Left Join to fetch shop details for display purposes only.
+      // Use !inner join to enforce relationship and allow filtering by shop's business_id
       let query = supabase
         .from('invoices')
         .select(`
           *,
-          shop:shops (
+          shop:shops!inner (
             name,
             address,
-            phone
+            phone,
+            logo_url,
+            business_id
            )
         `, { count: 'exact' });
+
+      // Filter by business (Tenant) using the shop relation
+      if (store?.id) {
+        query = query.eq('shop.business_id', store.id);
+      }
 
       // Filter by shop (if selected)
       if (selectedShop !== 'all') {
@@ -107,7 +150,7 @@ export default function TenantInvoiceManagement() {
 
       const { data, count, error } = await query;
       if (error) throw error;
-      return { data, count };
+      return { data: data as Invoice[], count };
     },
     enabled: !!store?.id,
   });
@@ -119,6 +162,16 @@ export default function TenantInvoiceManagement() {
       key,
       direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
     }));
+  };
+
+  const handleViewInvoice = (invoice: Invoice) => {
+    setSearchParams({ invoiceId: invoice.id });
+  };
+
+  const handleCloseViewDialog = (open: boolean) => {
+    if (!open) {
+      setSearchParams({});
+    }
   };
 
   return (
@@ -273,10 +326,7 @@ export default function TenantInvoiceManagement() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              setSelectedInvoice(invoice);
-                              setViewDialogOpen(true);
-                            }}
+                            onClick={() => handleViewInvoice(invoice)}
                           >
                             <Eye className="h-4 w-4 mr-2" />
                             View
@@ -321,11 +371,13 @@ export default function TenantInvoiceManagement() {
         </CardFooter>
       </Card>
 
-      <ViewInvoiceDialog
-        open={viewDialogOpen}
-        onOpenChange={setViewDialogOpen}
-        invoice={selectedInvoice}
-      />
+      {selectedInvoice && (
+        <ViewInvoiceDialog
+          open={viewDialogOpen}
+          onOpenChange={handleCloseViewDialog}
+          invoice={selectedInvoice}
+        />
+      )}
     </TenantPageWrapper>
   );
 }

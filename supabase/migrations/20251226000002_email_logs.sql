@@ -1,6 +1,6 @@
 -- Create email_logs table
 CREATE TABLE IF NOT EXISTS public.email_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id UUID REFERENCES public.businesses(id) ON DELETE SET NULL,
     from_email TEXT NOT NULL,
     to_email TEXT NOT NULL,
@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS public.email_logs (
 ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
 
 -- Policies
+DROP POLICY IF EXISTS "Admins can view all email logs" ON public.email_logs;
 CREATE POLICY "Admins can view all email logs"
     ON public.email_logs
     FOR SELECT
@@ -27,6 +28,7 @@ CREATE POLICY "Admins can view all email logs"
         )
     );
 
+DROP POLICY IF EXISTS "Business owners can view their own email logs" ON public.email_logs;
 CREATE POLICY "Business owners can view their own email logs"
     ON public.email_logs
     FOR SELECT

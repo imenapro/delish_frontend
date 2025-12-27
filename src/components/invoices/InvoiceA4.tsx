@@ -1,39 +1,8 @@
 import React, { forwardRef } from 'react';
 import { format } from 'date-fns';
 
-interface InvoiceItem {
-  name: string;
-  quantity: number;
-  price: number;
-  subtotal?: number;
-}
-
-interface Invoice {
-  invoice_number: string;
-  created_at: string;
-  status: string;
-  subtotal: number;
-  tax_amount: number;
-  items_snapshot?: InvoiceItem[];
-  shop?: {
-    name: string;
-    logo_url?: string;
-    address?: string;
-    city?: string;
-    country?: string;
-    phone?: string;
-    email?: string;
-  };
-  customer_info?: {
-    name?: string;
-    phone?: string;
-    email?: string;
-    address?: string;
-  };
-}
-
 interface InvoiceA4Props {
-  invoice: Invoice;
+  invoice: any;
   size?: 'a4' | 'a5';
 }
 
@@ -102,7 +71,7 @@ export const InvoiceA4 = forwardRef<HTMLDivElement, InvoiceA4Props>(({ invoice, 
           </tr>
         </thead>
         <tbody>
-          {items.map((item: InvoiceItem, index: number) => (
+          {items.map((item: any, index: number) => (
             <tr key={index} className="border-b border-gray-200">
               <td className="py-4">
                 <div className="font-medium text-gray-900">{item.name}</div>

@@ -1,6 +1,6 @@
 -- Create sms_logs table
 CREATE TABLE IF NOT EXISTS public.sms_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id UUID REFERENCES public.businesses(id) ON DELETE SET NULL,
     phone_number TEXT NOT NULL,
     message TEXT NOT NULL,
@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS public.sms_logs (
 ALTER TABLE public.sms_logs ENABLE ROW LEVEL SECURITY;
 
 -- Policies
+DROP POLICY IF EXISTS "Admins can view all sms logs" ON public.sms_logs;
 CREATE POLICY "Admins can view all sms logs"
     ON public.sms_logs
     FOR SELECT
@@ -26,6 +27,7 @@ CREATE POLICY "Admins can view all sms logs"
         )
     );
 
+DROP POLICY IF EXISTS "Business owners can view their own sms logs" ON public.sms_logs;
 CREATE POLICY "Business owners can view their own sms logs"
     ON public.sms_logs
     FOR SELECT
@@ -35,6 +37,7 @@ CREATE POLICY "Business owners can view their own sms logs"
         )
     );
 
+DROP POLICY IF EXISTS "Users can insert sms logs" ON public.sms_logs;
 CREATE POLICY "Users can insert sms logs"
     ON public.sms_logs
     FOR INSERT

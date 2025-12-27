@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserBusinesses } from '@/hooks/useUserBusinesses';
@@ -57,7 +57,7 @@ export default function MyStores() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate('/create-first-shop')} className="w-full">
+            <Button onClick={() => navigate('/register')} className="w-full">
               <Plus className="mr-2 h-4 w-4" />
               Criar Primeira Loja
             </Button>
@@ -137,7 +137,7 @@ export default function MyStores() {
         <div className="mt-8 text-center">
           <Button
             variant="outline"
-            onClick={() => navigate('/create-first-shop')}
+            onClick={() => navigate('/register')}
           >
             <Plus className="mr-2 h-4 w-4" />
             Criar Nova Loja

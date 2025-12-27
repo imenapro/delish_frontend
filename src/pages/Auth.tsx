@@ -43,9 +43,7 @@ export default function Auth() {
   useEffect(() => {
     if (user && businesses && !authLoading && !businessesLoading) {
       // Redirect based on number of businesses
-      if (businesses.length === 0) {
-        navigate('/create-first-shop');
-      } else if (businesses.length === 1) {
+      if (businesses.length === 1) {
         const business = businesses[0];
         if (business.slug) {
           const targetUrl = getAbsoluteUrlForStore(business.slug);

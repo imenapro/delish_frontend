@@ -24,36 +24,10 @@ import { Receipt } from '@/components/pos/Receipt';
 import { InvoiceA4 } from '@/components/invoices/InvoiceA4';
 import { ShareInvoiceDialog } from '@/components/invoices/ShareInvoiceDialog';
 
-interface InvoiceItem {
-  name: string;
-  quantity: number;
-  unit_price: number;
-  subtotal?: number;
-  product?: { name: string };
-}
-
-interface Invoice {
-  id: string;
-  invoice_number: string;
-  created_at: string;
-  status: string;
-  total_amount: number;
-  payment_method: string;
-  items_snapshot?: InvoiceItem[];
-  shop?: {
-    name: string;
-    logo_url?: string;
-  };
-  customer_info?: {
-    name?: string;
-    phone?: string;
-  };
-}
-
 interface ViewInvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  invoice: Invoice;
+  invoice: any;
 }
 
 export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDialogProps) {
@@ -159,7 +133,7 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
                             <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">Items</h4>
                             <div className="border rounded-lg bg-card overflow-hidden">
                                 <div className="divide-y">
-                                    {items.map((item: InvoiceItem, index: number) => (
+                                    {items.map((item: any, index: number) => (
                                         <div key={index} className="p-3 flex justify-between items-center text-sm">
                                             <div>
                                                 <span className="font-medium">{item.quantity}x</span> {item.name || item.product?.name}
