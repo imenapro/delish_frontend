@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useReactToPrint } from 'react-to-print';
 import { InvoiceA4 } from '@/components/invoices/InvoiceA4';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface InvoiceItem {
   id?: string;
@@ -28,6 +29,9 @@ interface Invoice {
     address?: string;
     phone?: string;
     logo_url?: string;
+    business?: {
+        currency?: string;
+    };
   };
   status: 'paid' | 'pending' | 'overdue' | 'cancelled';
   created_at: string;
@@ -75,7 +79,10 @@ export default function PublicInvoice() {
               name,
               address,
               phone,
-              logo_url
+              logo_url,
+              business:businesses (
+                currency
+              )
             )
           `)
           // Cast UUID to text for partial matching
@@ -136,7 +143,8 @@ export default function PublicInvoice() {
 
   const items = invoice.items_snapshot || [];
   const customer = invoice.customer_info;
-
+  const currency = invoice.shop?.business?.currency || DEFAULT_SYSTEM_CURRENCY;
+  
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto space-y-6">
@@ -200,9 +208,9 @@ export default function PublicInvoice() {
                                         <tr key={index}>
                                             <td className="px-4 py-3 text-sm text-gray-900">{item.name || item.product?.name}</td>
                                             <td className="px-4 py-3 text-sm text-gray-500 text-right">{item.quantity}</td>
-                                            <td className="px-4 py-3 text-sm text-gray-500 text-right">{Number(item.price || item.unit_price).toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-500 text-right">{formatCurrency(Number(item.price || item.unit_price), currency)}</td>
                                             <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
-                                                {(item.subtotal || ((item.unit_price || 0) * item.quantity)).toLocaleString()}
+                                                {formatCurrency((item.subtotal || ((item.unit_price || 0) * item.quantity)), currency)}
                                             </td>
                                         </tr>
                                     ))}
@@ -215,17 +223,17 @@ export default function PublicInvoice() {
                     <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-500">Subtotal</span>
-                            <span className="font-medium">{Number(invoice.subtotal).toLocaleString()} RWF</span>
+                            <span className="font-medium">{formatCurrency(Number(invoice.subtotal), currency)}</span>
                         </div>
                         {invoice.tax_amount > 0 && (
                              <div className="flex justify-between text-sm">
                                 <span className="text-gray-500">Tax</span>
-                                <span className="font-medium">{Number(invoice.tax_amount).toLocaleString()} RWF</span>
+                                <span className="font-medium">{formatCurrency(Number(invoice.tax_amount), currency)}</span>
                             </div>
                         )}
                         <div className="border-t pt-2 mt-2 flex justify-between text-base font-bold">
                             <span>Total</span>
-                            <span className="text-primary">{Number(invoice.total_amount).toLocaleString()} RWF</span>
+                            <span className="text-primary">{formatCurrency(Number(invoice.total_amount), currency)}</span>
                         </div>
                     </div>
                 </div>
@@ -239,7 +247,7 @@ export default function PublicInvoice() {
       
       {/* Hidden Print Component */}
       <div className="hidden">
-        <InvoiceA4 ref={printRef} invoice={invoice} size="a4" />
+        <InvoiceA4 ref={printRef} invoice={invoice} size="a4" currency={currency} />
       </div>
     </div>
   );

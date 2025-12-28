@@ -245,7 +245,7 @@ export function POSParkedOrdersDialog({
                                             {order.note || 'No reference note'}
                                         </div>
                                         <div className="text-sm text-muted-foreground mt-1">
-                                            Total: <span className="text-primary font-semibold">{order.total.toLocaleString()} RWF</span>
+                                            Total: <span className="text-primary font-semibold">{formatCurrency(order.total, DEFAULT_SYSTEM_CURRENCY)}</span>
                                         </div>
                                     </div>
 

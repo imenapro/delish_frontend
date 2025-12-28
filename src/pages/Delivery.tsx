@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useState } from 'react';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 export default function Delivery() {
   const { user, roles } = useAuth();
@@ -41,7 +42,7 @@ export default function Delivery() {
             order_code,
             total_amount,
             customer:profiles!orders_customer_id_fkey(name, phone),
-            shop_origin:shops!orders_shop_id_origin_fkey(name, address),
+            shop_origin:shops!orders_shop_id_origin_fkey(name, address, business:businesses(currency)),
             shop_fulfill:shops!orders_shop_id_fulfill_fkey(name, address)
           )
         `)
@@ -71,7 +72,7 @@ export default function Delivery() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('delivery_zones')
-        .select('*, shop:shops(name)')
+        .select('*, shop:shops(name, business:businesses(currency))')
         .order('zone_name');
       if (error) throw error;
       return data;
@@ -204,7 +205,7 @@ export default function Delivery() {
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold text-primary">
-                          ${Number(task.order?.total_amount).toFixed(2)}
+                          {formatCurrency(Number(task.order?.total_amount), task.order?.shop_origin?.business?.currency || DEFAULT_SYSTEM_CURRENCY)}
                         </p>
                       </div>
                     </div>
@@ -323,7 +324,7 @@ export default function Delivery() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Delivery Fee (RWF)</Label>
+                          <Label>Delivery Fee ({DEFAULT_SYSTEM_CURRENCY})</Label>
                           <Input
                             type="number"
                             placeholder="5000"
@@ -383,7 +384,7 @@ export default function Delivery() {
                             <span className="text-sm text-muted-foreground">Delivery Fee</span>
                             <Badge variant="outline" className="flex items-center gap-1">
                               <DollarSign className="h-3 w-3" />
-                              {Number(zone.delivery_fee).toLocaleString()} RWF
+                              {formatCurrency(Number(zone.delivery_fee), zone.shop?.business?.currency || DEFAULT_SYSTEM_CURRENCY)}
                             </Badge>
                           </div>
                           <div className="flex items-center justify-between">

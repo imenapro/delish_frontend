@@ -78,6 +78,7 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
           status: 'trial',
           owner_id: authData.user.id,
           country: data.country,
+          currency: data.currency || 'USD',
           timezone: data.timezone || 'UTC',
         })
         .select()

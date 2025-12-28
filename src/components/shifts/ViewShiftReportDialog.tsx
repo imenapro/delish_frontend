@@ -19,6 +19,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Clock, Download, Loader2, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { generateShiftReportPDF } from '@/utils/pdfGenerator';
+import { useStoreContext } from '@/contexts/StoreContext';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface ViewShiftReportDialogProps {
   open: boolean;
@@ -50,6 +52,8 @@ interface ViewShiftReportDialogProps {
 }
 
 export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShiftReportDialogProps) {
+  const { store } = useStoreContext();
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   // Fetch Shift Orders with Details
@@ -93,7 +97,8 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
         shiftOrders: shiftOrders || [],
         closingCash: closingCashNum,
         expectedCash,
-        description: session.notes || undefined
+        description: session.notes || undefined,
+        currency
     });
     setIsGeneratingPdf(false);
   };
@@ -153,27 +158,27 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
                             <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">Financial Overview</h4>
                             <div className="flex justify-between text-xs">
                                 <span>Opening Cash</span>
-                                <span>{session.opening_cash.toLocaleString()} RWF</span>
+                                <span>{formatCurrency(session.opening_cash, currency)}</span>
                             </div>
                             <div className="flex justify-between text-xs font-medium">
                                 <span>Total Sales</span>
-                                <span className="text-blue-600">+{session.total_sales.toLocaleString()} RWF</span>
+                                <span className="text-blue-600">+{formatCurrency(session.total_sales, currency)}</span>
                             </div>
                              <div className="border-t my-1"></div>
                             <div className="flex justify-between text-xs">
                                 <span>Expected Cash</span>
-                                <span>{expectedCash.toLocaleString()} RWF</span>
+                                <span>{formatCurrency(expectedCash, currency)}</span>
                             </div>
                             {session.closed_at && (
                                 <>
                                     <div className="flex justify-between text-xs">
                                         <span>Actual Cash Count</span>
-                                        <span>{closingCashNum.toLocaleString()} RWF</span>
+                                        <span>{formatCurrency(closingCashNum, currency)}</span>
                                     </div>
                                     <div className="flex justify-between font-bold text-sm pt-1">
                                         <span>Variance</span>
                                         <span className={(closingCashNum - expectedCash) >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                            {(closingCashNum - expectedCash) > 0 ? '+' : ''}{(closingCashNum - expectedCash).toLocaleString()} RWF
+                                            {(closingCashNum - expectedCash) > 0 ? '+' : ''}{formatCurrency(closingCashNum - expectedCash, currency)}
                                         </span>
                                     </div>
                                 </>
@@ -205,7 +210,7 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
                                                                     {format(new Date(order.created_at), 'HH:mm')}
                                                                 </span>
                                                             </div>
-                                                            <span className="font-medium">{order.total_amount.toLocaleString()} RWF</span>
+                                                            <span className="font-medium">{formatCurrency(order.total_amount, currency)}</span>
                                                         </div>
                                                     </AccordionTrigger>
                                                     <AccordionContent className="px-2 pb-2 bg-muted/20 rounded-b-md">
@@ -220,7 +225,7 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
                                                                         <span className="flex-1 truncate pr-2">
                                                                             <span className="font-medium">{item.quantity}x</span> {item.product?.name}
                                                                         </span>
-                                                                        <span className="text-muted-foreground">{item.subtotal.toLocaleString()}</span>
+                                                                        <span className="text-muted-foreground">{formatCurrency(item.subtotal, currency)}</span>
                                                                     </div>
                                                                 ))}
                                                             </div>

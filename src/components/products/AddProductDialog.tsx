@@ -9,6 +9,8 @@ import { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useStoreContext } from '@/contexts/StoreContext';
+import { DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface AddProductDialogProps {
   open: boolean;
@@ -31,6 +33,7 @@ const PRODUCT_CATEGORIES = [
 ];
 
 export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: AddProductDialogProps) {
+  const { store } = useStoreContext();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -159,7 +162,7 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="price">Base Price (RWF) *</Label>
+            <Label htmlFor="price">Base Price ({store?.currency || DEFAULT_SYSTEM_CURRENCY}) *</Label>
             <Input
               id="price"
               type="number"

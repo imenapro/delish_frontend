@@ -106,7 +106,7 @@ export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShift
           <div className="space-y-2">
             <Label htmlFor="opening-cash" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
-              Opening Cash (RWF)
+              Opening Cash ({DEFAULT_SYSTEM_CURRENCY})
             </Label>
             <Input
               id="opening-cash"

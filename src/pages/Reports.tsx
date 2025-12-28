@@ -10,6 +10,8 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useStoreContext } from '@/contexts/StoreContext';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 import { 
   Table, 
   TableBody, 
@@ -20,6 +22,9 @@ import {
 } from '@/components/ui/table';
 
 export default function Reports() {
+  const { store } = useStoreContext();
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
+
   const [dateRange, setDateRange] = useState({
     start: format(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
     end: format(new Date(), 'yyyy-MM-dd')
@@ -186,7 +191,7 @@ export default function Reports() {
                   <div className="grid gap-4 md:grid-cols-3 mb-6">
                     <div className="p-4 rounded-lg bg-primary/10">
                       <p className="text-sm text-muted-foreground">Total Sales</p>
-                      <p className="text-2xl font-bold">{salesTotals.total.toLocaleString()} RWF</p>
+                      <p className="text-2xl font-bold">{formatCurrency(salesTotals.total, currency)}</p>
                     </div>
                     <div className="p-4 rounded-lg bg-success/10">
                       <p className="text-sm text-muted-foreground">Total Orders</p>
@@ -194,7 +199,7 @@ export default function Reports() {
                     </div>
                     <div className="p-4 rounded-lg bg-info/10">
                       <p className="text-sm text-muted-foreground">Average Order</p>
-                      <p className="text-2xl font-bold">{salesTotals.avgOrder.toFixed(0)} RWF</p>
+                      <p className="text-2xl font-bold">{formatCurrency(salesTotals.avgOrder, currency)}</p>
                     </div>
                   </div>
 
@@ -217,7 +222,7 @@ export default function Reports() {
                           <TableCell>{order.shop?.name || 'N/A'}</TableCell>
                           <TableCell>{order.seller?.name || 'N/A'}</TableCell>
                           <TableCell className="capitalize">{order.status}</TableCell>
-                          <TableCell className="text-right">{Number(order.total_amount).toLocaleString()} RWF</TableCell>
+                          <TableCell className="text-right">{formatCurrency(Number(order.total_amount), currency)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -295,7 +300,7 @@ export default function Reports() {
                   <div className="p-4 rounded-lg bg-destructive/10 mb-6">
                     <p className="text-sm text-muted-foreground">Total Expenses</p>
                     <p className="text-2xl font-bold">
-                      {expenseReport?.reduce((sum, exp) => sum + Number(exp.amount), 0).toLocaleString() || 0} RWF
+                      {formatCurrency(expenseReport?.reduce((sum, exp) => sum + Number(exp.amount), 0) || 0, currency)}
                     </p>
                   </div>
 
@@ -320,7 +325,7 @@ export default function Reports() {
                           <TableCell>{expense.shop?.name || 'N/A'}</TableCell>
                           <TableCell>{expense.recorded?.name || 'N/A'}</TableCell>
                           <TableCell className="capitalize">{expense.status}</TableCell>
-                          <TableCell className="text-right">{Number(expense.amount).toLocaleString()} RWF</TableCell>
+                          <TableCell className="text-right">{formatCurrency(Number(expense.amount), currency)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Search, MapPin, Package, DollarSign, Layers, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
+import { useStoreContext } from '@/contexts/StoreContext';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface Shop {
   id: string;
@@ -28,6 +30,7 @@ interface ShopListViewProps {
 }
 
 export function ShopListView({ shops, inventory, onSelectShop }: ShopListViewProps) {
+  const { store } = useStoreContext();
   const [searchQuery, setSearchQuery] = useState('');
 
   const getShopStats = (shopId: string) => {
@@ -100,7 +103,7 @@ export function ShopListView({ shops, inventory, onSelectShop }: ShopListViewPro
                         <DollarSign className="h-3 w-3" /> Inventory Value
                       </div>
                       <div className="text-lg font-bold">
-                        {stats.totalValue.toLocaleString()} RWF
+                        {formatCurrency(stats.totalValue, store?.currency || DEFAULT_SYSTEM_CURRENCY)}
                       </div>
                     </div>
                   </div>

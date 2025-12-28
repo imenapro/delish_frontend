@@ -1,6 +1,7 @@
 import React, { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { QRCodeSVG } from 'qrcode.react';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface ReceiptItem {
   name: string;
@@ -45,10 +46,11 @@ interface ReceiptProps {
   };
   onCreateBalanceCase?: () => void;
   width?: string;
+  currency?: string;
 }
 
 export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
-  ({ order, items, shop, business, payment, onCreateBalanceCase, width = '80mm' }, ref) => {
+  ({ order, items, shop, business, payment, onCreateBalanceCase, width = '80mm', currency = DEFAULT_SYSTEM_CURRENCY }, ref) => {
     if (!order) return null;
 
     // Format address components
@@ -159,8 +161,8 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
               <tr key={index} className="border-b border-dotted border-gray-400">
                 <td className="py-1 pr-1">{item.name}</td>
                 <td className="text-center py-1">{item.quantity}</td>
-                <td className="text-right py-1">{Number(item.price).toLocaleString()}</td>
-                <td className="text-right py-1 font-semibold">{Number(item.subtotal).toLocaleString()}</td>
+                <td className="text-right py-1">{formatCurrency(Number(item.price), currency)}</td>
+                <td className="text-right py-1 font-semibold">{formatCurrency(Number(item.subtotal), currency)}</td>
               </tr>
             ))}
           </tbody>
@@ -170,7 +172,7 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
         <div className="border-t border-black pt-2 space-y-1 mb-6 text-[11px]">
           <div className="flex justify-between font-bold text-[14px]">
             <span>TOTAL:</span>
-            <span>{Number(order.total_amount).toLocaleString()} RWF</span>
+            <span>{formatCurrency(Number(order.total_amount), currency)}</span>
           </div>
           
           {/* 4. Payment Information Section */}
@@ -178,11 +180,11 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
             <div className="border-t border-dotted border-gray-400 mt-2 pt-2">
               <div className="flex justify-between text-[11px]">
                 <span>Amount Paid:</span>
-                <span>{payment.amountPaid.toLocaleString()} RWF</span>
+                <span>{formatCurrency(payment.amountPaid, currency)}</span>
               </div>
               <div className="flex justify-between text-[11px] font-bold">
                 <span>Change Due:</span>
-                <span>{payment.change.toLocaleString()} RWF</span>
+                <span>{formatCurrency(payment.change, currency)}</span>
               </div>
             </div>
           )}

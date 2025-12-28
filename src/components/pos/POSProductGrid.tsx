@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Search, Package, Plus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { playSound } from '@/utils/sounds';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface Product {
   id: string;
@@ -22,9 +23,10 @@ interface POSProductGridProps {
   products: Product[];
   loading: boolean;
   onAddToCart: (product: Product) => void;
+  currency?: string;
 }
 
-export function POSProductGrid({ products, loading, onAddToCart }: POSProductGridProps) {
+export function POSProductGrid({ products, loading, onAddToCart, currency = DEFAULT_SYSTEM_CURRENCY }: POSProductGridProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<'all' | 'discount' | 'promotion' | 'regular'>('all');
@@ -173,15 +175,15 @@ export function POSProductGrid({ products, loading, onAddToCart }: POSProductGri
                     {product.discount_price ? (
                       <>
                         <span className="font-bold text-red-600">
-                          {product.discount_price.toLocaleString()} RWF
+                          {formatCurrency(product.discount_price, currency)}
                         </span>
                         <span className="text-xs text-muted-foreground line-through">
-                          {product.price.toLocaleString()} RWF
+                          {formatCurrency(product.price, currency)}
                         </span>
                       </>
                     ) : (
                       <span className="font-bold text-primary">
-                        {product.price.toLocaleString()} RWF
+                        {formatCurrency(product.price, currency)}
                       </span>
                     )}
                   </div>

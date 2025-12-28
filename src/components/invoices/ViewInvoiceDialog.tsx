@@ -23,6 +23,8 @@ import { useReactToPrint } from 'react-to-print';
 import { Receipt } from '@/components/pos/Receipt';
 import { InvoiceA4 } from '@/components/invoices/InvoiceA4';
 import { ShareInvoiceDialog } from '@/components/invoices/ShareInvoiceDialog';
+import { useStoreContext } from '@/contexts/StoreContext';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface ViewInvoiceDialogProps {
   open: boolean;
@@ -31,6 +33,8 @@ interface ViewInvoiceDialogProps {
 }
 
 export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDialogProps) {
+  const { store } = useStoreContext();
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [shareOpen, setShareOpen] = useState(false);
   const a4PrintRef = useRef<HTMLDivElement>(null);
   const a5PrintRef = useRef<HTMLDivElement>(null);
@@ -139,7 +143,7 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
                                                 <span className="font-medium">{item.quantity}x</span> {item.name || item.product?.name}
                                             </div>
                                             <div className="font-medium">
-                                                {(item.subtotal || (item.unit_price * item.quantity)).toLocaleString()} RWF
+                                                {formatCurrency((item.subtotal || (item.unit_price * item.quantity)), currency)}
                                             </div>
                                         </div>
                                     ))}
@@ -151,16 +155,16 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
                         <div className="bg-card rounded-lg p-3 border space-y-2 shadow-sm">
                             <div className="flex justify-between text-xs">
                                 <span>Subtotal</span>
-                                <span>{Number(invoice.subtotal).toLocaleString()} RWF</span>
+                                <span>{formatCurrency(Number(invoice.subtotal), currency)}</span>
                             </div>
                             <div className="flex justify-between text-xs">
                                 <span>Tax</span>
-                                <span>{Number(invoice.tax_amount).toLocaleString()} RWF</span>
+                                <span>{formatCurrency(Number(invoice.tax_amount), currency)}</span>
                             </div>
                             <div className="border-t my-1"></div>
                             <div className="flex justify-between font-bold text-sm">
                                 <span>Total Amount</span>
-                                <span className="text-primary">{Number(invoice.total_amount).toLocaleString()} RWF</span>
+                                <span className="text-primary">{formatCurrency(Number(invoice.total_amount), currency)}</span>
                             </div>
                         </div>
 
@@ -219,8 +223,8 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
 
       {/* Hidden Print Templates */}
       <div className="hidden">
-        <InvoiceA4 ref={a4PrintRef} invoice={invoice} size="a4" />
-        <InvoiceA4 ref={a5PrintRef} invoice={invoice} size="a5" />
+        <InvoiceA4 ref={a4PrintRef} invoice={invoice} size="a4" currency={currency} />
+        <InvoiceA4 ref={a5PrintRef} invoice={invoice} size="a5" currency={currency} />
         <Receipt 
             ref={thermalPrintRef} 
             order={receiptOrder} 
@@ -232,6 +236,7 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
                 change: 0
             }}
             width="80mm"
+            currency={currency}
         />
         <Receipt 
             ref={thermal58PrintRef} 
@@ -244,6 +249,7 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
                 change: 0
             }}
             width="58mm"
+            currency={currency}
         />
       </div>
     </>

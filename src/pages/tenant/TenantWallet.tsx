@@ -2,8 +2,13 @@ import { TenantPageWrapper } from '@/components/tenant/TenantPageWrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Wallet, ArrowUpRight, ArrowDownLeft, History } from 'lucide-react';
+import { useStoreContext } from '@/contexts/StoreContext';
+import { formatCurrency } from '@/utils/currency';
 
 export default function TenantWallet() {
+  const { store } = useStoreContext();
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
+
   return (
     <TenantPageWrapper
       title="Wallet"
@@ -16,7 +21,7 @@ export default function TenantWallet() {
             <Wallet className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0 RWF</div>
+            <div className="text-2xl font-bold">{formatCurrency(0, currency)}</div>
             <p className="text-xs text-muted-foreground">Available balance</p>
           </CardContent>
         </Card>
@@ -27,7 +32,7 @@ export default function TenantWallet() {
             <ArrowDownLeft className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0 RWF</div>
+            <div className="text-2xl font-bold">{formatCurrency(0, currency)}</div>
             <p className="text-xs text-muted-foreground">This month</p>
           </CardContent>
         </Card>
@@ -38,7 +43,7 @@ export default function TenantWallet() {
             <ArrowUpRight className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0 RWF</div>
+            <div className="text-2xl font-bold">{formatCurrency(0, currency)}</div>
             <p className="text-xs text-muted-foreground">This month</p>
           </CardContent>
         </Card>

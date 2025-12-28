@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 const PAGE_SIZE = 10;
 
@@ -37,6 +38,7 @@ interface Invoice {
 
 export default function TenantInvoiceManagement() {
   const { store } = useStoreContext();
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedShop, setSelectedShop] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -313,7 +315,7 @@ export default function TenantInvoiceManagement() {
                           {invoice.customer_info?.name || 'Guest'}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {Number(invoice.total_amount).toLocaleString()} RWF
+                          {formatCurrency(Number(invoice.total_amount), currency)}
                         </TableCell>
                         <TableCell>
                           <Badge variant={invoice.status === 'paid' ? 'default' : 'secondary'} className={

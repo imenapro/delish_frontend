@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useStoreContext } from '@/contexts/StoreContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 export function ExpenseDialog() {
   const { user } = useAuth();
+  const { store } = useStoreContext();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -115,7 +118,7 @@ export function ExpenseDialog() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Amount (RWF)</Label>
+            <Label>Amount ({store?.currency || DEFAULT_SYSTEM_CURRENCY})</Label>
             <Input
               type="number"
               step="0.01"

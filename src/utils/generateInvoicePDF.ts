@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from './currency';
 
 interface InvoiceItem {
   name: string;
@@ -38,7 +39,7 @@ interface jsPDFWithAutoTable extends jsPDF {
   };
 }
 
-export const generateInvoicePDF = (invoice: Invoice) => {
+export const generateInvoicePDF = (invoice: Invoice, currency: string = DEFAULT_SYSTEM_CURRENCY) => {
   const doc = new jsPDF();
   const shop = invoice.shop || {};
   const customer = invoice.customer_info || {};
@@ -131,8 +132,8 @@ export const generateInvoicePDF = (invoice: Invoice) => {
   const tableData = items.map((item) => [
     item.name,
     item.quantity,
-    Number(item.price).toLocaleString(),
-    (item.subtotal || (item.price * item.quantity)).toLocaleString()
+    formatCurrency(Number(item.price), currency),
+    formatCurrency((item.subtotal || (item.price * item.quantity)), currency)
   ]);
 
   autoTable(doc, {
@@ -165,9 +166,9 @@ export const generateInvoicePDF = (invoice: Invoice) => {
   // Totals
   const finalY = (doc as unknown as jsPDFWithAutoTable).lastAutoTable.finalY + 10;
   
-  const subtotal = Number(invoice.subtotal || 0).toLocaleString();
-  const tax = Number(invoice.tax_amount || 0).toLocaleString();
-  const total = Number(invoice.total_amount || 0).toLocaleString();
+  const subtotal = formatCurrency(Number(invoice.subtotal || 0), currency);
+  const tax = formatCurrency(Number(invoice.tax_amount || 0), currency);
+  const total = formatCurrency(Number(invoice.total_amount || 0), currency);
 
   const totalsX = 120;
   let currentY = finalY;
@@ -176,14 +177,14 @@ export const generateInvoicePDF = (invoice: Invoice) => {
   doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
   doc.text('Subtotal:', totalsX, currentY);
   doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(`${subtotal} RWF`, 196, currentY, { align: 'right' });
+  doc.text(subtotal, 196, currentY, { align: 'right' });
   currentY += 7;
 
   // Tax
   doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
   doc.text('Tax (18%):', totalsX, currentY);
   doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(`${tax} RWF`, 196, currentY, { align: 'right' });
+  doc.text(tax, 196, currentY, { align: 'right' });
   currentY += 7;
 
   // Total Line
@@ -195,7 +196,7 @@ export const generateInvoicePDF = (invoice: Invoice) => {
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text('Total:', totalsX, currentY);
-  doc.text(`${total} RWF`, 196, currentY, { align: 'right' });
+  doc.text(total, 196, currentY, { align: 'right' });
 
   // Footer
   doc.setFontSize(8);

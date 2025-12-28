@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { ShoppingCart, Minus, Plus, Trash2, CreditCard, Save } from 'lucide-react';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 export interface CartItem {
   id: string;
@@ -20,6 +21,7 @@ interface POSCartProps {
   onCheckout: () => void;
   onPark: () => void;
   isProcessing?: boolean;
+  currency?: string;
 }
 
 export function POSCart({ 
@@ -29,7 +31,8 @@ export function POSCart({
   onClearCart,
   onCheckout,
   onPark,
-  isProcessing 
+  isProcessing,
+  currency = DEFAULT_SYSTEM_CURRENCY
 }: POSCartProps) {
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const tax = 0; // Can be configured
@@ -59,7 +62,7 @@ export function POSCart({
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{item.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {item.price.toLocaleString()} RWF each
+                      {formatCurrency(item.price, currency)} each
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
@@ -88,7 +91,7 @@ export function POSCart({
                   </div>
                   <div className="text-right min-w-[80px]">
                     <p className="font-semibold text-sm">
-                      {(item.price * item.quantity).toLocaleString()} RWF
+                      {formatCurrency(item.price * item.quantity, currency)}
                     </p>
                   </div>
                   <Button
@@ -111,18 +114,18 @@ export function POSCart({
           <div className="w-full space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>{subtotal.toLocaleString()} RWF</span>
+              <span>{formatCurrency(subtotal, currency)}</span>
             </div>
             {tax > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Tax</span>
-                <span>{tax.toLocaleString()} RWF</span>
+                <span>{formatCurrency(tax, currency)}</span>
               </div>
             )}
             <Separator />
             <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
-              <span className="text-primary">{total.toLocaleString()} RWF</span>
+              <span className="text-primary">{formatCurrency(total, currency)}</span>
             </div>
           </div>
           

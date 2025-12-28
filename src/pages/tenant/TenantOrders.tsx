@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 const ORDER_STATUSES = [
   'pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled'
@@ -19,6 +20,7 @@ export default function TenantOrders() {
   const { store } = useStoreContext();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
 
   // Fetch shops for this business
   const { data: shops = [] } = useQuery({
@@ -240,7 +242,7 @@ export default function TenantOrders() {
                   
                   <div className="flex flex-col items-end gap-2">
                     <p className="text-2xl font-bold text-primary">
-                      {Number(order.total_amount).toLocaleString()} RWF
+                      {formatCurrency(Number(order.total_amount), currency)}
                     </p>
                     <div className="flex gap-2">
                       {getNextStatus(order.status) && (

@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { RegistrationData } from '@/pages/Register';
 import { ArrowLeft } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface BusinessSetupStepProps {
   data: Partial<RegistrationData>;
@@ -28,13 +29,40 @@ const businessTypes = [
 
 export function BusinessSetupStep({ data, onNext, onBack }: BusinessSetupStepProps) {
   const { toast } = useToast();
+  const [countries, setCountries] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     businessName: data.businessName || '',
     businessType: data.businessType || '',
     businessSlug: data.businessSlug || '',
-    country: data.country || 'United States',
+    country: data.country || '',
+    currency: data.currency || 'USD',
     timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
+
+  useEffect(() => {
+    const fetchCountries = async () => {
+      const { data } = await supabase
+        .from('country_currency_mapping')
+        .select('*')
+        .eq('is_active', true);
+      
+      if (data) {
+        setCountries(data);
+        // Auto-select Mozambique if available and no country selected
+        if (!formData.country) {
+            const mz = data.find(c => c.country_code === 'MZ');
+            if (mz) {
+                setFormData(prev => ({
+                    ...prev,
+                    country: mz.country_code,
+                    currency: mz.currency_code
+                }));
+            }
+        }
+      }
+    };
+    fetchCountries();
+  }, []);
 
   useEffect(() => {
     if (formData.businessName && !data.businessSlug) {
@@ -49,7 +77,7 @@ export function BusinessSetupStep({ data, onNext, onBack }: BusinessSetupStepPro
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.businessName || !formData.businessType) {
+    if (!formData.businessName || !formData.businessType || !formData.country) {
       toast({
         title: 'Missing Information',
         description: 'Please fill in all required fields',
@@ -118,12 +146,28 @@ export function BusinessSetupStep({ data, onNext, onBack }: BusinessSetupStepPro
 
         <div className="space-y-2">
           <Label htmlFor="country">Country *</Label>
-          <Input
-            id="country"
+          <Select
             value={formData.country}
-            onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-            required
-          />
+            onValueChange={(value) => {
+                const selected = countries.find(c => c.country_code === value);
+                setFormData({
+                    ...formData,
+                    country: value,
+                    currency: selected?.currency_code || 'USD'
+                });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select country" />
+            </SelectTrigger>
+            <SelectContent>
+              {countries.map((c) => (
+                <SelectItem key={c.country_code} value={c.country_code}>
+                  {c.country_code} - {c.currency_code}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">

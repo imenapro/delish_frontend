@@ -23,6 +23,7 @@ export interface RegistrationData {
   businessType: string;
   businessSlug: string;
   country: string;
+  currency: string;
   timezone: string;
   
   // Step 3: Branding

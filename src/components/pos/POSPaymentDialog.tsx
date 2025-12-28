@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Banknote, CreditCard, Smartphone, Wallet } from 'lucide-react';
 import { CartItem } from './POSCart';
 import { POSPostSaleDialog, PostSaleData } from './POSPostSaleDialog';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface POSPaymentDialogProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface POSPaymentDialogProps {
   total: number;
   onComplete: (paymentMethod: string, customerPhone?: string, extras?: PostSaleData) => void;
   isProcessing: boolean;
+  currency?: string;
 }
 
 export function POSPaymentDialog({ 
@@ -24,7 +26,8 @@ export function POSPaymentDialog({
   cartItems,
   total,
   onComplete,
-  isProcessing 
+  isProcessing,
+  currency = DEFAULT_SYSTEM_CURRENCY
 }: POSPaymentDialogProps) {
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -87,7 +90,7 @@ export function POSPaymentDialog({
         <DialogHeader>
           <DialogTitle>Complete Payment</DialogTitle>
           <DialogDescription>
-            Total: <span className="font-bold text-primary">{total.toLocaleString()} RWF</span>
+            Total: <span className="font-bold text-primary">{formatCurrency(total, currency)}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -157,7 +160,7 @@ export function POSPaymentDialog({
               {change > 0 && (
                 <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg">
                   <p className="text-sm text-green-600 dark:text-green-400">
-                    Change to give: <span className="font-bold">{change.toLocaleString()} RWF</span>
+                    Change to give: <span className="font-bold">{formatCurrency(change, currency)}</span>
                   </p>
                 </div>
               )}
