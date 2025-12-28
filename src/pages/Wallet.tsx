@@ -1,3 +1,4 @@
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -129,7 +130,7 @@ export default function Wallet() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-5xl font-bold text-primary">
-                    {wallet?.balance ? Number(wallet.balance).toLocaleString() : '0'} RWF
+                    {formatCurrency(wallet?.balance || 0, wallet?.currency || DEFAULT_SYSTEM_CURRENCY)}
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
                     Last updated: {wallet?.updated_at ? format(new Date(wallet.updated_at), 'MMM dd, yyyy HH:mm') : 'N/A'}
@@ -178,7 +179,7 @@ export default function Wallet() {
                           </div>
                           <div className="text-right">
                             <div className={`text-xl font-bold ${getTransactionColor(transaction.type)}`}>
-                              {transaction.type === 'credit' ? '+' : '-'}${Math.abs(Number(transaction.amount)).toFixed(2)}
+                              {transaction.type === 'credit' ? '+' : '-'}{formatCurrency(Math.abs(Number(transaction.amount)), wallet?.currency || DEFAULT_SYSTEM_CURRENCY)}
                             </div>
                             <Badge variant="outline" className="mt-1">
                               {transaction.type}
@@ -226,7 +227,7 @@ export default function Wallet() {
                             </div>
                             <div>
                               <p className="text-sm text-muted-foreground">Total Spent</p>
-                              <p className="text-2xl font-bold">{Number(loyalty.total_spent || 0).toLocaleString()} RWF</p>
+                              <p className="text-2xl font-bold">{formatCurrency(loyalty.total_spent || 0, wallet?.currency || DEFAULT_SYSTEM_CURRENCY)}</p>
                             </div>
                           </div>
                         ) : (

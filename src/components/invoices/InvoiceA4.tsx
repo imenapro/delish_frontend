@@ -1,12 +1,14 @@
 import React, { forwardRef } from 'react';
 import { format } from 'date-fns';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface InvoiceA4Props {
   invoice: any;
   size?: 'a4' | 'a5';
+  currency?: string;
 }
 
-export const InvoiceA4 = forwardRef<HTMLDivElement, InvoiceA4Props>(({ invoice, size = 'a4' }, ref) => {
+export const InvoiceA4 = forwardRef<HTMLDivElement, InvoiceA4Props>(({ invoice, size = 'a4', currency = DEFAULT_SYSTEM_CURRENCY }, ref) => {
   if (!invoice) return null;
 
   const items = invoice.items_snapshot || [];
@@ -77,9 +79,9 @@ export const InvoiceA4 = forwardRef<HTMLDivElement, InvoiceA4Props>(({ invoice, 
                 <div className="font-medium text-gray-900">{item.name}</div>
               </td>
               <td className="text-center py-4 text-gray-600">{item.quantity}</td>
-              <td className="text-right py-4 text-gray-600">{Number(item.price).toLocaleString()}</td>
+              <td className="text-right py-4 text-gray-600">{formatCurrency(Number(item.price), currency)}</td>
               <td className="text-right py-4 font-medium text-gray-900">
-                {(item.subtotal || (item.price * item.quantity)).toLocaleString()}
+                {formatCurrency((item.subtotal || (item.price * item.quantity)), currency)}
               </td>
             </tr>
           ))}
@@ -91,15 +93,15 @@ export const InvoiceA4 = forwardRef<HTMLDivElement, InvoiceA4Props>(({ invoice, 
         <div className="w-80 space-y-3">
           <div className="flex justify-between text-gray-600">
             <span>Subtotal</span>
-            <span>{Number(invoice.subtotal).toLocaleString()} RWF</span>
+            <span>{formatCurrency(Number(invoice.subtotal), currency)}</span>
           </div>
           <div className="flex justify-between text-gray-600">
             <span>Tax (18%)</span>
-            <span>{Number(invoice.tax_amount).toLocaleString()} RWF</span>
+            <span>{formatCurrency(Number(invoice.tax_amount), currency)}</span>
           </div>
           <div className="border-t-2 border-gray-800 pt-3 flex justify-between items-end">
             <span className="font-bold text-lg">Total</span>
-            <span className="font-bold text-2xl">{Number(invoice.total_amount).toLocaleString()} RWF</span>
+            <span className="font-bold text-2xl">{formatCurrency(Number(invoice.total_amount), currency)}</span>
           </div>
         </div>
       </div>

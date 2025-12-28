@@ -161,7 +161,7 @@ export function ProductManagementDialog() {
                               Category: {product.category}
                             </p>
                             <p className="text-sm text-muted-foreground mb-1">
-                              Price: {Number(product.price).toFixed(0)} RWF
+                              Price: {formatCurrency(product.price, DEFAULT_SYSTEM_CURRENCY)}
                             </p>
                             {product.barcode && (
                               <p className="text-sm text-muted-foreground">
@@ -219,7 +219,7 @@ export function ProductManagementDialog() {
                 </div>
 
                 <div>
-                  <Label htmlFor="price">Price (RWF) *</Label>
+                  <Label htmlFor="price">Price ({DEFAULT_SYSTEM_CURRENCY}) *</Label>
                   <Input
                     id="price"
                     type="number"

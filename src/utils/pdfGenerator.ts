@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from './currency';
 
 interface OrderItem {
   quantity: number;
@@ -38,6 +39,7 @@ interface ShiftReportData {
   closingCash: number;
   expectedCash: number;
   description?: string;
+  currency?: string;
 }
 
 interface jsPDFWithAutoTable extends jsPDF {
@@ -51,7 +53,8 @@ export const generateShiftReportPDF = ({
   shiftOrders,
   closingCash,
   expectedCash,
-  description
+  description,
+  currency = DEFAULT_SYSTEM_CURRENCY
 }: ShiftReportData) => {
   try {
     const doc = new jsPDF();
@@ -98,11 +101,11 @@ export const generateShiftReportPDF = ({
       startY: metaY + 5,
       head: [['Financial Summary', 'Amount']],
       body: [
-        ['Opening Cash', `${session.opening_cash.toLocaleString()} RWF`],
-        ['Total Sales', `${session.total_sales.toLocaleString()} RWF`],
-        ['Expected Cash', `${expectedCash.toLocaleString()} RWF`],
-        ['Actual Cash Count', `${closingCash.toLocaleString()} RWF`],
-        ['Variance', `${difference > 0 ? '+' : ''}${difference.toLocaleString()} RWF`],
+        ['Opening Cash', formatCurrency(session.opening_cash, currency)],
+        ['Total Sales', formatCurrency(session.total_sales, currency)],
+        ['Expected Cash', formatCurrency(expectedCash, currency)],
+        ['Actual Cash Count', formatCurrency(closingCash, currency)],
+        ['Variance', formatCurrency(difference, currency)],
       ],
       theme: 'grid',
       headStyles: { fillColor: [66, 66, 66] },
@@ -114,23 +117,15 @@ export const generateShiftReportPDF = ({
       doc.setFontSize(12);
       doc.text("Detailed Order History", 14, finalY + 15);
 
-      const tableBody = shiftOrders.map(order => [
-        order.order_code,
-        format(new Date(order.created_at), 'HH:mm:ss'),
-        order.payment_method?.replace('_', ' ').toUpperCase(),
-        `${order.total_amount.toLocaleString()} RWF`,
-        order.order_items?.map((i) => `${i.quantity}x ${i.product?.name}`).join(', ') || ''
-      ]);
-
       autoTable(doc, {
         startY: finalY + 20,
-        head: [['Order #', 'Time', 'Payment', 'Total', 'Items']],
-        body: tableBody,
-        theme: 'striped',
-        headStyles: { fillColor: [41, 128, 185] },
-        columnStyles: {
-          4: { cellWidth: 80 } // Wider column for items
-        }
+        head: [['Order #', 'Time', 'Payment', 'Total']],
+        body: shiftOrders.map(order =>
+          [`${order.order_code}`, format(new Date(order.created_at), 'HH:mm'), order.payment_method || '-', formatCurrency(Number(order.total_amount), currency)]
+        ),
+        theme: 'grid',
+        headStyles: { fillColor: [66, 66, 66] },
+        styles: { fontSize: 9, cellPadding: 3 },
       });
     }
 

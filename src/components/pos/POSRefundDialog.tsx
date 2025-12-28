@@ -13,11 +13,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface POSRefundDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentUserId?: string;
+  currency?: string;
 }
 
 interface OrderItem {
@@ -52,7 +54,7 @@ interface Order {
   refunds?: Refund[];
 }
 
-export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefundDialogProps) {
+export function POSRefundDialog({ open, onOpenChange, currentUserId, currency = DEFAULT_SYSTEM_CURRENCY }: POSRefundDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchedOrder, setSearchedOrder] = useState<Order | null>(null);
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({}); // itemId -> quantity
@@ -305,19 +307,19 @@ export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefund
             <div className="bg-muted/50 p-4 rounded-md text-sm grid grid-cols-2 gap-4">
               <div>
                 <span className="font-semibold block">Order Code:</span>
-                {searchedOrder.order_code}
+                {searchedOrder?.order_code}
               </div>
               <div>
                 <span className="font-semibold block">Date:</span>
-                {format(new Date(searchedOrder.created_at), 'PPP p')}
+                {searchedOrder && format(new Date(searchedOrder.created_at), 'PPP p')}
               </div>
               <div>
                 <span className="font-semibold block">Customer:</span>
-                {searchedOrder.customer_phone || 'N/A'}
+                {searchedOrder?.customer_phone || 'N/A'}
               </div>
               <div>
                 <span className="font-semibold block">Total:</span>
-                {searchedOrder.total_amount.toLocaleString()}
+                {searchedOrder && formatCurrency(searchedOrder.total_amount, currency)}
               </div>
             </div>
 
@@ -334,10 +336,10 @@ export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefund
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {searchedOrder.order_items.map((item: OrderItem) => (
+                  {searchedOrder?.order_items.map((item: OrderItem) => (
                     <TableRow key={item.id} className={item.remaining_quantity === 0 ? "opacity-50" : ""}>
                       <TableCell>{item.product.name}</TableCell>
-                      <TableCell>{item.unit_price.toLocaleString()}</TableCell>
+                      <TableCell>{formatCurrency(item.unit_price, currency)}</TableCell>
                       <TableCell>{item.quantity}</TableCell>
                       <TableCell>{item.remaining_quantity}</TableCell>
                       <TableCell>
@@ -346,7 +348,7 @@ export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefund
                           min="0"
                           max={item.remaining_quantity}
                           value={selectedItems[item.id] || ''}
-                          onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 0, item.remaining_quantity)}
+                          onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 0, item.remaining_quantity || 0)}
                           disabled={item.remaining_quantity === 0}
                           className="w-20"
                         />
@@ -400,7 +402,7 @@ export function POSRefundDialog({ open, onOpenChange, currentUserId }: POSRefund
             {/* Total & Actions */}
             <div className="flex items-center justify-between border-t pt-4">
               <div className="text-lg font-bold">
-                Refund Total: <span className="text-red-600">{calculateTotalRefund().toLocaleString()}</span>
+                Refund Total: <span className="text-red-600">{formatCurrency(calculateTotalRefund(), currency)}</span>
               </div>
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={() => setStep('search')}>Back</Button>

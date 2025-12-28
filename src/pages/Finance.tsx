@@ -1,3 +1,4 @@
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,7 +96,7 @@ export default function Finance() {
                 ) : (
                   <>
                     <div className="text-2xl font-bold">
-                      {revenue?.total.toFixed(2)} RWF
+                      {formatCurrency(revenue?.total || 0, DEFAULT_SYSTEM_CURRENCY)}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       From {revenue?.count} completed orders
@@ -116,7 +117,7 @@ export default function Finance() {
                 ) : (
                   <>
                     <div className="text-2xl font-bold">
-                      {expenses?.filter(e => e.status === 'approved').reduce((sum, e) => sum + Number(e.amount), 0).toFixed(2)} RWF
+                      {formatCurrency(expenses?.filter(e => e.status === 'approved').reduce((sum, e) => sum + Number(e.amount), 0) || 0, DEFAULT_SYSTEM_CURRENCY)}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {expenses?.filter(e => e.status === 'approved').length} approved expenses
@@ -137,7 +138,7 @@ export default function Finance() {
                 ) : (
                   <>
                     <div className="text-2xl font-bold">
-                      {payroll?.filter(p => p.status === 'paid').reduce((sum, p) => sum + Number(p.total_amount), 0).toFixed(2)} RWF
+                      {formatCurrency(payroll?.filter(p => p.status === 'paid').reduce((sum, p) => sum + Number(p.total_amount), 0) || 0, DEFAULT_SYSTEM_CURRENCY)}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {payroll?.filter(p => p.status === 'paid').length} payments processed
@@ -185,7 +186,7 @@ export default function Finance() {
                         </div>
                         <div className="text-right">
                           <p className="text-2xl font-bold text-destructive">
-                            -{Number(expense.amount).toFixed(2)} {expense.currency}
+                            -{formatCurrency(Number(expense.amount), expense.currency || DEFAULT_SYSTEM_CURRENCY)}
                           </p>
                         </div>
                       </CardContent>
@@ -222,14 +223,14 @@ export default function Finance() {
                             </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            Base: {Number(record.base_salary).toFixed(2)} | 
-                            Bonuses: {Number(record.bonuses).toFixed(2)} | 
-                            Deductions: {Number(record.deductions).toFixed(2)}
+                            Base: {formatCurrency(Number(record.base_salary), record.currency || DEFAULT_SYSTEM_CURRENCY)} | 
+                            Bonuses: {formatCurrency(Number(record.bonuses), record.currency || DEFAULT_SYSTEM_CURRENCY)} | 
+                            Deductions: {formatCurrency(Number(record.deductions), record.currency || DEFAULT_SYSTEM_CURRENCY)}
                           </p>
                         </div>
                         <div className="text-right">
                           <p className="text-2xl font-bold text-primary">
-                            {Number(record.total_amount).toFixed(2)} {record.currency}
+                            {formatCurrency(Number(record.total_amount), record.currency || DEFAULT_SYSTEM_CURRENCY)}
                           </p>
                         </div>
                       </CardContent>

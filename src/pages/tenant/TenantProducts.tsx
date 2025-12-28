@@ -29,6 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { formatCurrency } from '@/utils/currency';
 
 interface Product {
   id: string;
@@ -46,6 +47,7 @@ interface Product {
 
 export default function TenantProducts() {
   const { store } = useStoreContext();
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null);
@@ -80,11 +82,7 @@ export default function TenantProducts() {
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-RW', {
-      style: 'currency',
-      currency: 'RWF',
-      minimumFractionDigits: 0,
-    }).format(price);
+    return formatCurrency(price, currency);
   };
 
   return (

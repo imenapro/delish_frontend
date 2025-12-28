@@ -10,6 +10,7 @@ import { DollarSign, TrendingUp, TrendingDown, Wallet, Receipt, Percent } from '
 import { supabase } from '@/integrations/supabase/client';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { formatCurrency } from '@/utils/currency';
 
 const TAX_RATE = 0.18; // 18% VAT
 
@@ -25,6 +26,7 @@ interface Expense {
 export default function TenantFinance() {
   const { store } = useStoreContext();
   const [period, setPeriod] = useState('this_month');
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
 
   // Calculate date range based on period
   const getDateRange = () => {
@@ -152,7 +154,7 @@ export default function TenantFinance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? '...' : `${(revenueData?.gross || 0).toLocaleString()} RWF`}
+              {isLoading ? '...' : formatCurrency(revenueData?.gross || 0, currency)}
             </div>
             <p className="text-xs text-muted-foreground">{revenueData?.orderCount || 0} orders</p>
           </CardContent>
@@ -165,7 +167,7 @@ export default function TenantFinance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? '...' : `${(revenueData?.tax || 0).toLocaleString()} RWF`}
+              {isLoading ? '...' : formatCurrency(revenueData?.tax || 0, currency)}
             </div>
             <p className="text-xs text-muted-foreground">Deducted from revenue</p>
           </CardContent>
@@ -178,7 +180,7 @@ export default function TenantFinance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? '...' : `${(revenueData?.net || 0).toLocaleString()} RWF`}
+              {isLoading ? '...' : formatCurrency(revenueData?.net || 0, currency)}
             </div>
             <p className="text-xs text-muted-foreground">After tax</p>
           </CardContent>
@@ -191,7 +193,7 @@ export default function TenantFinance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? '...' : `${(expenseData?.total || 0).toLocaleString()} RWF`}
+              {isLoading ? '...' : formatCurrency(expenseData?.total || 0, currency)}
             </div>
             <p className="text-xs text-muted-foreground">{expenseData?.items?.length || 0} expenses</p>
           </CardContent>
@@ -204,7 +206,7 @@ export default function TenantFinance() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {isLoading ? '...' : `${netProfit.toLocaleString()} RWF`}
+              {isLoading ? '...' : formatCurrency(netProfit, currency)}
             </div>
             <p className="text-xs text-muted-foreground">
               {netProfit >= 0 ? 'Positive balance' : 'Loss'}
@@ -232,24 +234,24 @@ export default function TenantFinance() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center py-2 border-b">
                   <span className="text-muted-foreground">Gross Revenue</span>
-                  <span className="font-semibold">{(revenueData?.gross || 0).toLocaleString()} RWF</span>
+                  <span className="font-semibold">{formatCurrency(revenueData?.gross || 0, currency)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b">
                   <span className="text-muted-foreground">Less: VAT (18%)</span>
-                  <span className="font-semibold text-orange-600">-{(revenueData?.tax || 0).toLocaleString()} RWF</span>
+                  <span className="font-semibold text-orange-600">-{formatCurrency(revenueData?.tax || 0, currency)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b">
                   <span className="text-muted-foreground">Net Revenue</span>
-                  <span className="font-semibold">{(revenueData?.net || 0).toLocaleString()} RWF</span>
+                  <span className="font-semibold">{formatCurrency(revenueData?.net || 0, currency)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b">
                   <span className="text-muted-foreground">Less: Expenses</span>
-                  <span className="font-semibold text-red-600">-{(expenseData?.total || 0).toLocaleString()} RWF</span>
+                  <span className="font-semibold text-red-600">-{formatCurrency(expenseData?.total || 0, currency)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 text-lg">
                   <span className="font-semibold">Net Profit</span>
                   <span className={`font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {netProfit.toLocaleString()} RWF
+                    {formatCurrency(netProfit, currency)}
                   </span>
                 </div>
               </div>
@@ -275,7 +277,7 @@ export default function TenantFinance() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold">{Number(expense.amount).toLocaleString()} RWF</p>
+                        <p className="font-semibold">{formatCurrency(Number(expense.amount), currency)}</p>
                         <Badge className={getStatusColor(expense.status)}>{expense.status}</Badge>
                       </div>
                     </div>

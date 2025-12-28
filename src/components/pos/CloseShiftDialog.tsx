@@ -35,6 +35,8 @@ import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateShiftReportPDF } from '@/utils/pdfGenerator';
+import { useStoreContext } from '@/contexts/StoreContext';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface CloseShiftDialogProps {
   open: boolean;
@@ -72,7 +74,8 @@ interface OrderItem {
 }
 
 export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }: CloseShiftDialogProps) {
-  const queryClient = useQueryClient();
+  const { store } = useStoreContext();
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [closingCash, setClosingCash] = useState('');
   const [description, setDescription] = useState('');
   const [additionalRecipients, setAdditionalRecipients] = useState<string[]>([]);
@@ -249,7 +252,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                             <CardContent className="p-4 space-y-4">
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm text-muted-foreground">Expected Cash</span>
-                                    <span className="text-xl font-bold">{expectedCash.toLocaleString()} RWF</span>
+                                    <span className="text-xl font-bold">{formatCurrency(expectedCash, currency)}</span>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="closing-cash">Actual Cash Count *</Label>
@@ -263,7 +266,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                                     />
                                     {closingCash && (
                                         <div className={`text-sm font-medium text-right ${difference === 0 ? 'text-green-600' : difference > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                            Difference: {difference > 0 ? '+' : ''}{difference.toLocaleString()} RWF
+                                            Difference: {difference > 0 ? '+' : ''}{formatCurrency(difference, currency)}
                                         </div>
                                     )}
                                 </div>
@@ -354,7 +357,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                             <div className="border-t pt-2">
                                 <div className="flex justify-between font-semibold mb-2">
                                     <span>Total Sales</span>
-                                    <span>{session.total_sales.toLocaleString()} RWF</span>
+                                    <span>{formatCurrency(session.total_sales, currency)}</span>
                                 </div>
                                 <div className="flex justify-between text-muted-foreground text-xs mb-1">
                                     <span>Total Orders</span>
@@ -370,7 +373,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                                             <AccordionTrigger className="py-2 hover:no-underline hover:bg-muted/50 rounded px-2 text-xs">
                                                 <div className="flex justify-between w-full pr-2">
                                                     <span className="font-mono">{order.order_code}</span>
-                                                    <span>{order.total_amount.toLocaleString()} RWF</span>
+                                                    <span>{formatCurrency(order.total_amount, currency)}</span>
                                                 </div>
                                             </AccordionTrigger>
                                             <AccordionContent className="px-2 pb-2">

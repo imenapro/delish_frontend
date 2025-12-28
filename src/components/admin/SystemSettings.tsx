@@ -69,7 +69,7 @@ export function SystemSettings() {
       // Cast role to string as it's an enum in DB but string in JS
       const { error } = await supabase
         .from('salary_settings')
-        .upsert({ role: role as "manager" | "sales_person" | "baker", amount, currency: 'RWF' }, { onConflict: 'role' });
+        .upsert({ role: role as any, amount, currency: DEFAULT_SYSTEM_CURRENCY }, { onConflict: 'role' });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -173,7 +173,7 @@ export function SystemSettings() {
             <DollarSign className="h-5 w-5" />
             Salary Settings
           </CardTitle>
-          <CardDescription>Configure salary for each role (in RWF)</CardDescription>
+          <CardDescription>Configure salary for each role</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -194,7 +194,7 @@ export function SystemSettings() {
                     }}
                     className="flex-1"
                   />
-                  <span className="text-sm text-muted-foreground">RWF</span>
+                  <span className="text-sm text-muted-foreground">{DEFAULT_SYSTEM_CURRENCY}</span>
                 </div>
               );
             })}

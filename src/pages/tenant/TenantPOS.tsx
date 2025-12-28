@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { Printer, Wifi, WifiOff, CreditCard, ShoppingCart, Calculator, Clock, LogOut, Store, Maximize, Minimize, ShoppingBag, RotateCcw } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { format, formatDistanceToNow } from 'date-fns';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 import { PostSaleData } from '@/components/pos/POSPostSaleDialog';
 import { POSCalculator } from '@/components/pos/POSCalculator';
 import { useParkedOrders } from '@/hooks/useParkedOrders';
@@ -54,7 +55,7 @@ interface Shop {
 }
 
 export default function TenantPOS() {
-  const { store } = useStoreContext();
+  const { store, loading: storeLoading } = useStoreContext();
   const { user, roles } = useAuth();
   const queryClient = useQueryClient();
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -70,6 +71,7 @@ export default function TenantPOS() {
   const [parkOrderDialogOpen, setParkOrderDialogOpen] = useState(false);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
 
 
   useEffect(() => {
@@ -607,11 +609,28 @@ export default function TenantPOS() {
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   // Show loading while checking for active session
-  if (sessionLoading || shopsLoading) {
+  if (storeLoading || sessionLoading || shopsLoading) {
     return (
       <TenantPageWrapper title="Point of Sale" description="Loading...">
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </TenantPageWrapper>
+    );
+  }
+
+  if (!store) {
+    return (
+      <TenantPageWrapper title="Point of Sale" description="Store Not Found">
+        <div className="flex flex-col items-center justify-center h-64 text-center">
+          <Store className="h-16 w-16 text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Store Not Found</h2>
+          <p className="text-muted-foreground mb-4">
+            The store you are looking for does not exist or is not available.
+          </p>
+          <Button onClick={() => window.location.reload()}>
+            Retry
+          </Button>
         </div>
       </TenantPageWrapper>
     );
@@ -747,9 +766,9 @@ export default function TenantPOS() {
                 <Badge variant="outline">{currentShop?.name || 'Unknown Shop'}</Badge>
               </div>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <span>Opening: {(activeSession.opening_cash || 0).toLocaleString()} RWF</span>
+                <span>Opening: {formatCurrency(activeSession.opening_cash || 0, currency)}</span>
                 <span>•</span>
-                <span>Sales: {(activeSession.total_sales || 0).toLocaleString()} RWF</span>
+                <span>Sales: {formatCurrency(activeSession.total_sales || 0, currency)}</span>
                 <span>•</span>
                 <span>{activeSession.total_orders || 0} orders</span>
               </div>
@@ -766,7 +785,7 @@ export default function TenantPOS() {
               <CreditCard className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{(sessionStats?.sales || 0).toLocaleString()} RWF</div>
+              <div className="text-2xl font-bold">{formatCurrency(sessionStats?.sales || 0, currency)}</div>
               <p className="text-xs text-muted-foreground">{sessionStats?.orders || 0} orders this shift</p>
             </CardContent>
           </Card>
@@ -788,7 +807,7 @@ export default function TenantPOS() {
               <Calculator className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{cartTotal.toLocaleString()} RWF</div>
+              <div className="text-2xl font-bold">{formatCurrency(cartTotal, currency)}</div>
               <p className="text-xs text-muted-foreground">current total</p>
             </CardContent>
           </Card>
@@ -800,7 +819,7 @@ export default function TenantPOS() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {((activeSession?.opening_cash || 0) + (activeSession?.total_sales || 0)).toLocaleString()} RWF
+                {formatCurrency((activeSession?.opening_cash || 0) + (activeSession?.total_sales || 0), currency)}
               </div>
               <p className="text-xs text-muted-foreground">in drawer</p>
             </CardContent>
@@ -821,6 +840,7 @@ export default function TenantPOS() {
                 products={products}
                 loading={productsLoading}
                 onAddToCart={addToCart}
+                currency={currency}
               />
             </CardContent>
           </Card>
@@ -829,27 +849,31 @@ export default function TenantPOS() {
         {/* Cart - 1 column */}
         <div className={`lg:col-span-1 ${isFullScreen ? 'h-full' : ''}`}>
           <POSCart
-            items={cart}
-            onUpdateQuantity={updateQuantity}
-            onRemoveItem={removeFromCart}
-            onClearCart={() => setCart([])}
-            onCheckout={() => setPaymentDialogOpen(true)}
-            onPark={handleParkOrder}
-            isProcessing={createOrderMutation.isPending}
-          />
+              items={cart}
+              onUpdateQuantity={updateQuantity}
+              onRemoveItem={removeFromCart}
+              onClearCart={() => setCart([])}
+              onCheckout={() => setPaymentDialogOpen(true)}
+              onPark={handleParkOrder}
+              isProcessing={createOrderMutation.isPending}
+              currency={currency}
+            />
         </div>
       </div>
 
       {/* Payment Dialog */}
-      <POSPaymentDialog
-        open={paymentDialogOpen}
+      <POSPaymentDialog 
+        open={paymentDialogOpen} 
         onOpenChange={setPaymentDialogOpen}
         cartItems={cart}
-        total={cartTotal}
-        onComplete={(paymentMethod, customerPhone, extras) => 
-          createOrderMutation.mutate({ paymentMethod, customerPhone, extras })
-        }
+        total={cart.reduce((sum, item) => sum + item.price * item.quantity, 0)}
+        onComplete={(method, phone, extras) => createOrderMutation.mutate({ 
+          paymentMethod: method, 
+          customerPhone: phone,
+          extras
+        })}
         isProcessing={createOrderMutation.isPending}
+        currency={currency}
       />
 
       {/* Close Shift Dialog */}
@@ -871,22 +895,26 @@ export default function TenantPOS() {
         />
       )}
 
-      {/* Hidden Receipt for Printing */}
+      {/* Receipt Component (Hidden) */}
       <div className="hidden">
-        {lastOrder && (
-          <Receipt
-            ref={receiptRef}
-            order={lastOrder}
-            items={lastOrder.items?.map((item: CartItem) => ({
-              name: item.name,
-              quantity: item.quantity,
-              price: item.price,
-              subtotal: item.price * item.quantity,
-            })) || []}
-            shop={shops?.find((s: Shop) => s.id === selectedShop) || { name: store?.name, address: '', phone: '', id: '' }}
-            business={shops?.find((s: Shop) => s.id === selectedShop)?.business}
-          />
-        )}
+        <Receipt 
+          ref={receiptRef} 
+          order={lastOrder as any} 
+          items={cart} // This is just for type safety, the actual items come from lastOrder
+          shop={{
+            name: activeSession?.shop?.name || '',
+            address: activeSession?.shop?.address || '',
+            phone: activeSession?.shop?.phone || '',
+            city: 'Kigali', // TODO: Get from shop data
+            country: store?.country || 'Rwanda'
+          }}
+          business={{
+            website: `www.${store?.slug}.kazimas.com`,
+            logo_url: store?.logoUrl,
+            metadata: { registration_number: '123456789' } // TODO: Get from business settings
+          }}
+          currency={currency}
+        />
       </div>
 
       {/* Calculator Dialog */}
@@ -910,10 +938,11 @@ export default function TenantPOS() {
       />
 
       {/* Refund Dialog */}
-      <POSRefundDialog
-        open={refundDialogOpen}
+      <POSRefundDialog 
+        open={refundDialogOpen} 
         onOpenChange={setRefundDialogOpen}
-        currentUserId={user?.id}
+        currentUserId={activeSession?.user_id}
+        currency={currency}
       />
     </>
   );

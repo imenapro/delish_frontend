@@ -26,6 +26,7 @@ export interface Store {
   status: 'active' | 'expiring_soon' | 'expired' | 'suspended';
   locale: 'pt' | 'en' | 'fr';
   customDomain?: string;
+  currency: string;
 }
 
 interface StoreContextType {
@@ -114,6 +115,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             status: business.status || 'active',
             locale: business.locale || 'en',
             customDomain: business.custom_domain,
+            currency: business.currency || 'USD',
           });
         } else {
           console.warn('[StoreContext] No business found');

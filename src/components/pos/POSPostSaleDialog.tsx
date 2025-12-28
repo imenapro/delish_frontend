@@ -8,6 +8,9 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Printer, Mail, MessageSquare, Package, Receipt } from 'lucide-react';
 
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
+import { useStoreContext } from '@/contexts/StoreContext';
+
 interface POSPostSaleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -39,6 +42,8 @@ export function POSPostSaleDialog({
   onConfirm,
   isProcessing
 }: POSPostSaleDialogProps) {
+  const { store } = useStoreContext();
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [needReceipt, setNeedReceipt] = useState(true);
   const [printReceipt, setPrintReceipt] = useState(true);
   
@@ -48,10 +53,10 @@ export function POSPostSaleDialog({
   const [smsReceipt, setSmsReceipt] = useState(false);
   const [smsPhone, setSmsPhone] = useState(customerPhone);
   const [chargeSms, setChargeSms] = useState(false);
-  const [smsFee, setSmsFee] = useState(50); // Default 50 RWF
+  const [smsFee, setSmsFee] = useState(50); // Default 50 units
   
   const [packaging, setPackaging] = useState(false);
-  const [packagingFee, setPackagingFee] = useState(100); // Default 100 RWF
+  const [packagingFee, setPackagingFee] = useState(100); // Default 100 units
 
   useEffect(() => {
     if (open) {
@@ -176,7 +181,7 @@ export function POSPostSaleDialog({
                         />
                         {chargeSms && (
                             <div className="flex items-center gap-2">
-                                <Label className="text-xs whitespace-nowrap">Fee (RWF):</Label>
+                                <Label className="text-xs whitespace-nowrap">Fee ({currency}):</Label>
                                 <Input 
                                     type="number" 
                                     value={smsFee} 
@@ -211,7 +216,7 @@ export function POSPostSaleDialog({
                 </Label>
                 {packaging && (
                    <div className="flex items-center gap-2 mt-1">
-                        <Label className="text-xs whitespace-nowrap">Fee (RWF):</Label>
+                        <Label className="text-xs whitespace-nowrap">Fee ({currency}):</Label>
                         <Input 
                             type="number" 
                             value={packagingFee} 
@@ -228,24 +233,24 @@ export function POSPostSaleDialog({
           <div className="rounded-lg bg-muted p-4">
             <div className="flex justify-between text-sm mb-2">
               <span>Subtotal:</span>
-              <span>{baseTotal.toLocaleString()} RWF</span>
+              <span>{formatCurrency(baseTotal, currency)}</span>
             </div>
             {chargeSms && (
               <div className="flex justify-between text-sm text-muted-foreground mb-1">
                 <span>SMS Fee:</span>
-                <span>+{smsFee.toLocaleString()} RWF</span>
+                <span>+{formatCurrency(smsFee, currency)}</span>
               </div>
             )}
             {packaging && (
               <div className="flex justify-between text-sm text-muted-foreground mb-1">
                 <span>Packaging:</span>
-                <span>+{packagingFee.toLocaleString()} RWF</span>
+                <span>+{formatCurrency(packagingFee, currency)}</span>
               </div>
             )}
             <Separator className="my-2" />
             <div className="flex justify-between font-bold text-lg">
               <span>Total:</span>
-              <span>{calculateTotal().toLocaleString()} RWF</span>
+              <span>{formatCurrency(calculateTotal(), currency)}</span>
             </div>
           </div>
         </div>

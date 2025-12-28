@@ -8,6 +8,7 @@ import { Upload, Package } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useStoreContext } from '@/contexts/StoreContext';
 
 interface Product {
   id: string;
@@ -42,6 +43,7 @@ const PRODUCT_CATEGORIES = [
 ];
 
 export function EditProductDialog({ open, onOpenChange, product, onSuccess }: EditProductDialogProps) {
+  const { store } = useStoreContext();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -164,7 +166,7 @@ export function EditProductDialog({ open, onOpenChange, product, onSuccess }: Ed
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="price">Base Price (RWF) *</Label>
+            <Label htmlFor="price">Base Price ({store?.currency || DEFAULT_SYSTEM_CURRENCY}) *</Label>
             <Input
               id="price"
               type="number"

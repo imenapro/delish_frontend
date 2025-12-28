@@ -16,6 +16,7 @@ import { Clock, Users, DollarSign, AlertCircle, CheckCircle, Eye, Printer, Loade
 import { ViewShiftReportDialog } from '@/components/shifts/ViewShiftReportDialog';
 import { generateShiftReportPDF } from '@/utils/pdfGenerator';
 import { toast } from 'sonner';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface Session {
   id: string;
@@ -40,6 +41,7 @@ interface Session {
 
 export default function TenantShiftManagement() {
   const { store } = useStoreContext();
+  const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [selectedShop, setSelectedShop] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -206,7 +208,7 @@ export default function TenantShiftManagement() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalSales.toLocaleString()} RWF</div>
+            <div className="text-2xl font-bold">{formatCurrency(totalSales, currency)}</div>
             <p className="text-xs text-muted-foreground">{totalOrders} orders</p>
           </CardContent>
         </Card>
@@ -233,7 +235,7 @@ export default function TenantShiftManagement() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${cashVariance > 0 ? 'text-green-600' : cashVariance < 0 ? 'text-red-600' : ''}`}>
-              {cashVariance > 0 ? '+' : ''}{cashVariance.toLocaleString()} RWF
+              {cashVariance > 0 ? '+' : ''}{formatCurrency(cashVariance, currency)}
             </div>
             <p className="text-xs text-muted-foreground">Overall difference</p>
           </CardContent>
@@ -285,8 +287,8 @@ export default function TenantShiftManagement() {
                         <TableCell>
                           <Badge variant="outline">{getShiftDuration(shift.opened_at)}</Badge>
                         </TableCell>
-                        <TableCell>{(shift.opening_cash || 0).toLocaleString()} RWF</TableCell>
-                        <TableCell>{(shift.total_sales || 0).toLocaleString()} RWF</TableCell>
+                        <TableCell>{formatCurrency(shift.opening_cash || 0, currency)}</TableCell>
+                        <TableCell>{formatCurrency(shift.total_sales || 0, currency)}</TableCell>
                         <TableCell>{shift.total_orders || 0}</TableCell>
                       </TableRow>
                     ))}
@@ -363,12 +365,12 @@ export default function TenantShiftManagement() {
                             {session.closed_at ? format(new Date(session.closed_at), 'HH:mm') : '-'}
                           </TableCell>
                           <TableCell>{getShiftDuration(session.opened_at, session.closed_at)}</TableCell>
-                          <TableCell>{(session.total_sales || 0).toLocaleString()} RWF</TableCell>
+                          <TableCell>{formatCurrency(session.total_sales || 0, currency)}</TableCell>
                           <TableCell>{session.total_orders || 0}</TableCell>
                           <TableCell>
                             {session.status === 'closed' && (
                               <span className={variance > 0 ? 'text-green-600' : variance < 0 ? 'text-red-600' : ''}>
-                                {variance > 0 ? '+' : ''}{variance.toLocaleString()} RWF
+                                {variance > 0 ? '+' : ''}{formatCurrency(variance, currency)}
                               </span>
                             )}
                           </TableCell>

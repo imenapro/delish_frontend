@@ -15,9 +15,11 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 export default function Dashboard() {
   const { user, roles } = useAuth();
+  const currency = DEFAULT_SYSTEM_CURRENCY; // Default currency for platform dashboard
   const isAdmin = roles.some(r => r.role === 'admin' || r.role === 'super_admin');
 
   const { data: stats } = useQuery({
@@ -192,7 +194,7 @@ export default function Dashboard() {
                       }} 
                     />
                     <Legend />
-                    <Line type="monotone" dataKey="sales" stroke="hsl(var(--primary))" strokeWidth={2} name="Sales (RWF)" />
+                    <Line type="monotone" dataKey="sales" stroke="hsl(var(--primary))" strokeWidth={2} name={`Sales (${currency})`} />
                     <Line type="monotone" dataKey="orders" stroke="hsl(var(--success))" strokeWidth={2} name="Orders" />
                   </LineChart>
                 </ResponsiveContainer>
@@ -253,7 +255,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">{Number(order.total_amount).toLocaleString()} RWF</p>
+                      <p className="font-bold">{formatCurrency(Number(order.total_amount), currency)}</p>
                       <p className="text-sm text-muted-foreground capitalize">{order.status}</p>
                     </div>
                   </div>

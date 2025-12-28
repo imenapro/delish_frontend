@@ -18,6 +18,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { HighlightedText } from "@/components/ui/highlighted-text";
 import { useReactToPrint } from 'react-to-print';
+import { useStoreContext } from '@/contexts/StoreContext';
+import { formatCurrency } from '@/utils/currency';
 
 import { UseMutationResult } from '@tanstack/react-query';
 
@@ -99,6 +101,7 @@ export function ShopDetailView({
   onBack,
   updateTransferMutation 
 }: ShopDetailViewProps) {
+  const { store } = useStoreContext();
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -195,7 +198,7 @@ export function ShopDetailView({
     {
       accessorKey: "price",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Price" />,
-      cell: ({ row }) => <div className="text-right">{row.original.price?.toLocaleString()} RWF</div>,
+      cell: ({ row }) => <div className="text-right">{formatCurrency(row.original.price, store?.currency || DEFAULT_SYSTEM_CURRENCY)}</div>,
     },
     {
       accessorKey: "stock",
@@ -263,7 +266,7 @@ export function ShopDetailView({
       ),
     },
     ];
-  }, [shop]);
+  }, [shop, store?.currency]);
 
   const transferColumns: ColumnDef<Transfer>[] = useMemo(() => {
     if (!shop) return [];

@@ -27,6 +27,7 @@ import {
   loadCart,
   clearCart
 } from '@/hooks/useOfflineSync';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface CartItem {
   product_id: string;
@@ -61,56 +62,6 @@ export default function POS() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { isOnline, isSyncing, queueOrder, syncQueuedOrders, getQueuedOrders } = useOfflineSync();
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedShop, setSelectedShop] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'wallet'>('cash');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [lastOrder, setLastOrder] = useState<Order | null>(null);
-  const [lastItems, setLastItems] = useState<CartItem[]>([]);
-  const [lastPayment, setLastPayment] = useState<{amountPaid: number, change: number} | null>(null);
-  const [amountTendered, setAmountTendered] = useState<string>('');
-  const [calculatorOpen, setCalculatorOpen] = useState(false);
-  const receiptRef = useRef<HTMLDivElement>(null);
-
-  // Load cart from localStorage on mount
-  useEffect(() => {
-    const savedCart = loadCart();
-    if (savedCart.length > 0) {
-      setCart(savedCart);
-      toast.info('Cart restored from previous session');
-    }
-  }, []);
-
-  // Save cart to localStorage whenever it changes
-  useEffect(() => {
-    saveCart(cart);
-  }, [cart]);
-
-  const { data: products } = useQuery({
-    queryKey: ['products'],
-    queryFn: async () => {
-      try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .eq('is_active', true)
-          .order('name');
-        if (error) throw error;
-        cacheProducts(data || []);
-        return data;
-      } catch (error) {
-        if (!isOnline) {
-          const cached = getCachedProducts();
-          if (cached) {
-            toast.info('Using cached products (offline mode)');
-            return cached;
-          }
-        }
-        throw error;
-      }
-    },
-  });
 
   const { data: shops } = useQuery({
     queryKey: ['shops'],
@@ -135,6 +86,61 @@ export default function POS() {
       }
     },
   });
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedShop, setSelectedShop] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'wallet'>('cash');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [lastOrder, setLastOrder] = useState<Order | null>(null);
+  const [lastItems, setLastItems] = useState<CartItem[]>([]);
+  const [lastPayment, setLastPayment] = useState<{amountPaid: number, change: number} | null>(null);
+  const [amountTendered, setAmountTendered] = useState<string>('');
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const receiptRef = useRef<HTMLDivElement>(null);
+
+  const currentShop = shops?.find(s => s.id === selectedShop);
+  const currency = currentShop?.business?.currency || DEFAULT_SYSTEM_CURRENCY;
+
+  // Load cart from localStorage on mount
+  useEffect(() => {
+    const savedCart = loadCart();
+    if (savedCart.length > 0) {
+      setCart(savedCart);
+      toast.info('Cart restored from previous session');
+    }
+  }, []);
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    saveCart(cart);
+  }, [cart]);
+
+  const { data: products } = useQuery({
+    queryKey: ['products'],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*, business:businesses(currency)')
+          .eq('is_active', true)
+          .order('name');
+        if (error) throw error;
+        cacheProducts(data || []);
+        return data;
+      } catch (error) {
+        if (!isOnline) {
+          const cached = getCachedProducts();
+          if (cached) {
+            toast.info('Using cached products (offline mode)');
+            return cached;
+          }
+        }
+        throw error;
+      }
+    },
+  });
+
+
 
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: {
@@ -475,15 +481,15 @@ export default function POS() {
                             {product.discount_price ? (
                               <>
                                 <p className="text-lg font-bold text-red-600">
-                                  {Number(product.discount_price).toFixed(0)} RWF
+                                  {formatCurrency(Number(product.discount_price), currency)}
                                 </p>
                                 <p className="text-sm text-muted-foreground line-through">
-                                  {Number(product.price).toFixed(0)} RWF
+                                  {formatCurrency(Number(product.price), currency)}
                                 </p>
                               </>
                             ) : (
                               <p className="text-lg font-bold text-primary">
-                                {Number(product.price).toFixed(0)} RWF
+                                {formatCurrency(Number(product.price), currency)}
                               </p>
                             )}
                           </div>
@@ -562,7 +568,7 @@ export default function POS() {
                               <div className="flex-1">
                                 <p className="font-medium text-sm">{item.name}</p>
                                 <p className="text-sm text-muted-foreground">
-                                  {item.price.toFixed(0)} RWF
+                                  {formatCurrency(item.price, currency)}
                                 </p>
                               </div>
                               <Button
@@ -594,7 +600,7 @@ export default function POS() {
                                 </Button>
                               </div>
                               <p className="font-bold">
-                                {item.subtotal.toFixed(0)} RWF
+                                {formatCurrency(item.subtotal, currency)}
                               </p>
                             </div>
                           </CardContent>
@@ -609,16 +615,16 @@ export default function POS() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Subtotal:</span>
-                      <span>{calculateSubtotal().toFixed(0)} RWF</span>
+                      <span>{formatCurrency(calculateSubtotal(), currency)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">VAT (18%):</span>
-                      <span>{calculateVAT().toFixed(0)} RWF</span>
+                      <span>{formatCurrency(calculateVAT(), currency)}</span>
                     </div>
                     <Separator />
                     <div className="flex justify-between text-lg font-bold">
                       <span>Total:</span>
-                      <span className="text-primary">{calculateTotal().toFixed(0)} RWF</span>
+                      <span className="text-primary">{formatCurrency(calculateTotal(), currency)}</span>
                     </div>
                   </div>
 
@@ -659,6 +665,7 @@ export default function POS() {
             business={shops?.find(s => s.id === selectedShop)?.business}
             payment={lastPayment || undefined}
             onCreateBalanceCase={handleCreateBalanceCase}
+            currency={currency}
           />
         </div>
 

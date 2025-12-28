@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { Store, Clock, CreditCard, Settings, Loader2, Package, Users, ShoppingCart, TrendingUp } from 'lucide-react';
+import { formatCurrency } from '@/utils/currency';
 
 export default function TenantDashboard() {
   const { store, loading, daysUntilExpiration, isExpired, getTenantRoute } = useStoreContext();
@@ -138,18 +139,10 @@ export default function TenantDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {new Intl.NumberFormat('en-US', {
-                  style: 'currency',
-                  currency: 'RWF',
-                  minimumFractionDigits: 0,
-                }).format(metrics?.monthlyRevenue || 0)}
+                {formatCurrency(metrics?.monthlyRevenue || 0, store?.currency || DEFAULT_SYSTEM_CURRENCY)}
               </div>
               <p className="text-xs text-muted-foreground">
-                Today: {new Intl.NumberFormat('en-US', {
-                  style: 'currency',
-                  currency: 'RWF',
-                  minimumFractionDigits: 0,
-                }).format(metrics?.todayRevenue || 0)}
+                Today: {formatCurrency(metrics?.todayRevenue || 0, store?.currency || DEFAULT_SYSTEM_CURRENCY)}
               </p>
             </CardContent>
           </Card>

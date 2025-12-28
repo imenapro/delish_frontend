@@ -23,6 +23,8 @@ import { Button } from "@/components/ui/button";
 import { useUpdateProduct } from "@/hooks/useBusinessProducts";
 import { toast } from "sonner";
 import { Tag } from "lucide-react";
+import { useStoreContext } from '@/contexts/StoreContext';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 const formSchema = z.object({
   discount_price: z.string().optional(),
@@ -48,6 +50,7 @@ export function SetDiscountDialog({
   product,
   onSuccess,
 }: SetDiscountDialogProps) {
+  const { store } = useStoreContext();
   const updateProduct = useUpdateProduct();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -99,7 +102,7 @@ export function SetDiscountDialog({
           </DialogTitle>
           <DialogDescription>
             Set a discounted price for {product?.name}. Leave empty to remove discount.
-            Current Price: {product?.price} RWF
+            Current Price: {formatCurrency(product?.price || 0, store?.currency || DEFAULT_SYSTEM_CURRENCY)}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -109,7 +112,7 @@ export function SetDiscountDialog({
               name="discount_price"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Discount Price (RWF)</FormLabel>
+                  <FormLabel>Discount Price ({store?.currency || DEFAULT_SYSTEM_CURRENCY})</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
