@@ -10,7 +10,6 @@ import Landing from "./pages/Landing";
 import Register from "./pages/Register";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import MyStores from "./pages/MyStores";
 import SuperAdmin from "./pages/SuperAdmin";
 import TenantAuth from "./pages/TenantAuth";
 import NotFound from "./pages/NotFound";

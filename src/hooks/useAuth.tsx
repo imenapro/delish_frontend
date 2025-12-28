@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('user_roles')
-        .select('role, shop_id, business_id')
+        .select('*')
         .eq('user_id', userId);
 
       if (error) throw error;
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check if password change is required
       const { data: profile } = await supabase
         .from('profiles')
-        .select('must_change_password, is_suspended')
+        .select('*')
         .eq('id', userId)
         .single();
 

@@ -23,7 +23,7 @@ export default function Auth() {
   const [phone, setPhone] = useState('');
   const [shopId, setShopId] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp, user, loading: authLoading } = useAuth();
+  const { signIn, signUp, user, roles, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { data: businesses, refetch: refetchBusinesses, isLoading: businessesLoading } = useUserBusinesses();
 
@@ -41,23 +41,43 @@ export default function Auth() {
   });
 
   useEffect(() => {
-    if (user && businesses && !authLoading && !businessesLoading) {
-      // Redirect based on number of businesses
-      if (businesses.length > 0) {
-        const business = businesses[0];
-        if (business.slug) {
-          const targetUrl = getAbsoluteUrlForStore(business.slug);
-          if (targetUrl.startsWith('http')) {
-            window.location.href = targetUrl;
-          } else {
-            navigate(targetUrl);
+    console.log('[Auth] State check:', { 
+      isAuthenticated: !!user, 
+      authLoading, 
+      roles, 
+      businessesLoading, 
+      businessesCount: businesses?.length 
+    });
+
+    if (!authLoading && user) {
+      // 1. Check Super Admin Role
+      const isSuperAdmin = roles.some(r => r.role === 'super_admin');
+      if (isSuperAdmin) {
+        console.log('[Auth] Redirecting to Super Admin Dashboard');
+        navigate('/super-admin');
+        return;
+      }
+
+      // 2. Check Businesses for redirect
+      if (!businessesLoading && businesses) {
+        if (businesses.length > 0) {
+          const business = businesses[0];
+          console.log('[Auth] Redirecting to business:', business.name);
+          if (business.slug) {
+            const targetUrl = getAbsoluteUrlForStore(business.slug);
+            if (targetUrl.startsWith('http')) {
+              window.location.href = targetUrl;
+            } else {
+              navigate(targetUrl);
+            }
           }
+        } else {
+          console.log('[Auth] No businesses found, redirecting to register');
+          navigate('/register');
         }
-      } else {
-        navigate('/register');
       }
     }
-  }, [user, businesses, navigate, authLoading, businessesLoading]);
+  }, [user, businesses, roles, navigate, authLoading, businessesLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

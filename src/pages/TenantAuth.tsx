@@ -69,7 +69,7 @@ export default function TenantAuth() {
       // Check if user has access to this business
       const { data: userRoles, error: rolesError } = await supabase
         .from('user_roles')
-        .select('business_id, role')
+        .select('*')
         .eq('user_id', authData.user.id);
 
       if (rolesError) throw rolesError;
