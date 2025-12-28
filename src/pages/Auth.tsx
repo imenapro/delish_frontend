@@ -71,13 +71,22 @@ export default function Auth() {
               navigate(targetUrl);
             }
           }
-        } else {
-          console.log('[Auth] No businesses found, redirecting to register');
-          navigate('/register');
-        }
+        } 
+        // Removed auto-redirect to register to allow users to sign out if needed
       }
     }
   }, [user, businesses, roles, navigate, authLoading, businessesLoading]);
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success('Signed out successfully');
+      // Force reload to clear all states
+      window.location.reload();
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,7 +158,43 @@ export default function Auth() {
 
       {/* Right side - Auth Form */}
       <div className="flex flex-1 items-center justify-center p-8">
-        <Card className="w-full max-w-md shadow-[var(--shadow-strong)]">
+        {user ? (
+          <Card className="w-full max-w-md shadow-[var(--shadow-strong)]">
+            <CardHeader>
+              <CardTitle className="text-2xl">Already Logged In</CardTitle>
+              <CardDescription>
+                You are currently signed in as {user.email}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-center space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  {businesses && businesses.length === 0 
+                    ? "You don't have any businesses linked to your account yet." 
+                    : "Redirecting to your dashboard..."}
+                </p>
+                
+                {businesses && businesses.length === 0 && (
+                  <Button 
+                    className="w-full" 
+                    onClick={() => navigate('/register')}
+                  >
+                    Create a New Business
+                  </Button>
+                )}
+                
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleSignOut}
+                >
+                  Sign Out
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="w-full max-w-md shadow-[var(--shadow-strong)]">
           <CardHeader>
             <CardTitle className="text-2xl">
               {isLogin ? 'Welcome Back' : 'Create Account'}
@@ -258,6 +303,7 @@ export default function Auth() {
             </div>
           </CardContent>
         </Card>
+        )}
       </div>
     </div>
   );
