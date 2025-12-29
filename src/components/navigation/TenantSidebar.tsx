@@ -78,6 +78,7 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
   const getPrimaryRole = () => {
     if (roles.length === 0) return 'User';
     const roleNames: Record<string, string> = {
+      'super_admin': 'Super Admin',
       'store_owner': 'Owner',
       'admin': 'Admin',
       'branch_manager': 'Manager',
