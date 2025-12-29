@@ -10,6 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { User } from 'lucide-react';
+
 interface POSParkedOrdersDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -17,6 +20,8 @@ interface POSParkedOrdersDialogProps {
   onResume: (order: ParkedOrder) => void;
   onDelete: (id: string) => void;
   inventory?: { id: string; stock: number }[];
+  currency?: string;
+  currentUserId?: string;
 }
 
 interface ValidationIssue {
@@ -35,16 +40,27 @@ export function POSParkedOrdersDialog({
   orders,
   onResume,
   onDelete,
-  inventory = []
+  inventory = [],
+  currency = DEFAULT_SYSTEM_CURRENCY,
+  currentUserId
 }: POSParkedOrdersDialogProps) {
   const [validatingOrder, setValidatingOrder] = useState<ParkedOrder | null>(null);
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('my-orders');
 
-  const filteredOrders = orders.filter(order => 
-    (order.code && order.code.includes(searchQuery)) ||
-    (order.note && order.note.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const myOrders = orders.filter(order => order.sellerId === currentUserId || !order.sellerId); // Fallback to my orders if no sellerId (legacy)
+  const colleagueOrders = orders.filter(order => order.sellerId && order.sellerId !== currentUserId);
+
+  const filterOrders = (list: ParkedOrder[]) => {
+    return list.filter(order => 
+      (order.code && order.code.includes(searchQuery)) ||
+      (order.note && order.note.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+  };
+
+  const filteredMyOrders = filterOrders(myOrders);
+  const filteredColleagueOrders = filterOrders(colleagueOrders);
 
   const handleResumeClick = (order: ParkedOrder) => {
     // If no inventory data provided, skip validation (or handle as error?)
@@ -138,6 +154,100 @@ export function POSParkedOrdersDialog({
       setValidationIssues([]);
   };
 
+  const renderOrderList = (list: ParkedOrder[], emptyMessage: string) => {
+    if (list.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+            <ShoppingBag className="h-12 w-12 mb-4 opacity-20" />
+            <p>{emptyMessage}</p>
+        </div>
+      );
+    }
+
+    return (
+        <ScrollArea className="h-[500px] pr-4">
+            <div className="space-y-4">
+            {list.map((order) => (
+                <Card key={order.id} className="hover:bg-accent/50 transition-colors">
+                    <CardContent className="p-4 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    {order.code && (
+                                        <Badge variant="outline" className="font-mono text-xs border-primary text-primary">
+                                            #{order.code}
+                                        </Badge>
+                                    )}
+                                    <Badge variant="secondary" className="font-normal">
+                                    {order.items.length} items
+                                    </Badge>
+                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {formatDistanceToNow(order.timestamp, { addSuffix: true })}
+                                    </span>
+                                    {order.sellerName && (
+                                        <span className="text-xs text-muted-foreground flex items-center gap-1 ml-2">
+                                            <User className="h-3 w-3" />
+                                            {order.sellerName}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="font-medium truncate mb-1">
+                                    {order.note || 'No reference note'}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                    Total: <span className="text-primary font-semibold">{formatCurrency(order.total, currency)}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => onDelete(order.id)}
+                                >
+                                <Trash2 className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                size="sm"
+                                onClick={() => handleResumeClick(order)}
+                                className="w-full sm:w-auto"
+                                >
+                                Resume
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                        
+                        {/* Product Preview Section */}
+                        <div className="w-full pt-2 border-t">
+                            <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                                <Package className="h-3 w-3" />
+                                Contents Preview:
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {order.items.slice(0, 3).map((item) => (
+                                    <div key={item.id} className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80">
+                                        <span className="truncate max-w-[120px]">{item.name}</span>
+                                        <span className="ml-2 bg-background/50 px-1.5 rounded-sm text-[10px]">x{item.quantity}</span>
+                                    </div>
+                                ))}
+                                {order.items.length > 3 && (
+                                    <div className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors border-transparent bg-muted text-muted-foreground">
+                                        +{order.items.length - 3} more
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            ))}
+            </div>
+        </ScrollArea>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={(val) => {
         if (!val) resetValidation();
@@ -146,6 +256,7 @@ export function POSParkedOrdersDialog({
       <DialogContent className="sm:max-w-[600px]">
         {validatingOrder ? (
             <>
+                {/* ... (validation UI remains same) ... */}
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-destructive">
                         <AlertTriangle className="h-5 w-5" />
@@ -215,88 +326,18 @@ export function POSParkedOrdersDialog({
                   />
                 </div>
 
-                {filteredOrders.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                    <ShoppingBag className="h-12 w-12 mb-4 opacity-20" />
-                    <p>{orders.length === 0 ? "No parked orders found." : "No matching orders found."}</p>
-                </div>
-                ) : (
-                <ScrollArea className="h-[500px] pr-4">
-                    <div className="space-y-4">
-                    {filteredOrders.map((order) => (
-                        <Card key={order.id} className="hover:bg-accent/50 transition-colors">
-                            <CardContent className="p-4 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex-1 min-w-0 mr-4">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            {order.code && (
-                                                <Badge variant="outline" className="font-mono text-xs border-primary text-primary">
-                                                    #{order.code}
-                                                </Badge>
-                                            )}
-                                            <Badge variant="secondary" className="font-normal">
-                                            {order.items.length} items
-                                            </Badge>
-                                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                            <Clock className="h-3 w-3" />
-                                            {formatDistanceToNow(order.timestamp, { addSuffix: true })}
-                                            </span>
-                                        </div>
-                                        <div className="font-medium truncate">
-                                            {order.note || 'No reference note'}
-                                        </div>
-                                        <div className="text-sm text-muted-foreground mt-1">
-                                            Total: <span className="text-primary font-semibold">{formatCurrency(order.total, DEFAULT_SYSTEM_CURRENCY)}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                        onClick={() => onDelete(order.id)}
-                                        >
-                                        <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                        size="sm"
-                                        onClick={() => handleResumeClick(order)}
-                                        >
-                                        Resume
-                                        <ArrowRight className="ml-2 h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </div>
-                                
-                                {/* Product Preview Section */}
-                                <div className="w-full">
-                                    <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-                                        <Package className="h-3 w-3" />
-                                        Contents Preview:
-                                    </p>
-                                    <ScrollArea className="w-full whitespace-nowrap pb-2">
-                                        <div className="flex w-max space-x-2">
-                                            {order.items.slice(0, 10).map((item) => (
-                                                <div key={item.id} className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80">
-                                                    <span className="truncate max-w-[120px]">{item.name}</span>
-                                                    <span className="ml-2 bg-background/50 px-1.5 rounded-sm text-[10px]">x{item.quantity}</span>
-                                                </div>
-                                            ))}
-                                            {order.items.length > 10 && (
-                                                <div className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors border-transparent bg-muted text-muted-foreground">
-                                                    +{order.items.length - 10} more
-                                                </div>
-                                            )}
-                                        </div>
-                                    </ScrollArea>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                    </div>
-                </ScrollArea>
-                )}
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="my-orders">My Parked Items</TabsTrigger>
+                        <TabsTrigger value="colleague-orders">Colleagues' Items</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="my-orders" className="mt-4">
+                        {renderOrderList(filteredMyOrders, "No parked orders found.")}
+                    </TabsContent>
+                    <TabsContent value="colleague-orders" className="mt-4">
+                        {renderOrderList(filteredColleagueOrders, "No parked orders from colleagues found.")}
+                    </TabsContent>
+                </Tabs>
             </>
         )}
       </DialogContent>

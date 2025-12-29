@@ -9,9 +9,11 @@ export interface ParkedOrder {
   items: CartItem[];
   note?: string;
   total: number;
+  sellerId?: string; // ID of the seller who parked the order
+  sellerName?: string; // Name of the seller
 }
 
-export function useParkedOrders(shopId?: string) {
+export function useParkedOrders(shopId?: string, currentUserId?: string, currentUserName?: string) {
   const [parkedOrders, setParkedOrders] = useState<ParkedOrder[]>([]);
   
   const storageKey = shopId ? `pos_parked_orders_${shopId}` : 'pos_parked_orders';
@@ -97,6 +99,8 @@ export function useParkedOrders(shopId?: string) {
         items,
         note,
         total,
+        sellerId: currentUserId,
+        sellerName: currentUserName || 'Unknown Seller',
       };
 
       const updatedOrders = [newOrder, ...parkedOrders];
@@ -116,19 +120,38 @@ export function useParkedOrders(shopId?: string) {
     toast.success('Parked order removed');
   };
 
-  const retrieveOrder = (id: string) => {
+  const retrieveOrder = (id: string, keepInStorage: boolean = false) => {
     const order = parkedOrders.find(o => o.id === id);
     if (order) {
-      removeOrder(id);
+      if (!keepInStorage) {
+        removeOrder(id);
+      }
       return order;
     }
     return null;
+  };
+
+  const transferOrder = (orderId: string, targetSellerId: string, targetSellerName: string) => {
+    const orderIndex = parkedOrders.findIndex(o => o.id === orderId);
+    if (orderIndex === -1) return false;
+
+    const updatedOrders = [...parkedOrders];
+    updatedOrders[orderIndex] = {
+      ...updatedOrders[orderIndex],
+      sellerId: targetSellerId,
+      sellerName: targetSellerName
+    };
+    
+    saveToStorage(updatedOrders);
+    toast.success(`Order transferred to ${targetSellerName}`);
+    return true;
   };
 
   return {
     parkedOrders,
     parkOrder,
     removeOrder,
-    retrieveOrder
+    retrieveOrder,
+    transferOrder
   };
 }

@@ -208,7 +208,7 @@ export default function TenantPOS() {
   // Fetch products from the active session's shop
   const selectedShop = activeSession?.shop_id || '';
   
-  const { parkedOrders, parkOrder, removeOrder } = useParkedOrders(selectedShop);
+  const { parkedOrders, parkOrder, removeOrder, retrieveOrder } = useParkedOrders(selectedShop, activeSession?.user_id, activeSession?.user?.name);
 
   const handleParkOrder = () => {
     if (cart.length === 0) {
@@ -937,6 +937,8 @@ export default function TenantPOS() {
         onResume={handleResumeOrder}
         onDelete={removeOrder}
         inventory={products}
+        currency={currency}
+        currentUserId={activeSession?.user_id}
       />
 
       {/* Park Order Confirmation Dialog */}
