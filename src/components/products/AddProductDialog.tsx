@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, Package } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useStoreContext } from '@/contexts/StoreContext';
@@ -38,8 +39,6 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
-  const [discountPrice, setDiscountPrice] = useState('');
-  const [promotionDescription, setPromotionDescription] = useState('');
   const [barcode, setBarcode] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -70,8 +69,8 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
         description: description || null,
         category,
         price: parseFloat(price),
-        discount_price: discountPrice ? parseFloat(discountPrice) : null,
-        promotion_description: promotionDescription || null,
+        discount_price: null,
+        promotion_description: null,
         barcode: barcode || null,
         image_url: imageUrl || null,
         business_id: businessId,
@@ -97,8 +96,6 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
     setDescription('');
     setCategory('');
     setPrice('');
-    setDiscountPrice('');
-    setPromotionDescription('');
     setBarcode('');
     setImageFile(null);
     setImagePreview('');
@@ -124,18 +121,19 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
+      <DialogContent className="w-[95vw] sm:w-full sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-xl sm:text-2xl">
+            <Package className="h-5 w-5 sm:h-6 sm:w-6" />
             Add New Product
           </DialogTitle>
           <DialogDescription>
             Create a new product in your catalog
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
+        <div className="flex-1 overflow-y-auto pr-2">
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
             <Label htmlFor="product-name">Product Name *</Label>
             <Input
               id="product-name"
@@ -174,30 +172,6 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="discount-price">Discount Price (Optional)</Label>
-              <Input
-                id="discount-price"
-                type="number"
-                step="1"
-                min="0"
-                value={discountPrice}
-                onChange={(e) => setDiscountPrice(e.target.value)}
-                placeholder="Discounted price"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="promotion">Promotion (Optional)</Label>
-              <Input
-                id="promotion"
-                value={promotionDescription}
-                onChange={(e) => setPromotionDescription(e.target.value)}
-                placeholder="e.g. Buy 1 Get 1"
-              />
-            </div>
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="barcode">Barcode (Optional)</Label>
             <div className="flex gap-2">
@@ -208,6 +182,7 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
                 placeholder="Scan or enter barcode"
                 className="flex-1"
               />
+              <BarcodeScanner onScanSuccess={(code) => setBarcode(code)} />
               <Button type="button" variant="outline" onClick={generateBarcode}>
                 Generate
               </Button>
@@ -253,19 +228,20 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
               />
             )}
           </div>
+        </div>
+        </div>
 
-          <div className="flex gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => addProductMutation.mutate()} 
-              disabled={!name || !category || !price || addProductMutation.isPending}
-              className="flex-1"
-            >
-              {addProductMutation.isPending ? 'Adding...' : 'Add Product'}
-            </Button>
-          </div>
+        <div className="flex gap-2 pt-4 flex-shrink-0 mt-auto border-t">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => addProductMutation.mutate()} 
+            disabled={!name || !category || !price || addProductMutation.isPending}
+            className="flex-1"
+          >
+            {addProductMutation.isPending ? 'Adding...' : 'Add Product'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

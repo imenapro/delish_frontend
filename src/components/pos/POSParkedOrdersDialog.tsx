@@ -22,6 +22,7 @@ interface POSParkedOrdersDialogProps {
   inventory?: { id: string; stock: number }[];
   currency?: string;
   currentUserId?: string;
+  onTransfer?: (orderId: string, targetUserId: string) => void;
 }
 
 interface ValidationIssue {
@@ -42,7 +43,8 @@ export function POSParkedOrdersDialog({
   onDelete,
   inventory = [],
   currency = DEFAULT_SYSTEM_CURRENCY,
-  currentUserId
+  currentUserId,
+  onTransfer
 }: POSParkedOrdersDialogProps) {
   const [validatingOrder, setValidatingOrder] = useState<ParkedOrder | null>(null);
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
@@ -164,23 +166,48 @@ export function POSParkedOrdersDialog({
       );
     }
 
+    const hasStockIssues = (order: ParkedOrder) => {
+        if (!inventory || inventory.length === 0) return false;
+        return order.items.some(item => {
+            const product = inventory.find(p => p.id === item.id);
+            const available = product ? (product.stock ?? 0) : 0;
+            return item.quantity > available;
+        });
+    };
+
     return (
         <ScrollArea className="h-[500px] pr-4">
             <div className="space-y-4">
-            {list.map((order) => (
+            {list.map((order) => {
+                const stockIssue = hasStockIssues(order);
+                return (
                 <Card key={order.id} className="hover:bg-accent/50 transition-colors">
                     <CardContent className="p-4 space-y-4">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                                     {order.code && (
-                                        <Badge variant="outline" className="font-mono text-xs border-primary text-primary">
+                                        <Badge 
+                                            variant="outline" 
+                                            className="font-mono text-xs border-primary text-primary cursor-pointer hover:bg-primary/10"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                navigator.clipboard.writeText(order.code);
+                                            }}
+                                            title="Click to copy code"
+                                        >
                                             #{order.code}
                                         </Badge>
                                     )}
                                     <Badge variant="secondary" className="font-normal">
                                     {order.items.length} items
                                     </Badge>
+                                    {stockIssue && (
+                                        <Badge variant="destructive" className="font-normal gap-1">
+                                            <AlertTriangle className="h-3 w-3" />
+                                            Stock Low
+                                        </Badge>
+                                    )}
                                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
                                     {formatDistanceToNow(order.timestamp, { addSuffix: true })}
@@ -209,6 +236,18 @@ export function POSParkedOrdersDialog({
                                 >
                                 <Trash2 className="h-4 w-4" />
                                 </Button>
+                                {order.sellerId && order.sellerId !== currentUserId && onTransfer && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            if (currentUserId) onTransfer(order.id, currentUserId);
+                                        }}
+                                        className="w-full sm:w-auto"
+                                    >
+                                        Claim
+                                    </Button>
+                                )}
                                 <Button
                                 size="sm"
                                 onClick={() => handleResumeClick(order)}
@@ -242,7 +281,8 @@ export function POSParkedOrdersDialog({
                         </div>
                     </CardContent>
                 </Card>
-            ))}
+                );
+            })}
             </div>
         </ScrollArea>
     );
@@ -319,7 +359,7 @@ export function POSParkedOrdersDialog({
                 <div className="relative my-2">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by code or note..."
+                    placeholder="Search by code or note to find/claim..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-8"

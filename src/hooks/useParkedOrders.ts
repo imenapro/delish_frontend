@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CartItem } from '@/components/pos/POSCart';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ParkedOrder {
   id: string;
@@ -9,149 +10,141 @@ export interface ParkedOrder {
   items: CartItem[];
   note?: string;
   total: number;
-  sellerId?: string; // ID of the seller who parked the order
-  sellerName?: string; // Name of the seller
+  sellerId?: string;
+  sellerName?: string;
 }
 
 export function useParkedOrders(shopId?: string, currentUserId?: string, currentUserName?: string) {
   const [parkedOrders, setParkedOrders] = useState<ParkedOrder[]>([]);
-  
-  const storageKey = shopId ? `pos_parked_orders_${shopId}` : 'pos_parked_orders';
 
   useEffect(() => {
-    // Load from local storage on mount
-    const loadOrders = () => {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          
-          if (Array.isArray(parsed)) {
-            // Filter out expired orders (older than 2 hours)
-            const now = Date.now();
-            const twoHours = 2 * 60 * 60 * 1000;
-            const active = parsed.filter(order => (now - order.timestamp) < twoHours);
-            
-            // If we filtered out any orders, update storage
-            if (active.length !== parsed.length) {
-                localStorage.setItem(storageKey, JSON.stringify(active));
-            }
-            
-            setParkedOrders(active);
-          } else {
-            // Invalid data structure, reset
-            setParkedOrders([]);
-            localStorage.removeItem(storageKey);
-          }
-        } catch (e) {
-          console.error('Failed to parse parked orders', e);
-        }
+    if (!shopId) return;
+
+    const fetchOrders = async () => {
+      const { data, error } = await supabase
+        .from('parked_orders')
+        .select('*, seller:seller_id(name)')
+        .eq('shop_id', shopId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching parked orders:', error);
+        return;
+      }
+
+      if (data) {
+        const mappedOrders: ParkedOrder[] = data.map((order: any) => ({
+          id: order.id,
+          code: order.code,
+          timestamp: new Date(order.created_at).getTime(),
+          items: order.items as CartItem[],
+          note: order.note,
+          total: order.total,
+          sellerId: order.seller_id,
+          sellerName: order.seller?.name || 'Unknown',
+        }));
+        setParkedOrders(mappedOrders);
       }
     };
 
-    loadOrders();
+    fetchOrders();
 
-    // Check for expired orders every minute
-    const interval = setInterval(() => {
-        setParkedOrders(currentOrders => {
-            const now = Date.now();
-            const twoHours = 2 * 60 * 60 * 1000;
-            const active = currentOrders.filter(order => (now - order.timestamp) < twoHours);
-            
-            if (active.length !== currentOrders.length) {
-                localStorage.setItem(storageKey, JSON.stringify(active));
-                return active;
-            }
-            return currentOrders;
-        });
-    }, 60000);
+    const channel = supabase
+      .channel('parked_orders_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'parked_orders',
+          filter: `shop_id=eq.${shopId}`
+        },
+        () => {
+           fetchOrders();
+        }
+      )
+      .subscribe();
 
-    return () => clearInterval(interval);
-  }, [storageKey]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [shopId]);
 
-  const saveToStorage = (orders: ParkedOrder[]) => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(orders));
-      setParkedOrders(orders);
-    } catch (error) {
-      console.error('Failed to save to storage:', error);
-      toast.error('Failed to save order to local storage (Storage might be full)');
-      // Update state anyway so it works in current session
-      setParkedOrders(orders);
-    }
-  };
-
-  const generateCode = (): string => {
-    return Math.floor(1000 + Math.random() * 9000).toString();
-  };
-
-  const parkOrder = (items: CartItem[], note?: string) => {
-    if (items.length === 0) return null;
+  const parkOrder = async (items: CartItem[], note?: string) => {
+    if (items.length === 0 || !shopId) return null;
 
     try {
       const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      const code = generateCode();
+      const code = Math.floor(1000 + Math.random() * 9000).toString();
       
-      const newOrder: ParkedOrder = {
-        id: Math.random().toString(36).substring(2) + Date.now().toString(36),
-        code,
-        timestamp: Date.now(),
-        items,
-        note,
-        total,
-        sellerId: currentUserId,
-        sellerName: currentUserName || 'Unknown Seller',
-      };
+      const { error } = await supabase
+        .from('parked_orders')
+        .insert({
+          shop_id: shopId,
+          seller_id: currentUserId,
+          code,
+          items,
+          note,
+          total,
+          status: 'active'
+        });
 
-      const updatedOrders = [newOrder, ...parkedOrders];
-      saveToStorage(updatedOrders);
-      toast.success(`Order parked successfully. Code: ${code}`);
+      if (error) throw error;
+
+      toast.success('Order parked successfully');
       return code;
     } catch (error) {
       console.error('Failed to park order:', error);
-      toast.error('An error occurred while parking the order');
+      toast.error('Failed to park order');
       return null;
     }
   };
 
-  const removeOrder = (id: string) => {
-    const updatedOrders = parkedOrders.filter(o => o.id !== id);
-    saveToStorage(updatedOrders);
-    toast.success('Parked order removed');
-  };
+  const removeOrder = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('parked_orders')
+        .update({ 
+            status: 'resumed',
+            resumed_by: currentUserId,
+            resumed_at: new Date().toISOString()
+        })
+        .eq('id', id);
 
-  const retrieveOrder = (id: string, keepInStorage: boolean = false) => {
-    const order = parkedOrders.find(o => o.id === id);
-    if (order) {
-      if (!keepInStorage) {
-        removeOrder(id);
-      }
-      return order;
+      if (error) throw error;
+      
+      // Optimistic update? No, let the subscription handle it.
+    } catch (error) {
+      console.error('Failed to remove order:', error);
+      toast.error('Failed to remove order');
     }
-    return null;
   };
 
-  const transferOrder = (orderId: string, targetSellerId: string, targetSellerName: string) => {
-    const orderIndex = parkedOrders.findIndex(o => o.id === orderId);
-    if (orderIndex === -1) return false;
+  const transferOrder = async (orderId: string, newSellerId: string) => {
+    try {
+      const { error } = await supabase
+        .from('parked_orders')
+        .update({ seller_id: newSellerId })
+        .eq('id', orderId);
 
-    const updatedOrders = [...parkedOrders];
-    updatedOrders[orderIndex] = {
-      ...updatedOrders[orderIndex],
-      sellerId: targetSellerId,
-      sellerName: targetSellerName
-    };
-    
-    saveToStorage(updatedOrders);
-    toast.success(`Order transferred to ${targetSellerName}`);
-    return true;
+      if (error) throw error;
+      toast.success('Order transferred successfully');
+    } catch (error) {
+      console.error('Failed to transfer order:', error);
+      toast.error('Failed to transfer order');
+    }
+  };
+
+  const retrieveOrder = (id: string) => {
+    return parkedOrders.find(o => o.id === id) || null;
   };
 
   return {
     parkedOrders,
     parkOrder,
     removeOrder,
-    retrieveOrder,
-    transferOrder
+    transferOrder,
+    retrieveOrder
   };
 }

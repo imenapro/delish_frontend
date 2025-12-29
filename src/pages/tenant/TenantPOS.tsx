@@ -208,7 +208,7 @@ export default function TenantPOS() {
   // Fetch products from the active session's shop
   const selectedShop = activeSession?.shop_id || '';
   
-  const { parkedOrders, parkOrder, removeOrder, retrieveOrder } = useParkedOrders(selectedShop, activeSession?.user_id, activeSession?.user?.name);
+  const { parkedOrders, parkOrder, removeOrder, retrieveOrder, transferOrder } = useParkedOrders(selectedShop, activeSession?.user_id, activeSession?.user?.name);
 
   const handleParkOrder = () => {
     if (cart.length === 0) {
@@ -218,14 +218,16 @@ export default function TenantPOS() {
     setParkOrderDialogOpen(true);
   };
 
-  const handleConfirmParkOrder = (note: string) => {
-    parkOrder(cart, note || undefined);
-    setCart([]);
+  const handleConfirmParkOrder = async (note: string) => {
+    const code = await parkOrder(cart, note || undefined);
+    if (code) {
+      setCart([]);
+    }
   };
 
-  const handleResumeOrder = (order: { items: CartItem[]; id: string }) => {
+  const handleResumeOrder = async (order: { items: CartItem[]; id: string }) => {
       setCart(order.items);
-      removeOrder(order.id);
+      await removeOrder(order.id);
       toast.success("Order resumed");
   };
   
@@ -939,6 +941,7 @@ export default function TenantPOS() {
         inventory={products}
         currency={currency}
         currentUserId={activeSession?.user_id}
+        onTransfer={transferOrder}
       />
 
       {/* Park Order Confirmation Dialog */}
