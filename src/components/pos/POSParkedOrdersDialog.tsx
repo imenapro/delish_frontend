@@ -8,6 +8,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ShoppingBag, Clock, Trash2, ArrowRight, AlertTriangle, Package, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface POSParkedOrdersDialogProps {
   open: boolean;

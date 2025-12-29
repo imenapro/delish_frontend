@@ -68,8 +68,15 @@ export function useParkedOrders(shopId?: string) {
   }, [storageKey]);
 
   const saveToStorage = (orders: ParkedOrder[]) => {
-    localStorage.setItem(storageKey, JSON.stringify(orders));
-    setParkedOrders(orders);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(orders));
+      setParkedOrders(orders);
+    } catch (error) {
+      console.error('Failed to save to storage:', error);
+      toast.error('Failed to save order to local storage (Storage might be full)');
+      // Update state anyway so it works in current session
+      setParkedOrders(orders);
+    }
   };
 
   const generateCode = (): string => {
@@ -79,22 +86,28 @@ export function useParkedOrders(shopId?: string) {
   const parkOrder = (items: CartItem[], note?: string) => {
     if (items.length === 0) return null;
 
-    const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const code = generateCode();
-    
-    const newOrder: ParkedOrder = {
-      id: crypto.randomUUID(),
-      code,
-      timestamp: Date.now(),
-      items,
-      note,
-      total,
-    };
+    try {
+      const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const code = generateCode();
+      
+      const newOrder: ParkedOrder = {
+        id: Math.random().toString(36).substring(2) + Date.now().toString(36),
+        code,
+        timestamp: Date.now(),
+        items,
+        note,
+        total,
+      };
 
-    const updatedOrders = [newOrder, ...parkedOrders];
-    saveToStorage(updatedOrders);
-    toast.success(`Order parked successfully. Code: ${code}`);
-    return code;
+      const updatedOrders = [newOrder, ...parkedOrders];
+      saveToStorage(updatedOrders);
+      toast.success(`Order parked successfully. Code: ${code}`);
+      return code;
+    } catch (error) {
+      console.error('Failed to park order:', error);
+      toast.error('An error occurred while parking the order');
+      return null;
+    }
   };
 
   const removeOrder = (id: string) => {
