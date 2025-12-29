@@ -58,7 +58,9 @@ export default function TenantPOS() {
   const { store, loading: storeLoading } = useStoreContext();
   const { user, roles } = useAuth();
   const queryClient = useQueryClient();
+
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [closeShiftDialogOpen, setCloseShiftDialogOpen] = useState(false);
   const [openShiftDialogOpen, setOpenShiftDialogOpen] = useState(true);
@@ -70,6 +72,8 @@ export default function TenantPOS() {
   const [parkedOrdersDialogOpen, setParkedOrdersDialogOpen] = useState(false);
   const [parkOrderDialogOpen, setParkOrderDialogOpen] = useState(false);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [postSaleDialogOpen, setPostSaleDialogOpen] = useState(false);
+  const [lastSaleData, setLastSaleData] = useState<any>(null);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
 
@@ -192,7 +196,10 @@ export default function TenantPOS() {
         .eq('user_id', user.id)
         .eq('status', 'open')
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        console.error('[TenantPOS] Error fetching session:', error);
+        throw error;
+      }
       return data;
     },
     enabled: !!user?.id,
@@ -610,6 +617,7 @@ export default function TenantPOS() {
 
   // Show loading while checking for active session
   if (storeLoading || sessionLoading || shopsLoading) {
+    console.log('[TenantPOS] Loading state:', { storeLoading, sessionLoading, shopsLoading });
     return (
       <TenantPageWrapper title="Point of Sale" description="Loading...">
         <div className="flex items-center justify-center h-64">
@@ -673,6 +681,7 @@ export default function TenantPOS() {
           shops={shops}
           businessId={store.id}
           onShiftOpened={handleShiftOpened}
+          currency={store.currency}
         />
       </>
     );

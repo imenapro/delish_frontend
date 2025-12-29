@@ -39,13 +39,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserRoles = useCallback(async (userId: string) => {
     try {
+      console.log('[useAuth] Fetching roles for user:', userId);
       const { data, error } = await supabase
         .from('user_roles')
         .select('*')
         .eq('user_id', userId);
 
       if (error) throw error;
-      setRoles(data || []);
+
+      // Define role priority for sorting (higher number = higher priority)
+      const ROLE_PRIORITY: Record<string, number> = {
+        'super_admin': 100,
+        'store_owner': 90,
+        'admin': 80,
+        'branch_manager': 70,
+        'manager': 70, // Alias for branch_manager
+        'accountant': 60,
+        'seller': 50,
+        'store_keeper': 40,
+        'delivery': 30,
+        'manpower': 20,
+        'customer': 10
+      };
+
+      const sortedRoles = (data || []).sort((a, b) => {
+        const priorityA = ROLE_PRIORITY[a.role] || 0;
+        const priorityB = ROLE_PRIORITY[b.role] || 0;
+        return priorityB - priorityA; // Descending order
+      });
+
+      console.log('[useAuth] User roles fetched and sorted:', sortedRoles);
+      setRoles(sortedRoles);
 
       // Check if password change is required
       const { data: profile } = await supabase

@@ -55,6 +55,23 @@ export function Layout({ children }: LayoutProps) {
     return user?.email?.charAt(0).toUpperCase() || 'U';
   };
 
+  const getRoleDisplayName = (role?: string) => {
+    if (!role) return 'User';
+    const roleNames: Record<string, string> = {
+      'store_owner': 'Owner',
+      'admin': 'Admin',
+      'branch_manager': 'Manager',
+      'seller': 'Seller',
+      'store_keeper': 'Store Keeper',
+      'accountant': 'Accountant',
+      'delivery': 'Delivery',
+      'manpower': 'Worker',
+      'customer': 'Customer',
+      'super_admin': 'Super Admin',
+    };
+    return roleNames[role] || role;
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
       {/* Sidebar */}
@@ -88,8 +105,8 @@ export function Layout({ children }: LayoutProps) {
             </Avatar>
             <div className="flex-1 overflow-hidden">
               <p className="truncate text-sm font-medium">{user?.email}</p>
-              <p className="text-xs text-muted-foreground capitalize">
-                {roles[0]?.role || 'User'}
+              <p className="text-xs text-muted-foreground">
+                {getRoleDisplayName(roles[0]?.role)}
               </p>
             </div>
             <NotificationBell />

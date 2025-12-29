@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useQuery } from '@tanstack/react-query';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -16,6 +17,24 @@ export function TenantCurrencySettings() {
   
   const [currency, setCurrency] = useState(store?.currency || 'USD');
   const [locale, setLocale] = useState(store?.locale || 'en');
+
+  // Fetch available currencies from system_settings
+  const { data: systemCurrencies } = useQuery({
+    queryKey: ['system-settings-currencies'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'currency_config')
+        .single();
+      
+      if (error) {
+        console.error('Error fetching currency config:', error);
+        return null;
+      }
+      return data?.setting_value;
+    },
+  });
 
   const handleSave = async () => {
     if (!store?.id) return;
@@ -50,7 +69,11 @@ export function TenantCurrencySettings() {
     }
   };
 
-  const currencies = Object.keys(DEFAULT_LOCALES);
+  const currencies = systemCurrencies && systemCurrencies.length > 0 
+    ? systemCurrencies 
+    : Object.keys(DEFAULT_LOCALES)
+        .filter(c => c !== 'MTN' && c !== 'MT')
+        .map(code => ({ code, name: code }));
 
   return (
     <Card>
@@ -70,9 +93,9 @@ export function TenantCurrencySettings() {
                 <SelectValue placeholder="Select currency" />
               </SelectTrigger>
               <SelectContent>
-                {currencies.map((curr) => (
-                  <SelectItem key={curr} value={curr}>
-                    {curr}
+                {currencies.map((curr: any) => (
+                  <SelectItem key={curr.code} value={curr.code}>
+                    {curr.name} ({curr.code})
                   </SelectItem>
                 ))}
               </SelectContent>

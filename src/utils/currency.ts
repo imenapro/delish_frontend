@@ -7,7 +7,6 @@ export const DEFAULT_LOCALES: Record<string, string> = {
   'GBP': 'en-GB',
   'RWF': 'en-RW',
   'MZN': 'pt-MZ',
-  'MTN': 'pt-MZ', // Alias for MZN
   'KES': 'en-KE',
   'UGX': 'en-UG',
   'TZS': 'en-TZ',
@@ -18,43 +17,41 @@ export const DEFAULT_LOCALES: Record<string, string> = {
   'INR': 'en-IN',
 };
 
-export const formatCurrency = (amount: number | string | undefined | null, currencyCode: string = 'USD', locale?: string): string => {
+export const formatCurrency = (amount: number | string | undefined | null, currencyCode: string = DEFAULT_SYSTEM_CURRENCY, locale?: string): string => {
   // Safe default for currencyCode to ensure it's a valid string
-  let safeCurrency = (currencyCode && typeof currencyCode === 'string' ? currencyCode : 'USD').trim().toUpperCase();
+  let safeCurrency = (currencyCode && typeof currencyCode === 'string' ? currencyCode : DEFAULT_SYSTEM_CURRENCY).trim().toUpperCase();
   
-  // Normalize aliases (e.g. MTn -> MZN)
-  if (safeCurrency === 'MTN' || safeCurrency === 'MT') {
-      safeCurrency = 'MZN';
-  }
+  // Normalize aliases if any exist in the future
   
-  // Safe conversion of amount
-  let numericAmount = 0;
-  try {
-    numericAmount = Number(amount);
-    if (isNaN(numericAmount)) {
-      // Don't warn for null/undefined as those are common "loading" states
-      if (amount !== null && amount !== undefined) {
-        console.warn('Invalid amount passed to formatCurrency:', amount);
-      }
-      numericAmount = 0;
+  if (amount === undefined || amount === null || amount === '') {
+    try {
+      return new Intl.NumberFormat(locale || DEFAULT_LOCALES[safeCurrency] || 'en-US', {
+        style: 'currency',
+        currency: safeCurrency,
+      }).format(0);
+    } catch (e) {
+      console.warn(`[Currency] Error formatting 0 for currency ${safeCurrency}:`, e);
+      return `0.00 ${safeCurrency}`;
     }
-  } catch (e) {
-    numericAmount = 0;
   }
 
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  
   try {
-    const effectiveLocale = locale || DEFAULT_LOCALES[safeCurrency] || 'en-US';
-    return new Intl.NumberFormat(effectiveLocale, {
+    const formatted = new Intl.NumberFormat(locale || DEFAULT_LOCALES[safeCurrency] || 'en-US', {
       style: 'currency',
       currency: safeCurrency,
-    }).format(numericAmount);
-  } catch (error) {
-    // Fallback if Intl fails (e.g. invalid currency code)
-    // Only warn if it's likely a developer error (invalid currency code)
-    if (safeCurrency.length === 3) {
-        console.warn(`Error formatting currency (${safeCurrency}):`, error);
+    }).format(numAmount);
+
+    // Special override for MZN to show MT instead of MTn if that's what's generated
+    if (safeCurrency === 'MZN') {
+        return formatted.replace('MTn', 'MT');
     }
-    return `${safeCurrency} ${numericAmount.toFixed(2)}`;
+
+    return formatted;
+  } catch (e) {
+    console.warn(`[Currency] Error formatting amount for currency ${safeCurrency}:`, e);
+    return `${numAmount.toFixed(2)} ${safeCurrency}`;
   }
 };
 
@@ -63,11 +60,13 @@ export const convertCurrency = (amount: number, rate: number): number => {
 };
 
 export const getCurrencySymbol = (currencyCode: string, locale?: string): string => {
-  let safeCurrency = (currencyCode && typeof currencyCode === 'string' ? currencyCode : 'USD').trim().toUpperCase();
+  let safeCurrency = (currencyCode && typeof currencyCode === 'string' ? currencyCode : DEFAULT_SYSTEM_CURRENCY).trim().toUpperCase();
   
-  // Normalize aliases (e.g. MTn -> MZN)
-  if (safeCurrency === 'MTN' || safeCurrency === 'MT') {
-      safeCurrency = 'MZN';
+  // Normalize aliases if any exist in the future
+  
+  // Special override for MZN to show MT
+  if (safeCurrency === 'MZN') {
+      return 'MT';
   }
 
   try {
