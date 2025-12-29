@@ -48,57 +48,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadStore = useCallback(async () => {
-    // Check for custom domain first
     const hostname = window.location.hostname;
     const manualSlug = getStoreSlugFromDomain(hostname);
     const isCustom = isCustomDomain(hostname);
     
-    console.log('[StoreContext] Loading store for hostname:', hostname);
-    
     // Ignore legacy routes that are not tenant routes
     const legacyRoutes = ['super-admin', 'auth', 'pos', 'shops', 'products', 'orders', 'kitchen', 'delivery', 'inventory', 'finance', 'workforce', 'reports', 'admin', 'staff-management', 'wallet', 'chat', 'register'];
-    
-    try {
-      // Check auth status
-      const { data: { user } } = await supabase.auth.getUser();
-      console.log('[StoreContext] Current user:', user?.id);
 
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
       let query = supabase.from('businesses').select('*');
       let shouldFetch = false;
-
+      
       if (manualSlug) {
-        // 1. Hardcoded Custom Domain
-        console.log('[StoreContext] Using hardcoded slug:', manualSlug);
         query = query.ilike('slug', manualSlug);
         shouldFetch = true;
       } else if (isCustom) {
-        // 2. Dynamic Custom Domain
-        console.log('[StoreContext] Using dynamic custom domain:', hostname);
-        // We cast to any because custom_domain might not be in the local types yet
         query = query.eq('custom_domain', hostname);
         shouldFetch = true;
       } else {
-        // 3. Path-based (Main Domain / Localhost)
         const pathParts = location.pathname.split('/').filter(Boolean);
-        const slugFromPath = pathParts[0]; // First segment is the slug
-
+        const slugFromPath = pathParts[0];
+        
         if (slugFromPath && !legacyRoutes.includes(slugFromPath)) {
-             console.log('[StoreContext] Using path slug:', slugFromPath);
-             query = query.ilike('slug', slugFromPath);
-             shouldFetch = true;
+          query = query.ilike('slug', slugFromPath);
+          shouldFetch = true;
         }
       }
-
+      
       if (shouldFetch) {
         const { data: business, error } = await query.maybeSingle();
-
-        console.log('[StoreContext] Query result:', { business, error });
-
+        
         if (error) {
-          console.error('Error loading business:', error);
+          console.error('[StoreContext] Error loading business:', error);
           setStore(null);
         } else if (business) {
-          // Map business data to Store type
           setStore({
             id: business.id,
             name: business.name,
@@ -118,14 +103,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             currency: business.currency || 'USD',
           });
         } else {
-          console.warn('[StoreContext] No business found');
           setStore(null);
         }
       } else {
         setStore(null);
       }
     } catch (error) {
-      console.error('Error loading store:', error);
+      console.error('[StoreContext] Unexpected error loading store:', error);
       setStore(null);
     }
     setLoading(false);

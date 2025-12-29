@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Clock, DollarSign, Store } from 'lucide-react';
+import { DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface Shop {
   id: string;
@@ -27,9 +28,10 @@ interface OpenShiftDialogProps {
   shops: Shop[];
   businessId: string;
   onShiftOpened: (session: { id: string }) => void;
+  currency?: string;
 }
 
-export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShiftOpened }: OpenShiftDialogProps) {
+export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShiftOpened, currency = DEFAULT_SYSTEM_CURRENCY }: OpenShiftDialogProps) {
   const queryClient = useQueryClient();
   const [selectedShop, setSelectedShop] = useState('');
   const [openingCash, setOpeningCash] = useState('');
@@ -106,7 +108,7 @@ export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShift
           <div className="space-y-2">
             <Label htmlFor="opening-cash" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
-              Opening Cash ({DEFAULT_SYSTEM_CURRENCY})
+              Opening Cash ({currency})
             </Label>
             <Input
               id="opening-cash"

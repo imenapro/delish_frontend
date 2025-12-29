@@ -16,6 +16,7 @@ import { AnalyticsDashboard } from '@/components/super-admin/AnalyticsDashboard'
 import { UserManagement } from '@/components/super-admin/UserManagement';
 import { AuditLogs } from '@/components/super-admin/AuditLogs';
 import { CurrencyManagement } from '@/components/super-admin/CurrencyManagement';
+import { SystemSettings } from '@/components/admin/SystemSettings';
 import { Store as StoreType } from '@/contexts/StoreContext';
 import { toast } from 'sonner';
 
@@ -198,6 +199,7 @@ export default function SuperAdmin() {
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="audit">Audit Logs</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-8">
@@ -240,6 +242,10 @@ export default function SuperAdmin() {
 
           <TabsContent value="audit">
             <AuditLogs />
+          </TabsContent>
+
+          <TabsContent value="settings">
+            <SystemSettings />
           </TabsContent>
 
         </Tabs>

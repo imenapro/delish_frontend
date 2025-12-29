@@ -22,19 +22,25 @@ export function useParkedOrders(shopId?: string) {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         try {
-          const parsed: ParkedOrder[] = JSON.parse(saved);
+          const parsed = JSON.parse(saved);
           
-          // Filter out expired orders (older than 2 hours)
-          const now = Date.now();
-          const twoHours = 2 * 60 * 60 * 1000;
-          const active = parsed.filter(order => (now - order.timestamp) < twoHours);
-          
-          // If we filtered out any orders, update storage
-          if (active.length !== parsed.length) {
-              localStorage.setItem(storageKey, JSON.stringify(active));
+          if (Array.isArray(parsed)) {
+            // Filter out expired orders (older than 2 hours)
+            const now = Date.now();
+            const twoHours = 2 * 60 * 60 * 1000;
+            const active = parsed.filter(order => (now - order.timestamp) < twoHours);
+            
+            // If we filtered out any orders, update storage
+            if (active.length !== parsed.length) {
+                localStorage.setItem(storageKey, JSON.stringify(active));
+            }
+            
+            setParkedOrders(active);
+          } else {
+            // Invalid data structure, reset
+            setParkedOrders([]);
+            localStorage.removeItem(storageKey);
           }
-          
-          setParkedOrders(active);
         } catch (e) {
           console.error('Failed to parse parked orders', e);
         }
