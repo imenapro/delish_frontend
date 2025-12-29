@@ -208,7 +208,7 @@ export default function TenantPOS() {
   // Fetch products from the active session's shop
   const selectedShop = activeSession?.shop_id || '';
   
-  const { parkedOrders, parkOrder, removeOrder } = useParkedOrders(selectedShop);
+  const { parkedOrders, parkOrder, removeOrder, retrieveOrder, transferOrder } = useParkedOrders(selectedShop, activeSession?.user_id, activeSession?.user?.name);
 
   const handleParkOrder = () => {
     if (cart.length === 0) {
@@ -218,14 +218,16 @@ export default function TenantPOS() {
     setParkOrderDialogOpen(true);
   };
 
-  const handleConfirmParkOrder = (note: string) => {
-    parkOrder(cart, note || undefined);
-    setCart([]);
+  const handleConfirmParkOrder = async (note: string) => {
+    const code = await parkOrder(cart, note || undefined);
+    if (code) {
+      setCart([]);
+    }
   };
 
-  const handleResumeOrder = (order: { items: CartItem[]; id: string }) => {
+  const handleResumeOrder = async (order: { items: CartItem[]; id: string }) => {
       setCart(order.items);
-      removeOrder(order.id);
+      await removeOrder(order.id);
       toast.success("Order resumed");
   };
   
@@ -837,14 +839,14 @@ export default function TenantPOS() {
       )}
 
       {/* Main POS Interface */}
-      <div className={`grid lg:grid-cols-3 gap-6 ${isFullScreen ? 'h-full' : ''}`}>
+      <div className={`grid lg:grid-cols-3 gap-6 ${isFullScreen ? 'h-full' : 'h-[calc(100vh-22rem)] min-h-[600px]'}`}>
         {/* Product Grid - 2 columns */}
-        <div className={`lg:col-span-2 ${isFullScreen ? 'h-full overflow-hidden flex flex-col' : ''}`}>
-          <Card className={isFullScreen ? 'h-full flex flex-col' : ''}>
+        <div className="lg:col-span-2 h-full overflow-hidden flex flex-col">
+          <Card className="h-full flex flex-col">
             <CardHeader>
               <CardTitle>Products</CardTitle>
             </CardHeader>
-            <CardContent className={isFullScreen ? 'flex-1 overflow-y-auto' : ''}>
+            <CardContent className="flex-1 overflow-y-auto">
               <POSProductGrid
                 products={products}
                 loading={productsLoading}
@@ -856,7 +858,7 @@ export default function TenantPOS() {
         </div>
 
         {/* Cart - 1 column */}
-        <div className={`lg:col-span-1 ${isFullScreen ? 'h-full' : ''}`}>
+        <div className="lg:col-span-1 h-full">
           <POSCart
               items={cart}
               onUpdateQuantity={updateQuantity}
@@ -909,7 +911,7 @@ export default function TenantPOS() {
         <Receipt 
           ref={receiptRef} 
           order={lastOrder as any} 
-          items={cart} // This is just for type safety, the actual items come from lastOrder
+          items={lastOrder?.items || []} 
           shop={{
             name: activeSession?.shop?.name || '',
             address: activeSession?.shop?.address || '',
@@ -937,6 +939,9 @@ export default function TenantPOS() {
         onResume={handleResumeOrder}
         onDelete={removeOrder}
         inventory={products}
+        currency={currency}
+        currentUserId={activeSession?.user_id}
+        onTransfer={transferOrder}
       />
 
       {/* Park Order Confirmation Dialog */}

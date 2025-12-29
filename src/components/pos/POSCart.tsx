@@ -55,7 +55,7 @@ export function POSCart({
             <p className="text-sm text-muted-foreground">Add products to get started</p>
           </div>
         ) : (
-          <ScrollArea className="h-[300px] px-4">
+          <ScrollArea className="flex-1 px-4 h-full">
             <div className="space-y-3">
               {items.map(item => (
                 <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">

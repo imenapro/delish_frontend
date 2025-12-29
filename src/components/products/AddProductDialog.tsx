@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, Package, Scan, X } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useStoreContext } from '@/contexts/StoreContext';
@@ -40,7 +41,10 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
+<<<<<<< HEAD
   // Discount and Promotion fields removed as per requirement
+=======
+>>>>>>> development
   const [barcode, setBarcode] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -128,6 +132,11 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
         description: description || null,
         category,
         price: parseFloat(price),
+<<<<<<< HEAD
+=======
+        discount_price: null,
+        promotion_description: null,
+>>>>>>> development
         barcode: barcode || null,
         image_url: imageUrl || null,
         business_id: businessId,
@@ -178,16 +187,24 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+<<<<<<< HEAD
       <DialogContent className="w-full max-w-[95vw] sm:max-w-lg md:max-w-xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-6 py-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
+=======
+      <DialogContent className="w-[95vw] sm:w-full sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-xl sm:text-2xl">
+            <Package className="h-5 w-5 sm:h-6 sm:w-6" />
+>>>>>>> development
             Add New Product
           </DialogTitle>
           <DialogDescription>
             Create a new product in your catalog
           </DialogDescription>
         </DialogHeader>
+<<<<<<< HEAD
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <div className="space-y-4 pb-4">
@@ -317,11 +334,114 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
                   className="mt-2 h-24 w-24 object-cover rounded-lg border"
                 />
               )}
+=======
+        <div className="flex-1 overflow-y-auto pr-2">
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+            <Label htmlFor="product-name">Product Name *</Label>
+            <Input
+              id="product-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter product name"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="category">Category *</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                {PRODUCT_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="price">Base Price ({store?.currency || DEFAULT_SYSTEM_CURRENCY}) *</Label>
+            <Input
+              id="price"
+              type="number"
+              step="1"
+              min="0"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="barcode">Barcode (Optional)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="barcode"
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                placeholder="Scan or enter barcode"
+                className="flex-1"
+              />
+              <BarcodeScanner onScanSuccess={(code) => setBarcode(code)} />
+              <Button type="button" variant="outline" onClick={generateBarcode}>
+                Generate
+              </Button>
+>>>>>>> development
             </div>
           </div>
         </div>
 
+<<<<<<< HEAD
         <div className="flex gap-2 p-6 border-t bg-background shrink-0">
+=======
+          <div className="space-y-2">
+            <Label htmlFor="description">Description (Optional)</Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Product description..."
+              rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Product Image (Optional)</Label>
+            <div className="flex gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1"
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                {imageFile ? 'Change Image' : 'Upload Image'}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageChange}
+              />
+            </div>
+            {imagePreview && (
+              <img 
+                src={imagePreview} 
+                alt="Preview" 
+                className="mt-2 h-24 w-24 object-cover rounded-lg border"
+              />
+            )}
+          </div>
+        </div>
+        </div>
+
+        <div className="flex gap-2 pt-4 flex-shrink-0 mt-auto border-t">
+>>>>>>> development
           <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
             Cancel
           </Button>

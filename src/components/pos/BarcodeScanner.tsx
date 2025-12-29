@@ -7,19 +7,23 @@ import { toast } from 'sonner';
 
 interface BarcodeScannerProps {
   onScanSuccess: (barcode: string) => void;
+  className?: string;
 }
 
-export function BarcodeScanner({ onScanSuccess }: BarcodeScannerProps) {
+export function BarcodeScanner({ onScanSuccess, className }: BarcodeScannerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      setIsLoading(true);
       // Wait for DOM element to be fully mounted
       const timeoutId = setTimeout(() => {
         const element = document.getElementById("barcode-reader");
         if (!element) {
           console.error("Barcode reader element not found");
+          setIsLoading(false);
           return;
         }
 
@@ -28,6 +32,8 @@ export function BarcodeScanner({ onScanSuccess }: BarcodeScannerProps) {
           { 
             fps: 10, 
             qrbox: { width: 250, height: 250 },
+            rememberLastUsedCamera: true,
+            supportedScanTypes: [0, 1], // 0: CAMERA, 1: FILE
             formatsToSupport: [
               0, // QR_CODE
               5, // EAN_13
@@ -43,17 +49,22 @@ export function BarcodeScanner({ onScanSuccess }: BarcodeScannerProps) {
 
         scanner.render(
           (decodedText) => {
-            onScanSuccess(decodedText);
-            toast.success('Barcode scanned: ' + decodedText);
-            scanner.clear();
-            setIsOpen(false);
+            if (decodedText && decodedText.length > 0) {
+              onScanSuccess(decodedText);
+              toast.success('Barcode scanned: ' + decodedText);
+              scanner.clear();
+              setIsOpen(false);
+            } else {
+              toast.error('Invalid barcode scanned');
+            }
           },
           (error) => {
-            console.log(error);
+            // console.log(error); // Ignore scan errors as they happen every frame
           }
         );
 
         scannerRef.current = scanner;
+        setIsLoading(false);
       }, 100); // Small delay to ensure DOM is ready
 
       return () => {
@@ -70,9 +81,11 @@ export function BarcodeScanner({ onScanSuccess }: BarcodeScannerProps) {
       <Button
         onClick={() => setIsOpen(true)}
         variant="outline"
-        size="icon"
+        className={className}
+        type="button"
       >
-        <Camera className="h-4 w-4" />
+        <Camera className="mr-2 h-4 w-4" />
+        Scan
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -80,7 +93,17 @@ export function BarcodeScanner({ onScanSuccess }: BarcodeScannerProps) {
           <DialogHeader>
             <DialogTitle>Scan Product Barcode</DialogTitle>
           </DialogHeader>
-          <div id="barcode-reader" className="w-full" />
+          <div className="relative min-h-[300px] flex items-center justify-center bg-muted/20 rounded-lg overflow-hidden">
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center z-10 bg-background/80">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            )}
+            <div id="barcode-reader" className="w-full" />
+          </div>
+          <p className="text-xs text-center text-muted-foreground">
+            Point camera at a barcode or upload an image
+          </p>
           <Button
             variant="outline"
             onClick={() => setIsOpen(false)}
