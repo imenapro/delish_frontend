@@ -299,7 +299,26 @@ export default function POS() {
     contentRef: receiptRef,
   });
 
-  const addToCart = (product: Product) => {
+  const addToCart = async (product: Product) => {
+    if (selectedShop) {
+      const { data: inventory } = await supabase
+        .from('shop_inventory')
+        .select('stock')
+        .eq('shop_id', selectedShop)
+        .eq('product_id', product.id)
+        .maybeSingle();
+
+      if (inventory) {
+        const existingItem = cart.find(item => item.product_id === product.id);
+        const currentQty = existingItem ? existingItem.quantity : 0;
+        
+        if (inventory.stock < currentQty + 1) {
+          toast.error(`Out of stock! Only ${inventory.stock} available.`);
+          return;
+        }
+      }
+    }
+
     const existingItem = cart.find(item => item.product_id === product.id);
     
     if (existingItem) {
@@ -320,8 +339,22 @@ export default function POS() {
     toast.success(`${product.name} added to cart`);
   };
 
-  const updateQuantity = (productId: string, newQuantity: number) => {
+  const updateQuantity = async (productId: string, newQuantity: number) => {
     if (newQuantity < 1) return;
+
+    if (selectedShop) {
+      const { data: inventory } = await supabase
+        .from('shop_inventory')
+        .select('stock')
+        .eq('shop_id', selectedShop)
+        .eq('product_id', productId)
+        .maybeSingle();
+
+      if (inventory && inventory.stock < newQuantity) {
+        toast.error(`Cannot update quantity. Only ${inventory.stock} in stock.`);
+        return;
+      }
+    }
     
     setCart(cart.map(item =>
       item.product_id === productId
@@ -407,6 +440,15 @@ export default function POS() {
   };
 
   const handleBarcodeScanned = async (barcode: string) => {
+    // 1. Try local lookup first (Optimization)
+    const localProduct = products?.find(p => p.barcode === barcode && p.is_active);
+    
+    if (localProduct) {
+        await addToCart(localProduct);
+        return;
+    }
+
+    // 2. Fallback to DB lookup if not found locally
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -419,7 +461,7 @@ export default function POS() {
       return;
     }
 
-    addToCart(data);
+    await addToCart(data);
   };
 
   const handleCheckout = () => {

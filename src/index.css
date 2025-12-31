@@ -135,6 +135,19 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
-  }
+    @apply bg-background text-foreground;}
+}
+
+@keyframes scan {
+  0% { top: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+#html5-qrcode-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 0.5rem !important;
 }

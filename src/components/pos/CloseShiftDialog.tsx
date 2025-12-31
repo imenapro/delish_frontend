@@ -168,11 +168,21 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const closeShiftMutation = useMutation({
     mutationFn: async () => {
       setIsSending(true);
+      const now = new Date();
+      const closedAtIso = now.toISOString();
+
+      // Calculate duration
+      const start = new Date(session.opened_at);
+      const diffMs = now.getTime() - start.getTime();
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const durationStr = `${hours}h ${minutes}m`;
+
       // Update session
       const { error } = await supabase
         .from('pos_sessions')
         .update({
-          closed_at: new Date().toISOString(),
+          closed_at: closedAtIso,
           closing_cash: closingCashNum,
           expected_cash: expectedCash,
           notes: description,
@@ -195,7 +205,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
 
         if (uniqueRecipients.length > 0) {
             const pdfBase64 = generateShiftReportBase64({
-                session,
+                session: { ...session, closed_at: closedAtIso },
                 shiftOrders: shiftOrders || [],
                 closingCash: closingCashNum,
                 expectedCash,
@@ -209,7 +219,8 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                     <p><strong>Shop:</strong> ${session.shop?.name}</p>
                     <p><strong>Staff:</strong> ${session.user?.name}</p>
                     <p><strong>Shift Opened:</strong> ${format(new Date(session.opened_at), 'MMM d, HH:mm')}</p>
-                    <p><strong>Shift Closed:</strong> ${format(new Date(), 'MMM d, HH:mm')}</p>
+                    <p><strong>Shift Closed:</strong> ${format(now, 'MMM d, HH:mm')}</p>
+                    <p><strong>Shift Duration:</strong> ${durationStr}</p>
                     
                     <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #e5e7eb;">
                         <h3 style="margin-top: 0; color: #1f2937;">Financial Summary</h3>
@@ -240,13 +251,14 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                 const { error: emailError } = await supabase.functions.invoke('send-email', {
                     body: {
                         to: recipient,
-                        subject: `End of Shift Report - ${session.shop?.name} - ${format(new Date(), 'MMM d')}`,
+                        subject: `End of Shift Report - ${session.shop?.name} - ${format(now, 'MMM d')}`,
                         html: emailHtml,
                         businessId: session.shop_id, // Assuming shop_id can serve as business context or we need store.id
                         attachments: pdfBase64 ? [{
-                            filename: `Shift_Report_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`,
+                            filename: `Shift_Report_${format(now, 'yyyyMMdd_HHmm')}.pdf`,
                             content: pdfBase64,
-                            type: 'application/pdf'
+                            encoding: 'base64',
+                            contentType: 'application/pdf'
                         }] : undefined
                     },
                 });
