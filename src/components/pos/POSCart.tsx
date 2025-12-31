@@ -1,10 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { ShoppingCart, Minus, Plus, Trash2, CreditCard, Save } from 'lucide-react';
+import { ShoppingCart, Trash2, CreditCard, Save } from 'lucide-react';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
+import { POSCartItemRow } from './POSCartItemRow';
 
 export interface CartItem {
   id: string;
@@ -61,51 +61,17 @@ export function POSCart({
           <ScrollArea className="flex-1 px-4 h-full">
             <div className="space-y-3">
               {items.map(item => (
-                <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatCurrency(item.price, currency)} each
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-                    >
-                      <Minus className="h-3 w-3" />
-                    </Button>
-                    <Input
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) => onUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
-                      className="w-12 h-7 text-center p-0"
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  <div className="text-right min-w-[80px]">
-                    <p className="font-semibold text-sm">
-                      {formatCurrency(item.price * item.quantity, currency)}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive"
-                    onClick={() => onRemoveItem(item.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
+                <POSCartItemRow
+                  key={item.id}
+                  id={item.id}
+                  name={item.name}
+                  price={item.price}
+                  quantity={item.quantity}
+                  subtotal={item.price * item.quantity}
+                  currency={currency}
+                  onUpdateQuantity={(qty) => onUpdateQuantity(item.id, qty)}
+                  onRemove={() => onRemoveItem(item.id)}
+                />
               ))}
             </div>
           </ScrollArea>

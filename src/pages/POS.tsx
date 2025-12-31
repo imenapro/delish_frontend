@@ -17,6 +17,8 @@ import { Receipt } from '@/components/pos/Receipt';
 import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { ProductManagementDialog } from '@/components/pos/ProductManagementDialog';
 import { POSCalculator } from '@/components/pos/POSCalculator';
+import { POSCartItemRow } from '@/components/pos/POSCartItemRow';
+import { POSMuteToggle } from '@/components/pos/POSMuteToggle';
 import { 
   useOfflineSync, 
   cacheProducts, 
@@ -319,10 +321,8 @@ export default function POS() {
   };
 
   const updateQuantity = (productId: string, newQuantity: number) => {
-    if (newQuantity < 1) {
-      removeFromCart(productId);
-      return;
-    }
+    if (newQuantity < 1) return;
+    
     setCart(cart.map(item =>
       item.product_id === productId
         ? { ...item, quantity: newQuantity, subtotal: newQuantity * item.price }
@@ -536,6 +536,9 @@ export default function POS() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center gap-4">
+                    <div className="self-end mb-1">
+                      <POSMuteToggle />
+                    </div>
                     <div className="flex-1">
                       <Label htmlFor="search">Search Products</Label>
                       <div className="relative mt-1">
@@ -663,49 +666,17 @@ export default function POS() {
                       <p className="text-center text-muted-foreground py-8">Cart is empty</p>
                     ) : (
                       cart.map((item) => (
-                        <Card key={item.product_id}>
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{item.name}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {formatCurrency(item.price, currency)}
-                                </p>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeFromCart(item.product_id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                                >
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                                <span className="w-8 text-center font-medium">{item.quantity}</span>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
-                              </div>
-                              <p className="font-bold">
-                                {formatCurrency(item.subtotal, currency)}
-                              </p>
-                            </div>
-                          </CardContent>
-                        </Card>
+                        <POSCartItemRow
+                          key={item.product_id}
+                          id={item.product_id}
+                          name={item.name}
+                          price={item.price}
+                          quantity={item.quantity}
+                          subtotal={item.subtotal}
+                          currency={currency}
+                          onUpdateQuantity={(qty) => updateQuantity(item.product_id, qty)}
+                          onRemove={() => removeFromCart(item.product_id)}
+                        />
                       ))
                     )}
                   </div>

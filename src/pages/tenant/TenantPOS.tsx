@@ -25,6 +25,7 @@ import { useParkedOrders } from '@/hooks/useParkedOrders';
 import { POSParkedOrdersDialog } from '@/components/pos/POSParkedOrdersDialog';
 import { POSParkOrderDialog } from '@/components/pos/POSParkOrderDialog';
 import { POSRefundDialog } from '@/components/pos/POSRefundDialog';
+import { POSMuteToggle } from '@/components/pos/POSMuteToggle';
 
 interface POSProduct {
   id: string;
@@ -553,19 +554,17 @@ export default function TenantPOS() {
   };
 
   const updateQuantity = (id: string, quantity: number) => {
-    if (quantity <= 0) {
-      setCart(prev => prev.filter(item => item.id !== id));
-    } else {
-      const product = products.find(p => p.id === id);
-      if (product && product.stock !== undefined && quantity > product.stock) {
-        toast.error(`Cannot update quantity. Only ${product.stock} in stock.`);
-        return;
-      }
+    if (quantity < 1) return;
 
-      setCart(prev => prev.map(item =>
-        item.id === id ? { ...item, quantity } : item
-      ));
+    const product = products.find(p => p.id === id);
+    if (product && product.stock !== undefined && quantity > product.stock) {
+      toast.error(`Cannot update quantity. Only ${product.stock} in stock.`);
+      return;
     }
+
+    setCart(prev => prev.map(item =>
+      item.id === id ? { ...item, quantity } : item
+    ));
   };
 
   const removeFromCart = (id: string) => {
@@ -827,8 +826,9 @@ export default function TenantPOS() {
         {/* Product Grid - 2 columns */}
         <div className="lg:col-span-2 h-full overflow-hidden flex flex-col">
           <Card className="h-full flex flex-col">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle>Products</CardTitle>
+              <POSMuteToggle />
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto">
               <POSProductGrid
@@ -950,7 +950,7 @@ export default function TenantPOS() {
 
   if (isFullScreen) {
     return (
-      <div className="h-screen w-screen bg-background flex flex-col p-4 overflow-hidden fixed inset-0 z-50">
+      <div className="h-screen w-screen bg-background flex flex-col p-4 overflow-auto fixed inset-0 z-50">
         <div className="flex justify-between items-center mb-4 shrink-0">
           <div className="flex items-center gap-4">
              <h1 className="text-xl font-bold">POS</h1>
