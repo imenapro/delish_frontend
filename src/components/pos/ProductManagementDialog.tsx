@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Package, Plus, Trash2, Eye } from 'lucide-react';
@@ -240,6 +241,7 @@ export function ProductManagementDialog() {
                       placeholder="Scan or enter barcode"
                       className="flex-1"
                     />
+                    <BarcodeScanner onScanSuccess={(code) => setFormData(prev => ({ ...prev, barcode: code }))} />
                     <Button type="button" variant="outline" onClick={generateBarcode}>
                       Generate
                     </Button>
