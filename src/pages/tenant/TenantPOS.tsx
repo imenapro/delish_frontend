@@ -38,6 +38,18 @@ interface POSProduct {
   promotion_description: string | null;
 }
 
+interface TenantTax {
+  id: string;
+  name: string;
+  rate: number;
+  is_compound: boolean;
+  shop_id: string | null;
+  effective_from: string | null;
+  effective_to: string | null;
+  is_active: boolean;
+  type?: string;
+}
+
 interface WakeLockSentinel {
   release: () => Promise<void>;
 }
@@ -74,6 +86,7 @@ export default function TenantPOS() {
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [postSaleDialogOpen, setPostSaleDialogOpen] = useState(false);
   const [lastSaleData, setLastSaleData] = useState<any>(null);
+  const [lastTaxBreakdown, setLastTaxBreakdown] = useState<{ name: string; rate: number; amount: number }[]>([]);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
 
@@ -205,6 +218,81 @@ export default function TenantPOS() {
     enabled: !!user?.id,
   });
 
+  const { data: tenantTaxes } = useQuery({
+    queryKey: ['tenant-taxes', store?.id, activeSession?.shop_id],
+    queryFn: async () => {
+      if (!store?.id) return [];
+      const { data, error } = await supabase
+        .from('tenant_taxes' as any)
+        .select('*')
+        .eq('business_id', store.id)
+        .eq('is_active', true);
+      if (error) {
+        console.warn('Error fetching tenant taxes:', error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!store?.id,
+  });
+
+  const calculateTaxBreakdown = (items: CartItem[]) => {
+    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const now = new Date();
+    
+    const applicable = (tenantTaxes || []).filter((t: TenantTax) => {
+      const forShop = !t.shop_id || t.shop_id === activeSession?.shop_id;
+      const fromOk = !t.effective_from || new Date(t.effective_from) <= now;
+      const toOk = !t.effective_to || new Date(t.effective_to) >= now;
+      return forShop && fromOk && toOk && t.is_active;
+    });
+
+    const getTaxType = (t: TenantTax) => {
+        if (t.type?.toLowerCase() === 'deducted' || t.name.toLowerCase().includes('deducted') || t.name.toLowerCase().includes('withholding')) return 'deducted';
+        if (t.is_compound) return 'compound';
+        return 'single';
+    };
+
+    // Sort: Single/Deducted first, then Compound
+    applicable.sort((a: TenantTax, b: TenantTax) => {
+       const typeA = getTaxType(a);
+       const typeB = getTaxType(b);
+       
+       const score = (type: string) => {
+           if (type === 'single') return 1;
+           if (type === 'deducted') return 1; 
+           if (type === 'compound') return 2;
+           return 0;
+       };
+
+       return score(typeA) - score(typeB);
+    });
+
+    const breakdown: { name: string; rate: number; amount: number; type: string }[] = [];
+    let currentTotal = subtotal;
+
+    applicable.forEach((t: TenantTax) => {
+      const rate = Number(t.rate) / 100;
+      let amount = 0;
+      const type = getTaxType(t);
+
+      if (type === 'single') {
+          amount = subtotal * rate;
+          currentTotal += amount;
+      } else if (type === 'deducted') {
+          amount = -1 * subtotal * rate; 
+          currentTotal += amount;
+      } else if (type === 'compound') {
+          amount = currentTotal * rate;
+          currentTotal += amount;
+      }
+
+      breakdown.push({ name: t.name, rate: Number(t.rate), amount, type });
+    });
+
+    return breakdown;
+  };
+
   // Fetch products from the active session's shop
   const selectedShop = activeSession?.shop_id || '';
   
@@ -263,6 +351,8 @@ export default function TenantPOS() {
       }));
     },
     enabled: !!store?.id && !!selectedShop,
+    staleTime: 1000 * 60 * 5, // Cache products for 5 minutes
+    gcTime: 1000 * 60 * 10,   // Keep in garbage collection for 10 minutes
   });
 
   // Today's sales stats for current session
@@ -279,7 +369,7 @@ export default function TenantPOS() {
   });
 
 
-  // Create order mutation
+  // Create order mutation - OPTIMIZED
   const createOrderMutation = useMutation({
     mutationFn: async ({ 
       paymentMethod, 
@@ -290,248 +380,139 @@ export default function TenantPOS() {
       customerPhone?: string;
       extras?: PostSaleData;
     }) => {
+      const startTime = performance.now();
+      console.log(`[Checkout] Started at ${new Date().toISOString()}`);
+
       if (!user?.id) throw new Error('Not authenticated');
       if (!activeSession) throw new Error('No active shift');
       if (!store?.id) throw new Error('Store context missing');
 
       let total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const taxBreakdown = calculateTaxBreakdown(cart);
+      const taxTotal = taxBreakdown.reduce((sum, t) => sum + t.amount, 0);
+      total += taxTotal;
       
-      // Add extras to total
       if (extras) {
         total = extras.finalTotal;
       }
 
-      const orderCode = `ORD-${Date.now().toString(36).toUpperCase()}`;
-
-      // Create order
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          order_code: orderCode,
-          customer_id: user.id,
-          seller_id: user.id,
-          shop_id_origin: activeSession.shop_id,
-          shop_id_fulfill: activeSession.shop_id,
-          total_amount: total,
-          payment_method: paymentMethod,
-          customer_phone: customerPhone,
-          status: 'confirmed',
-          confirmed_at: new Date().toISOString(),
-          source: 'pos',
-          // Store receipt options if possible, or just note it
-          notes: (extras ? `Receipt: ${extras.needReceipt}, Print: ${extras.printReceipt}, SMS: ${extras.smsReceipt}, Email: ${extras.emailReceipt}` : '') + ' [Source: POS]'
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Generate Invoice for POS transactions
-      let invoiceNumber = null;
-      try {
-        const { data: invNum, error: invGenError } = await supabase.rpc('generate_shop_invoice_number', {
-          p_shop_id: activeSession.shop_id
-        });
-        if (invGenError) throw invGenError;
-        
-        invoiceNumber = invNum;
-
-        const { error: invoiceError } = await supabase
-          .from('invoices')
-          .insert({
-            invoice_number: invoiceNumber,
-            shop_id: activeSession.shop_id,
-            staff_id: user.id,
-            customer_info: { 
-                id: user.id, 
-                phone: customerPhone || 'Walk-in',
-                name: 'Walk-in Customer' // Could be enhanced if we had customer selection
-            },
-            items_snapshot: cart.map(item => ({
-                id: item.id,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                subtotal: item.price * item.quantity
-            })),
-            subtotal: total, // Assuming tax is included or calculated elsewhere
-            tax_amount: 0, // Should be calculated if needed
-            total_amount: total,
-            payment_method: paymentMethod,
-            status: 'paid'
-          });
-
-        if (invoiceError) {
-            console.error("Failed to create invoice record:", invoiceError);
-            toast.error("Order created but invoice generation failed.");
-        }
-      } catch (err) {
-        console.error("Invoice generation error (likely migration missing):", err);
-        // Fallback: Proceed without invoice number, relying on Order Code
-      }
-
-      // Prepare order items
-      const orderItems = cart.map(item => ({
-        order_id: order.id,
+      // Prepare items for RPC
+      const rpcItems = cart.map(item => ({
         product_id: item.id,
         quantity: item.quantity,
         unit_price: item.price,
-        subtotal: item.price * item.quantity,
+        name: item.name
       }));
 
-      // Prepare items for receipt (preserve names)
-      const receiptItems = cart.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        subtotal: item.price * item.quantity
-      }));
-
-      // Add extra items (Fees)
+      // Handle Extras (Fees)
       if (extras) {
-        const getServiceProductId = async (name: string, price: number) => {
-            // Try to find existing service product
-            const { data: existing } = await supabase
-              .from('products')
-              .select('id')
-              .eq('name', name)
-              .eq('business_id', store.id)
-              .limit(1);
-              
-            if (existing && existing.length > 0) return existing[0].id;
-            
-            // Create new service product if not found
-            // Use a random barcode to avoid unique constraint issues if any
-            const { data: newProduct, error } = await supabase
-              .from('products')
-              .insert({
-                name: name,
-                business_id: store.id,
-                category: 'Services',
-                price: price,
-                is_active: true,
-                description: 'System generated service fee',
-                barcode: `SVC-${Date.now()}-${Math.floor(Math.random() * 1000)}` 
-              })
-              .select()
-              .single();
-              
-            if (error) {
-                console.error("Error creating service product:", error);
-                // Fallback: search for ANY product to attach fee to (risky but better than failing)
-                // Ideally this shouldn't happen.
-                throw error;
+        const feePromises = [];
+        if (extras.chargeSms) feePromises.push({ name: 'SMS Fee', price: extras.smsFee });
+        if (extras.packaging) feePromises.push({ name: 'Packaging Fee', price: extras.packagingFee });
+
+        if (feePromises.length > 0) {
+            const getServiceProductId = async (name: string, price: number) => {
+                const { data: existing } = await supabase
+                  .from('products')
+                  .select('id')
+                  .eq('name', name)
+                  .eq('business_id', store.id)
+                  .limit(1);
+                  
+                if (existing && existing.length > 0) return existing[0].id;
+                
+                const { data: newProduct, error } = await supabase
+                  .from('products')
+                  .insert({
+                    name: name,
+                    business_id: store.id,
+                    category: 'Services',
+                    price: price,
+                    is_active: true,
+                    description: 'System generated fee',
+                    barcode: `SVC-${Date.now()}-${Math.floor(Math.random() * 1000)}` 
+                  })
+                  .select()
+                  .single();
+                  
+                if (error) throw error;
+                return newProduct.id;
+            };
+
+            for (const fee of feePromises) {
+                const feeId = await getServiceProductId(fee.name, fee.price);
+                rpcItems.push({
+                    product_id: feeId,
+                    quantity: 1,
+                    unit_price: fee.price,
+                    name: fee.name
+                });
             }
-            return newProduct.id;
-        };
-
-        if (extras.chargeSms) {
-            const smsProdId = await getServiceProductId('SMS Fee', extras.smsFee);
-            orderItems.push({
-                order_id: order.id,
-                product_id: smsProdId,
-                quantity: 1,
-                unit_price: extras.smsFee,
-                subtotal: extras.smsFee
-            });
-            
-            receiptItems.push({
-                id: smsProdId,
-                name: 'SMS Fee',
-                price: extras.smsFee,
-                quantity: 1,
-                subtotal: extras.smsFee
-            });
-        }
-
-        if (extras.packaging) {
-            const pkgProdId = await getServiceProductId('Packaging Fee', extras.packagingFee);
-            orderItems.push({
-                order_id: order.id,
-                product_id: pkgProdId,
-                quantity: 1,
-                unit_price: extras.packagingFee,
-                subtotal: extras.packagingFee
-            });
-            
-            receiptItems.push({
-                id: pkgProdId,
-                name: 'Packaging Fee',
-                price: extras.packagingFee,
-                quantity: 1,
-                subtotal: extras.packagingFee
-            });
         }
       }
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
+      const apiRequestTime = performance.now();
+      console.log(`[Checkout] Sending API Request after ${(apiRequestTime - startTime).toFixed(2)}ms`);
 
-      if (itemsError) throw itemsError;
+      // CALL RPC FUNCTION (Single Transaction)
+      const { data: result, error } = await supabase.rpc('process_pos_sale', {
+        p_shop_id: activeSession.shop_id,
+        p_user_id: user.id,
+        p_session_id: activeSession.id,
+        p_total_amount: total,
+        p_payment_method: paymentMethod,
+        p_customer_phone: customerPhone || null,
+        p_items: rpcItems,
+        p_tax_amount: taxTotal,
+        p_extras: {
+            notes: (extras ? `Receipt: ${extras.needReceipt}, Print: ${extras.printReceipt}, SMS: ${extras.smsReceipt}` : ''),
+            customer_name: 'Walk-in Customer'
+        }
+      });
 
-      // Update inventory stock
-      for (const item of cart) {
-        // Fetch current stock to ensure accuracy
-        const { data: inventoryItem, error: fetchError } = await supabase
-          .from('shop_inventory')
-          .select('id, stock')
-          .eq('shop_id', activeSession.shop_id)
-          .eq('product_id', item.id)
-          .single();
-          
-        if (fetchError) {
-          console.error(`Error fetching inventory for product ${item.id}:`, fetchError);
-          continue;
+      const dbWriteTime = performance.now();
+      console.log(`[Checkout] DB Write Completed after ${(dbWriteTime - apiRequestTime).toFixed(2)}ms`);
+
+      if (error) {
+        console.error('[Checkout] RPC Error:', error);
+        if (error.message.includes('function process_pos_sale') || error.code === '42883') {
+            throw new Error('System update required: Run migration 20251230000001');
         }
-        
-        if (inventoryItem && inventoryItem.stock !== null) {
-          const newStock = Math.max(0, inventoryItem.stock - item.quantity);
-          
-          const { error: updateError } = await supabase
-            .from('shop_inventory')
-            .update({ stock: newStock })
-            .eq('id', inventoryItem.id);
-            
-          if (updateError) {
-             console.error(`Error updating stock for product ${item.id}:`, updateError);
-          }
-        }
+        throw error;
       }
 
-      // Update session totals
-      // If payment was cash, we assume the user collected the full amount including fees
-      const newSales = (activeSession.total_sales || 0) + (paymentMethod === 'cash' ? total : 0);
-      const newOrders = (activeSession.total_orders || 0) + 1;
+      const order = {
+        id: result.order_id,
+        order_code: result.order_code,
+        items: rpcItems.map(i => ({ ...i, price: i.unit_price, subtotal: i.unit_price * i.quantity })),
+        total_amount: total,
+        extras,
+        invoice_number: result.invoice_number,
+        created_at: result.created_at || new Date().toISOString(),
+        payment_method: paymentMethod,
+        customer_phone: customerPhone
+      };
 
-      await supabase
-        .from('pos_sessions')
-        .update({
-          total_sales: newSales,
-          total_orders: newOrders,
-        })
-        .eq('id', activeSession.id);
-
-      return { ...order, items: receiptItems, extras, invoice_number: invoiceNumber };
+      console.log(`[Checkout] Total Duration: ${(performance.now() - startTime).toFixed(2)}ms`);
+      return order;
     },
     onSuccess: (data) => {
+      const breakdown = calculateTaxBreakdown(data.items as any[]);
+      setLastTaxBreakdown(breakdown);
       setLastOrder(data);
       setCart([]);
       setPaymentDialogOpen(false);
+      
       queryClient.invalidateQueries({ queryKey: ['active-pos-session'] });
       queryClient.invalidateQueries({ queryKey: ['session-stats'] });
       queryClient.invalidateQueries({ queryKey: ['tenant-pos-products'] });
       
-      // Handle receipt printing
       if (data.extras?.printReceipt) {
-         // Trigger print after a short delay to ensure state is updated
          setTimeout(() => {
              handlePrint();
          }, 500);
       }
       
-      // Handle SMS/Email notifications (Mock for now)
       if (data.extras?.smsReceipt) {
           toast.success(`Receipt sent to ${data.extras.smsPhone}`);
       }
@@ -615,7 +596,10 @@ export default function TenantPOS() {
     queryClient.invalidateQueries({ queryKey: ['active-pos-session'] });
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const cartSubtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const currentTaxBreakdown = calculateTaxBreakdown(cart);
+  const currentTaxTotal = currentTaxBreakdown.reduce((sum, t) => sum + t.amount, 0);
+  const cartTotal = cartSubtotal + currentTaxTotal;
 
   // Show loading while checking for active session
   if (storeLoading || sessionLoading || shopsLoading) {
@@ -868,6 +852,8 @@ export default function TenantPOS() {
               onPark={handleParkOrder}
               isProcessing={createOrderMutation.isPending}
               currency={currency}
+              tax={currentTaxTotal}
+              total={cartTotal}
             />
         </div>
       </div>
@@ -877,7 +863,7 @@ export default function TenantPOS() {
         open={paymentDialogOpen} 
         onOpenChange={setPaymentDialogOpen}
         cartItems={cart}
-        total={cart.reduce((sum, item) => sum + item.price * item.quantity, 0)}
+        total={cartTotal}
         onComplete={(method, phone, extras) => createOrderMutation.mutate({ 
           paymentMethod: method, 
           customerPhone: phone,
@@ -925,6 +911,7 @@ export default function TenantPOS() {
             metadata: { registration_number: '123456789' } // TODO: Get from business settings
           }}
           currency={currency}
+          taxBreakdown={lastTaxBreakdown}
         />
       </div>
 

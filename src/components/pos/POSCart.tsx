@@ -22,6 +22,8 @@ interface POSCartProps {
   onPark: () => void;
   isProcessing?: boolean;
   currency?: string;
+  tax?: number;
+  total?: number;
 }
 
 export function POSCart({ 
@@ -32,11 +34,12 @@ export function POSCart({
   onCheckout,
   onPark,
   isProcessing,
-  currency = DEFAULT_SYSTEM_CURRENCY
+  currency = DEFAULT_SYSTEM_CURRENCY,
+  tax = 0,
+  total
 }: POSCartProps) {
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = 0; // Can be configured
-  const total = subtotal + tax;
+  const displayTotal = total ?? (subtotal + tax);
 
   return (
     <Card className="flex flex-col h-full">
@@ -116,7 +119,7 @@ export function POSCart({
               <span className="text-muted-foreground">Subtotal</span>
               <span>{formatCurrency(subtotal, currency)}</span>
             </div>
-            {tax > 0 && (
+            {tax !== 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Tax</span>
                 <span>{formatCurrency(tax, currency)}</span>
@@ -125,7 +128,7 @@ export function POSCart({
             <Separator />
             <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
-              <span className="text-primary">{formatCurrency(total, currency)}</span>
+              <span className="text-primary">{formatCurrency(displayTotal, currency)}</span>
             </div>
           </div>
           

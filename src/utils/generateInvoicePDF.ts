@@ -44,6 +44,7 @@ export const generateInvoicePDF = (invoice: Invoice, currency: string = DEFAULT_
   const shop = invoice.shop || {};
   const customer = invoice.customer_info || {};
   const items = invoice.items_snapshot || [];
+  const taxBreakdown = (customer as any)?.tax_breakdown as Array<{ name: string; rate: number; amount: number }> | undefined;
 
   // Colors
   const primaryColor = [20, 20, 20]; // Dark gray/Black
@@ -180,12 +181,22 @@ export const generateInvoicePDF = (invoice: Invoice, currency: string = DEFAULT_
   doc.text(subtotal, 196, currentY, { align: 'right' });
   currentY += 7;
 
-  // Tax
-  doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-  doc.text('Tax (18%):', totalsX, currentY);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(tax, 196, currentY, { align: 'right' });
-  currentY += 7;
+  // Taxes
+  if (Array.isArray(taxBreakdown) && taxBreakdown.length > 0) {
+    taxBreakdown.forEach((t) => {
+      doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      doc.text(`Tax - ${t.name} (${Number(t.rate).toFixed(2)}%)`, totalsX, currentY);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text(formatCurrency(Number(t.amount), currency), 196, currentY, { align: 'right' });
+      currentY += 7;
+    });
+  } else {
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text('Tax:', totalsX, currentY);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text(tax, 196, currentY, { align: 'right' });
+    currentY += 7;
+  }
 
   // Total Line
   doc.setDrawColor(0, 0, 0);

@@ -21,9 +21,10 @@ export function useParkedOrders(shopId?: string, currentUserId?: string, current
     if (!shopId) return;
 
     const fetchOrders = async () => {
+      console.log('Fetching parked orders for shop:', shopId);
       const { data, error } = await supabase
         .from('parked_orders')
-        .select('*, seller:seller_id(name)')
+        .select('*')
         .eq('shop_id', shopId)
         .eq('status', 'active')
         .order('created_at', { ascending: false });
@@ -32,6 +33,8 @@ export function useParkedOrders(shopId?: string, currentUserId?: string, current
         console.error('Error fetching parked orders:', error);
         return;
       }
+
+      console.log('Fetched parked orders:', data);
 
       if (data) {
         const mappedOrders: ParkedOrder[] = data.map((order: any) => ({
@@ -42,7 +45,7 @@ export function useParkedOrders(shopId?: string, currentUserId?: string, current
           note: order.note,
           total: order.total,
           sellerId: order.seller_id,
-          sellerName: order.seller?.name || 'Unknown',
+          sellerName: order.seller_name || 'Unknown',
         }));
         setParkedOrders(mappedOrders);
       }
@@ -83,6 +86,7 @@ export function useParkedOrders(shopId?: string, currentUserId?: string, current
         .insert({
           shop_id: shopId,
           seller_id: currentUserId,
+          seller_name: currentUserName,
           code,
           items,
           note,
