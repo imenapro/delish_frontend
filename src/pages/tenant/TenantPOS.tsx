@@ -464,10 +464,7 @@ export default function TenantPOS() {
         p_payment_method: paymentMethod,
         p_customer_phone: customerPhone || null,
         p_items: rpcItems,
-<<<<<<< HEAD
-=======
         p_tax_amount: taxTotal,
->>>>>>> development
         p_extras: {
             notes: (extras ? `Receipt: ${extras.needReceipt}, Print: ${extras.printReceipt}, SMS: ${extras.smsReceipt}` : ''),
             customer_name: 'Walk-in Customer'
