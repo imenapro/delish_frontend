@@ -4,7 +4,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -20,21 +19,13 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Clock, DollarSign, ShoppingCart, AlertTriangle, CheckCircle, FileText, Download, Mail, Plus, X, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Clock, DollarSign, CheckCircle, FileText, Download, Mail, Plus, X, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { generateShiftReportPDF } from '@/utils/pdfGenerator';
+import { generateShiftReportPDF, generateShiftReportBase64 } from '@/utils/pdfGenerator';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
@@ -74,6 +65,7 @@ interface OrderItem {
 }
 
 export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }: CloseShiftDialogProps) {
+  const queryClient = useQueryClient();
   const { store } = useStoreContext();
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [closingCash, setClosingCash] = useState('');
@@ -130,10 +122,10 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
             .eq('shop_id', session.shop_id)
             .eq('role', 'branch_manager');
             
-        const managerEmails: string[] = [];
-        if (managers && managers.length > 0) {
-            // Placeholder logic for managers
-        }
+        // const managerEmails: string[] = [];
+        // if (managers && managers.length > 0) {
+        //     // Placeholder logic for managers
+        // }
 
         return {
             currentUserEmail: user?.email,
@@ -176,11 +168,21 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const closeShiftMutation = useMutation({
     mutationFn: async () => {
       setIsSending(true);
+      const now = new Date();
+      const closedAtIso = now.toISOString();
+
+      // Calculate duration
+      const start = new Date(session.opened_at);
+      const diffMs = now.getTime() - start.getTime();
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const durationStr = `${hours}h ${minutes}m`;
+
       // Update session
       const { error } = await supabase
         .from('pos_sessions')
         .update({
-          closed_at: new Date().toISOString(),
+          closed_at: closedAtIso,
           closing_cash: closingCashNum,
           expected_cash: expectedCash,
           notes: description,
@@ -190,18 +192,92 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
 
       if (error) throw error;
       
-      // Simulate Email Sending
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      console.log("Sending email to:", [
-          emails?.currentUserEmail,
-          emails?.ownerEmail,
-          ...additionalRecipients
-      ].filter(Boolean));
+      // Send Email Notification
+      try {
+        const recipients = [
+            emails?.currentUserEmail,
+            emails?.ownerEmail,
+            ...additionalRecipients
+        ].filter(Boolean) as string[];
+
+        // Deduplicate recipients
+        const uniqueRecipients = [...new Set(recipients)];
+
+        if (uniqueRecipients.length > 0) {
+            const pdfBase64 = generateShiftReportBase64({
+                session: { ...session, closed_at: closedAtIso },
+                shiftOrders: shiftOrders || [],
+                closingCash: closingCashNum,
+                expectedCash,
+                description,
+                currency
+            });
+
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                    <h1 style="color: #2563eb;">End of Shift Report</h1>
+                    <p><strong>Shop:</strong> ${session.shop?.name}</p>
+                    <p><strong>Staff:</strong> ${session.user?.name}</p>
+                    <p><strong>Shift Opened:</strong> ${format(new Date(session.opened_at), 'MMM d, HH:mm')}</p>
+                    <p><strong>Shift Closed:</strong> ${format(now, 'MMM d, HH:mm')}</p>
+                    <p><strong>Shift Duration:</strong> ${durationStr}</p>
+                    
+                    <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #e5e7eb;">
+                        <h3 style="margin-top: 0; color: #1f2937;">Financial Summary</h3>
+                        <p style="margin: 5px 0;"><strong>Total Sales:</strong> ${formatCurrency(session.total_sales, currency)}</p>
+                        <p style="margin: 5px 0;"><strong>Expected Cash:</strong> ${formatCurrency(expectedCash, currency)}</p>
+                        <p style="margin: 5px 0;"><strong>Actual Cash:</strong> ${formatCurrency(closingCashNum, currency)}</p>
+                        <p style="margin: 5px 0; color: ${difference !== 0 ? (difference > 0 ? 'green' : 'red') : 'black'}">
+                            <strong>Variance:</strong> ${difference > 0 ? '+' : ''}${formatCurrency(difference, currency)}
+                        </p>
+                    </div>
+
+                    ${description ? `
+                    <div style="margin-top: 20px;">
+                        <h3>Notes</h3>
+                        <p style="background-color: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                            ${description}
+                        </p>
+                    </div>
+                    ` : ''}
+
+                    <p style="font-size: 12px; color: #6b7280; margin-top: 30px;">
+                        This is an automated message from BakeSync. Please see the attached PDF for full details.
+                    </p>
+                </div>
+            `;
+
+            for (const recipient of uniqueRecipients) {
+                const { error: emailError } = await supabase.functions.invoke('send-email', {
+                    body: {
+                        to: recipient,
+                        subject: `End of Shift Report - ${session.shop?.name} - ${format(now, 'MMM d')}`,
+                        html: emailHtml,
+                        businessId: session.shop_id, // Assuming shop_id can serve as business context or we need store.id
+                        attachments: pdfBase64 ? [{
+                            filename: `Shift_Report_${format(now, 'yyyyMMdd_HHmm')}.pdf`,
+                            content: pdfBase64,
+                            encoding: 'base64',
+                            contentType: 'application/pdf'
+                        }] : undefined
+                    },
+                });
+
+                if (emailError) {
+                    console.error(`Failed to send email to ${recipient}:`, emailError);
+                    // Don't throw, just log
+                }
+            }
+        }
+      } catch (emailError) {
+          console.error("Error in email sending process:", emailError);
+          // Don't throw, allow shift close to proceed
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['active-pos-session'] });
       queryClient.invalidateQueries({ queryKey: ['pos-sessions'] });
-      toast.success('Shift report sent and shift closed successfully!');
+      toast.success('Shift closed successfully. Reports are being sent.');
       onShiftClosed();
       onOpenChange(false);
       setIsSending(false);
@@ -225,8 +301,9 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[95vh] flex flex-col p-0 gap-0">
-        <div className="p-6 pb-2">
+      <DialogContent className="sm:max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
+        {/* Fixed Header */}
+        <div className="p-6 pb-4 shrink-0 border-b bg-background z-10 rounded-t-lg">
             <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5 text-primary" />
@@ -238,11 +315,12 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
             </DialogHeader>
         </div>
 
-        <div className="flex-1 overflow-hidden p-6 pt-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-            {/* Left Column: Form Inputs */}
-            <ScrollArea className="h-full pr-4">
-                <div className="space-y-6 pb-4">
+        {/* Scrollable Main Content */}
+        <div className="flex-1 overflow-y-auto scroll-smooth min-h-0 bg-background/50">
+            <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column: Form Inputs */}
+                <div className="space-y-6">
                     {/* Cash Reconciliation */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-semibold flex items-center gap-2 border-b pb-2">
@@ -326,26 +404,24 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                         </div>
                     </div>
                 </div>
-            </ScrollArea>
 
-            {/* Right Column: Preview & Verification */}
-            <div className="space-y-4 flex flex-col h-full overflow-hidden">
-                <h3 className="text-sm font-semibold flex items-center gap-2 border-b pb-2 shrink-0">
-                    <CheckCircle className="h-4 w-4" /> Report Preview & Verification
-                </h3>
-                
-                <Card className="flex-1 bg-muted/20 border-dashed flex flex-col overflow-hidden min-h-0">
-                    <CardHeader className="py-3 px-4 bg-muted/30 shrink-0 border-b">
-                        <div className="flex justify-between items-center">
-                            <CardTitle className="text-sm font-medium">Shift Summary</CardTitle>
-                            <Button variant="ghost" size="sm" onClick={generatePDF} disabled={isGeneratingPdf} className="h-8">
-                                {isGeneratingPdf ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Download className="mr-2 h-3 w-3" />}
-                                PDF
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-0 flex-1 overflow-hidden flex flex-col min-h-0">
-                        <ScrollArea className="h-full w-full">
+                {/* Right Column: Preview & Verification */}
+                <div className="space-y-4">
+                    <h3 className="text-sm font-semibold flex items-center gap-2 border-b pb-2 shrink-0">
+                        <CheckCircle className="h-4 w-4" /> Report Preview & Verification
+                    </h3>
+                    
+                    <Card className="bg-muted/20 border-dashed">
+                        <CardHeader className="py-3 px-4 bg-muted/30 shrink-0 border-b">
+                            <div className="flex justify-between items-center">
+                                <CardTitle className="text-sm font-medium">Shift Summary</CardTitle>
+                                <Button variant="ghost" size="sm" onClick={generatePDF} disabled={isGeneratingPdf} className="h-8">
+                                    {isGeneratingPdf ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Download className="mr-2 h-3 w-3" />}
+                                    PDF
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-0">
                             <div className="p-4 space-y-4 text-sm">
                             <div className="grid grid-cols-2 gap-2 text-xs">
                                 <span className="text-muted-foreground">Staff:</span> <span className="font-medium text-right">{session.user?.name}</span>
@@ -400,49 +476,50 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                                 </Accordion>
                             </div>
                             </div>
-                        </ScrollArea>
-                    </CardContent>
-                </Card>
-
-                <div className="space-y-4 pt-2 shrink-0">
-                    <div className="flex items-start space-x-2">
-                        <Checkbox id="verify" checked={isVerified} onCheckedChange={(checked) => setIsVerified(checked as boolean)} />
-                        <div className="grid gap-1.5 leading-none">
-                            <label
-                                htmlFor="verify"
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                                I confirm that I have reviewed the shift report details
-                            </label>
-                            <p className="text-xs text-muted-foreground">
-                                By checking this, you certify that the cash count and sales records are accurate.
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                        <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1">
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={() => closeShiftMutation.mutate()}
-                            disabled={!isFormValid || closeShiftMutation.isPending || isSending}
-                            className="flex-1 bg-green-600 hover:bg-green-700"
-                        >
-                            {isSending ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Submitting...
-                                </>
-                            ) : (
-                                <>
-                                    Submit Report
-                                </>
-                            )}
-                        </Button>
-                    </div>
+                        </CardContent>
+                    </Card>
+                </div>
                 </div>
             </div>
+        </div>
+
+        {/* Fixed Footer */}
+        <div className="p-6 border-t bg-background shrink-0 space-y-4 rounded-b-lg z-10">
+            <div className="flex items-start space-x-2">
+                <Checkbox id="verify" checked={isVerified} onCheckedChange={(checked) => setIsVerified(checked as boolean)} />
+                <div className="grid gap-1.5 leading-none">
+                    <label
+                        htmlFor="verify"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                        I confirm that I have reviewed the shift report details
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                        By checking this, you certify that the cash count and sales records are accurate.
+                    </p>
+                </div>
+            </div>
+
+            <div className="flex gap-3">
+                <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1">
+                    Cancel
+                </Button>
+                <Button
+                    onClick={() => closeShiftMutation.mutate()}
+                    disabled={!isFormValid || closeShiftMutation.isPending || isSending}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                    {isSending ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Submitting...
+                        </>
+                    ) : (
+                        <>
+                            Submit Report
+                        </>
+                    )}
+                </Button>
             </div>
         </div>
       </DialogContent>

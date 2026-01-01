@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, Package } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useStoreContext } from '@/contexts/StoreContext';
@@ -130,67 +131,75 @@ export function EditProductDialog({ open, onOpenChange, product, onSuccess }: Ed
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="w-[90vw] md:w-[60vw] max-w-2xl max-h-[80vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="p-6 border-b flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
             Edit Product
           </DialogTitle>
           <DialogDescription>Update product details</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="product-name">Product Name *</Label>
-            <Input
-              id="product-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter product name"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="category">Category *</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {PRODUCT_CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="price">Base Price ({store?.currency || DEFAULT_SYSTEM_CURRENCY}) *</Label>
-            <Input
-              id="price"
-              type="number"
-              step="1"
-              min="0"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="0"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="barcode">Barcode (Optional)</Label>
-            <div className="flex gap-2">
+        
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="product-name">Product Name *</Label>
               <Input
-                id="barcode"
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                placeholder="Scan or enter barcode"
-                className="flex-1"
+                id="product-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter product name"
+                className="w-full"
               />
-              <Button type="button" variant="outline" onClick={generateBarcode}>
-                Generate
-              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="category">Category *</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 col-span-full">
+              <Label htmlFor="price">Base Price ({store?.currency || DEFAULT_SYSTEM_CURRENCY}) *</Label>
+              <Input
+                id="price"
+                type="number"
+                step="1"
+                min="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="0"
+                className="w-32"
+              />
+            </div>
+
+            <div className="space-y-2 col-span-full">
+              <Label htmlFor="barcode">Barcode (Optional)</Label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  id="barcode"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  placeholder="Scan or enter barcode"
+                  className="flex-1"
+                />
+                <div className="flex gap-2">
+                  <BarcodeScanner onScanSuccess={(code) => setBarcode(code)} className="flex-1 sm:flex-none" />
+                  <Button type="button" variant="outline" onClick={generateBarcode} className="flex-1 sm:flex-none">
+                    Generate
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -202,46 +211,51 @@ export function EditProductDialog({ open, onOpenChange, product, onSuccess }: Ed
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Product description..."
               rows={3}
+              className="resize-none"
             />
           </div>
 
           <div className="space-y-2">
             <Label>Product Image (Optional)</Label>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex-1"
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                {imageFile ? 'Change Image' : 'Upload Image'}
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageChange}
-              />
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              <div className="flex-1 w-full">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full"
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  {imageFile ? 'Change Image' : 'Upload Image'}
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+              </div>
+              {imagePreview && (
+                <div className="relative w-24 h-24 flex-shrink-0">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="w-full h-full object-cover rounded-lg border"
+                  />
+                </div>
+              )}
             </div>
-            {imagePreview && (
-              <img
-                src={imagePreview}
-                alt="Preview"
-                className="mt-2 h-24 w-24 object-cover rounded-lg border"
-              />
-            )}
           </div>
+        </div>
 
-          <div className="flex gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving || !name || !category || !price} className="flex-1">
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </div>
+        <div className="p-6 border-t bg-background flex-shrink-0 flex gap-3 justify-end">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving || !name || !category || !price} className="w-full sm:w-auto">
+            {saving ? 'Saving...' : 'Save Changes'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

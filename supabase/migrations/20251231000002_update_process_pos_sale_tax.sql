@@ -1,9 +1,7 @@
--- Create a function to process POS sales in a single transaction
--- This optimizes performance by reducing network round-trips from N+5 to 1
+-- Update process_pos_sale to accept tax_amount
 
--- First drop ALL versions of the function to avoid ambiguity
-DROP FUNCTION IF EXISTS process_pos_sale(UUID, UUID, UUID, NUMERIC, TEXT, TEXT, JSONB, JSONB);
 DROP FUNCTION IF EXISTS process_pos_sale(UUID, UUID, UUID, NUMERIC, TEXT, JSONB, TEXT, JSONB);
+DROP FUNCTION IF EXISTS process_pos_sale(UUID, UUID, UUID, NUMERIC, TEXT, JSONB, NUMERIC, TEXT, JSONB);
 
 CREATE OR REPLACE FUNCTION process_pos_sale(
   p_shop_id UUID,
@@ -11,15 +9,10 @@ CREATE OR REPLACE FUNCTION process_pos_sale(
   p_session_id UUID,
   p_total_amount NUMERIC,
   p_payment_method TEXT,
-<<<<<<< HEAD
-  p_items JSONB, -- Array of objects: {product_id, quantity, unit_price, name}
-  p_customer_phone TEXT DEFAULT NULL,
-  p_extras JSONB DEFAULT NULL -- {invoice_customer_name, notes, etc}
-=======
-  p_items JSONB, -- REQUIRED: Moved before optional params
-  p_customer_phone TEXT DEFAULT NULL, -- OPTIONAL: Moved to end
+  p_items JSONB, -- REQUIRED
+  p_tax_amount NUMERIC DEFAULT 0, -- NEW: Tax amount (included in total)
+  p_customer_phone TEXT DEFAULT NULL, -- OPTIONAL
   p_extras JSONB DEFAULT NULL -- OPTIONAL
->>>>>>> development
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -52,11 +45,7 @@ BEGIN
     notes
   ) VALUES (
     v_order_code,
-<<<<<<< HEAD
-    p_user_id, -- Assuming customer is same as user for POS walk-in (or handled by frontend)
-=======
     p_user_id,
->>>>>>> development
     p_user_id,
     p_shop_id,
     p_shop_id,
@@ -69,16 +58,9 @@ BEGIN
     COALESCE(p_extras->>'notes', '')
   ) RETURNING id INTO v_order_id;
 
-<<<<<<< HEAD
-  -- 3. Process Items (Insert Order Items & Update Stock)
-  FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
-  LOOP
-    -- Insert Order Item
-=======
   -- 3. Process Items
   FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
->>>>>>> development
     INSERT INTO order_items (
       order_id,
       product_id,
@@ -93,28 +75,6 @@ BEGIN
       ((v_item->>'quantity')::NUMERIC * (v_item->>'unit_price')::NUMERIC)
     );
 
-<<<<<<< HEAD
-    -- Update Stock (Only if product is tracked in inventory)
-    -- We assume products with 'service' or similar might not have inventory entries, 
-    -- but here we try to find the inventory record.
-    SELECT id, stock INTO v_inventory_id, v_current_stock
-    FROM shop_inventory
-    WHERE shop_id = p_shop_id AND product_id = (v_item->>'product_id')::UUID
-    FOR UPDATE; -- Lock the row to prevent race conditions
-
-    IF v_inventory_id IS NOT NULL AND v_current_stock IS NOT NULL THEN
-      v_new_stock := GREATEST(0, v_current_stock - (v_item->>'quantity')::NUMERIC);
-      
-      UPDATE shop_inventory
-      SET stock = v_new_stock
-      WHERE id = v_inventory_id;
-    END IF;
-  END LOOP;
-
-  -- 4. Generate Invoice (Optional, handled if function exists)
-  -- We assume generate_shop_invoice_number exists as per previous code
-  -- If not, we skip or handle gracefully.
-=======
     -- Update Stock
     SELECT id, stock INTO v_inventory_id, v_current_stock
     FROM shop_inventory
@@ -128,7 +88,6 @@ BEGIN
   END LOOP;
 
   -- 4. Generate Invoice
->>>>>>> development
   BEGIN
     SELECT * FROM generate_shop_invoice_number(p_shop_id) INTO v_invoice_number;
     
@@ -153,39 +112,23 @@ BEGIN
         'name', COALESCE(p_extras->>'customer_name', 'Walk-in Customer')
       ),
       p_items,
-      p_total_amount,
-<<<<<<< HEAD
-      0, -- Tax assumed 0 or included
-=======
-      0,
->>>>>>> development
+      p_total_amount - p_tax_amount, -- Calculate subtotal
+      p_tax_amount,
       p_total_amount,
       p_payment_method,
       'paid'
     );
   EXCEPTION WHEN OTHERS THEN
-<<<<<<< HEAD
-    -- Ignore invoice errors to ensure sale completes
-    RAISE WARNING 'Failed to generate invoice: %', SQLERRM;
-  END;
-
-  -- 5. Update POS Session Totals
-=======
     RAISE WARNING 'Failed to generate invoice: %', SQLERRM;
   END;
 
   -- 5. Update Session
->>>>>>> development
   UPDATE pos_sessions
   SET 
     total_sales = COALESCE(total_sales, 0) + (CASE WHEN p_payment_method = 'cash' THEN p_total_amount ELSE 0 END),
     total_orders = COALESCE(total_orders, 0) + 1
   WHERE id = p_session_id;
 
-<<<<<<< HEAD
-  -- Return Result
-=======
->>>>>>> development
   RETURN jsonb_build_object(
     'order_id', v_order_id,
     'order_code', v_order_code,
@@ -194,8 +137,4 @@ BEGIN
     'success', true
   );
 END;
-<<<<<<< HEAD
 $$;
-=======
-$$;
->>>>>>> development

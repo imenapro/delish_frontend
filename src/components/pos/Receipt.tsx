@@ -47,10 +47,11 @@ interface ReceiptProps {
   onCreateBalanceCase?: () => void;
   width?: string;
   currency?: string;
+  taxBreakdown?: { name: string; rate: number; amount: number; type?: string }[];
 }
 
 export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
-  ({ order, items, shop, business, payment, onCreateBalanceCase, width = '80mm', currency = DEFAULT_SYSTEM_CURRENCY }, ref) => {
+  ({ order, items, shop, business, payment, onCreateBalanceCase, width = '80mm', currency = DEFAULT_SYSTEM_CURRENCY, taxBreakdown }, ref) => {
     if (!order) return null;
 
     // Format address components
@@ -176,7 +177,23 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
 
         {/* Totals Section */}
         <div className="border-t border-black pt-2 space-y-1 mb-6 text-[11px]">
-          <div className="flex justify-between font-bold text-[14px]">
+          <div className="flex justify-between text-[11px]">
+             <span>Subtotal:</span>
+             <span>{formatCurrency(items.reduce((acc, item) => acc + Number(item.subtotal), 0), currency)}</span>
+          </div>
+          
+          {taxBreakdown?.map((tax, i) => (
+             <div key={i} className={`flex justify-between text-[11px] ${tax.amount < 0 ? 'text-red-600' : ''}`}>
+               <span>
+                 {tax.name} ({tax.rate}%)
+                 {tax.type === 'compound' ? ' (Compound)' : ''}
+                 {tax.amount < 0 || tax.type === 'deducted' ? ' (Deducted)' : ''}:
+               </span>
+               <span>{formatCurrency(tax.amount, currency)}</span>
+             </div>
+          ))}
+
+          <div className="flex justify-between font-bold text-[14px] border-t border-black pt-1 mt-1">
             <span>TOTAL:</span>
             <span>{formatCurrency(Number(order.total_amount), currency)}</span>
           </div>

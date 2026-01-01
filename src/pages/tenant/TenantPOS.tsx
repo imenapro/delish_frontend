@@ -25,6 +25,7 @@ import { useParkedOrders } from '@/hooks/useParkedOrders';
 import { POSParkedOrdersDialog } from '@/components/pos/POSParkedOrdersDialog';
 import { POSParkOrderDialog } from '@/components/pos/POSParkOrderDialog';
 import { POSRefundDialog } from '@/components/pos/POSRefundDialog';
+import { POSMuteToggle } from '@/components/pos/POSMuteToggle';
 
 interface POSProduct {
   id: string;
@@ -36,6 +37,18 @@ interface POSProduct {
   barcode: string | null;
   discount_price: number | null;
   promotion_description: string | null;
+}
+
+interface TenantTax {
+  id: string;
+  name: string;
+  rate: number;
+  is_compound: boolean;
+  shop_id: string | null;
+  effective_from: string | null;
+  effective_to: string | null;
+  is_active: boolean;
+  type?: string;
 }
 
 interface WakeLockSentinel {
@@ -74,6 +87,7 @@ export default function TenantPOS() {
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [postSaleDialogOpen, setPostSaleDialogOpen] = useState(false);
   const [lastSaleData, setLastSaleData] = useState<any>(null);
+  const [lastTaxBreakdown, setLastTaxBreakdown] = useState<{ name: string; rate: number; amount: number }[]>([]);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
 
@@ -205,6 +219,81 @@ export default function TenantPOS() {
     enabled: !!user?.id,
   });
 
+  const { data: tenantTaxes } = useQuery({
+    queryKey: ['tenant-taxes', store?.id, activeSession?.shop_id],
+    queryFn: async () => {
+      if (!store?.id) return [];
+      const { data, error } = await supabase
+        .from('tenant_taxes' as any)
+        .select('*')
+        .eq('business_id', store.id)
+        .eq('is_active', true);
+      if (error) {
+        console.warn('Error fetching tenant taxes:', error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!store?.id,
+  });
+
+  const calculateTaxBreakdown = (items: CartItem[]) => {
+    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const now = new Date();
+    
+    const applicable = (tenantTaxes || []).filter((t: TenantTax) => {
+      const forShop = !t.shop_id || t.shop_id === activeSession?.shop_id;
+      const fromOk = !t.effective_from || new Date(t.effective_from) <= now;
+      const toOk = !t.effective_to || new Date(t.effective_to) >= now;
+      return forShop && fromOk && toOk && t.is_active;
+    });
+
+    const getTaxType = (t: TenantTax) => {
+        if (t.type?.toLowerCase() === 'deducted' || t.name.toLowerCase().includes('deducted') || t.name.toLowerCase().includes('withholding')) return 'deducted';
+        if (t.is_compound) return 'compound';
+        return 'single';
+    };
+
+    // Sort: Single/Deducted first, then Compound
+    applicable.sort((a: TenantTax, b: TenantTax) => {
+       const typeA = getTaxType(a);
+       const typeB = getTaxType(b);
+       
+       const score = (type: string) => {
+           if (type === 'single') return 1;
+           if (type === 'deducted') return 1; 
+           if (type === 'compound') return 2;
+           return 0;
+       };
+
+       return score(typeA) - score(typeB);
+    });
+
+    const breakdown: { name: string; rate: number; amount: number; type: string }[] = [];
+    let currentTotal = subtotal;
+
+    applicable.forEach((t: TenantTax) => {
+      const rate = Number(t.rate) / 100;
+      let amount = 0;
+      const type = getTaxType(t);
+
+      if (type === 'single') {
+          amount = subtotal * rate;
+          currentTotal += amount;
+      } else if (type === 'deducted') {
+          amount = -1 * subtotal * rate; 
+          currentTotal += amount;
+      } else if (type === 'compound') {
+          amount = currentTotal * rate;
+          currentTotal += amount;
+      }
+
+      breakdown.push({ name: t.name, rate: Number(t.rate), amount, type });
+    });
+
+    return breakdown;
+  };
+
   // Fetch products from the active session's shop
   const selectedShop = activeSession?.shop_id || '';
   
@@ -300,6 +389,9 @@ export default function TenantPOS() {
       if (!store?.id) throw new Error('Store context missing');
 
       let total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const taxBreakdown = calculateTaxBreakdown(cart);
+      const taxTotal = taxBreakdown.reduce((sum, t) => sum + t.amount, 0);
+      total += taxTotal;
       
       if (extras) {
         total = extras.finalTotal;
@@ -372,6 +464,10 @@ export default function TenantPOS() {
         p_payment_method: paymentMethod,
         p_customer_phone: customerPhone || null,
         p_items: rpcItems,
+<<<<<<< HEAD
+=======
+        p_tax_amount: taxTotal,
+>>>>>>> development
         p_extras: {
             notes: (extras ? `Receipt: ${extras.needReceipt}, Print: ${extras.printReceipt}, SMS: ${extras.smsReceipt}` : ''),
             customer_name: 'Walk-in Customer'
@@ -405,6 +501,8 @@ export default function TenantPOS() {
       return order;
     },
     onSuccess: (data) => {
+      const breakdown = calculateTaxBreakdown(data.items as any[]);
+      setLastTaxBreakdown(breakdown);
       setLastOrder(data);
       setCart([]);
       setPaymentDialogOpen(false);
@@ -459,19 +557,17 @@ export default function TenantPOS() {
   };
 
   const updateQuantity = (id: string, quantity: number) => {
-    if (quantity <= 0) {
-      setCart(prev => prev.filter(item => item.id !== id));
-    } else {
-      const product = products.find(p => p.id === id);
-      if (product && product.stock !== undefined && quantity > product.stock) {
-        toast.error(`Cannot update quantity. Only ${product.stock} in stock.`);
-        return;
-      }
+    if (quantity < 1) return;
 
-      setCart(prev => prev.map(item =>
-        item.id === id ? { ...item, quantity } : item
-      ));
+    const product = products.find(p => p.id === id);
+    if (product && product.stock !== undefined && quantity > product.stock) {
+      toast.error(`Cannot update quantity. Only ${product.stock} in stock.`);
+      return;
     }
+
+    setCart(prev => prev.map(item =>
+      item.id === id ? { ...item, quantity } : item
+    ));
   };
 
   const removeFromCart = (id: string) => {
@@ -502,7 +598,10 @@ export default function TenantPOS() {
     queryClient.invalidateQueries({ queryKey: ['active-pos-session'] });
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const cartSubtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const currentTaxBreakdown = calculateTaxBreakdown(cart);
+  const currentTaxTotal = currentTaxBreakdown.reduce((sum, t) => sum + t.amount, 0);
+  const cartTotal = cartSubtotal + currentTaxTotal;
 
   // Show loading while checking for active session
   if (storeLoading || sessionLoading || shopsLoading) {
@@ -730,8 +829,9 @@ export default function TenantPOS() {
         {/* Product Grid - 2 columns */}
         <div className="lg:col-span-2 h-full overflow-hidden flex flex-col">
           <Card className="h-full flex flex-col">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle>Products</CardTitle>
+              <POSMuteToggle />
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto">
               <POSProductGrid
@@ -755,6 +855,8 @@ export default function TenantPOS() {
               onPark={handleParkOrder}
               isProcessing={createOrderMutation.isPending}
               currency={currency}
+              tax={currentTaxTotal}
+              total={cartTotal}
             />
         </div>
       </div>
@@ -764,7 +866,7 @@ export default function TenantPOS() {
         open={paymentDialogOpen} 
         onOpenChange={setPaymentDialogOpen}
         cartItems={cart}
-        total={cart.reduce((sum, item) => sum + item.price * item.quantity, 0)}
+        total={cartTotal}
         onComplete={(method, phone, extras) => createOrderMutation.mutate({ 
           paymentMethod: method, 
           customerPhone: phone,
@@ -812,6 +914,7 @@ export default function TenantPOS() {
             metadata: { registration_number: '123456789' } // TODO: Get from business settings
           }}
           currency={currency}
+          taxBreakdown={lastTaxBreakdown}
         />
       </div>
 
@@ -850,7 +953,7 @@ export default function TenantPOS() {
 
   if (isFullScreen) {
     return (
-      <div className="h-screen w-screen bg-background flex flex-col p-4 overflow-hidden fixed inset-0 z-50">
+      <div className="h-screen w-screen bg-background flex flex-col p-4 overflow-auto fixed inset-0 z-50">
         <div className="flex justify-between items-center mb-4 shrink-0">
           <div className="flex items-center gap-4">
              <h1 className="text-xl font-bold">POS</h1>

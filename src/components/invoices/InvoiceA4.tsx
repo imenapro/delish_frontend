@@ -14,6 +14,7 @@ export const InvoiceA4 = forwardRef<HTMLDivElement, InvoiceA4Props>(({ invoice, 
   const items = invoice.items_snapshot || [];
   const shop = invoice.shop || {};
   const customer = invoice.customer_info || {};
+  const taxBreakdown = (customer?.tax_breakdown || []) as Array<{ name: string; rate: number; amount: number }>;
 
   const dimensions = size === 'a4' ? 'w-[210mm] min-h-[297mm] p-[15mm]' : 'w-[148mm] min-h-[210mm] p-[10mm] text-xs';
 
@@ -95,10 +96,19 @@ export const InvoiceA4 = forwardRef<HTMLDivElement, InvoiceA4Props>(({ invoice, 
             <span>Subtotal</span>
             <span>{formatCurrency(Number(invoice.subtotal), currency)}</span>
           </div>
-          <div className="flex justify-between text-gray-600">
-            <span>Tax (18%)</span>
-            <span>{formatCurrency(Number(invoice.tax_amount), currency)}</span>
-          </div>
+          {taxBreakdown.length > 0 ? (
+            taxBreakdown.map((t, idx) => (
+              <div key={idx} className="flex justify-between text-gray-600">
+                <span>{t.name} ({Number(t.rate).toFixed(2)}%)</span>
+                <span>{formatCurrency(Number(t.amount), currency)}</span>
+              </div>
+            ))
+          ) : (
+            <div className="flex justify-between text-gray-600">
+              <span>Tax</span>
+              <span>{formatCurrency(Number(invoice.tax_amount), currency)}</span>
+            </div>
+          )}
           <div className="border-t-2 border-gray-800 pt-3 flex justify-between items-end">
             <span className="font-bold text-lg">Total</span>
             <span className="font-bold text-2xl">{formatCurrency(Number(invoice.total_amount), currency)}</span>

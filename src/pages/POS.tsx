@@ -17,6 +17,8 @@ import { Receipt } from '@/components/pos/Receipt';
 import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { ProductManagementDialog } from '@/components/pos/ProductManagementDialog';
 import { POSCalculator } from '@/components/pos/POSCalculator';
+import { POSCartItemRow } from '@/components/pos/POSCartItemRow';
+import { POSMuteToggle } from '@/components/pos/POSMuteToggle';
 import { 
   useOfflineSync, 
   cacheProducts, 
@@ -28,6 +30,7 @@ import {
   clearCart
 } from '@/hooks/useOfflineSync';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
+import { useStoreContext } from '@/contexts/StoreContext';
 
 interface CartItem {
   product_id: string;
@@ -58,10 +61,23 @@ interface Order {
   queued?: boolean;
 }
 
+interface TenantTax {
+  id: string;
+  name: string;
+  rate: number;
+  is_compound: boolean;
+  shop_id: string | null;
+  effective_from: string | null;
+  effective_to: string | null;
+  is_active: boolean;
+  type?: string;
+}
+
 export default function POS() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { isOnline, isSyncing, queueOrder, syncQueuedOrders, getQueuedOrders } = useOfflineSync();
+  const { store } = useStoreContext();
 
   const { data: shops } = useQuery({
     queryKey: ['shops'],
@@ -96,10 +112,29 @@ export default function POS() {
   const [lastPayment, setLastPayment] = useState<{amountPaid: number, change: number} | null>(null);
   const [amountTendered, setAmountTendered] = useState<string>('');
   const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [lastTaxBreakdown, setLastTaxBreakdown] = useState<{ name: string; rate: number; amount: number }[]>([]);
   const receiptRef = useRef<HTMLDivElement>(null);
 
   const currentShop = shops?.find(s => s.id === selectedShop);
   const currency = currentShop?.business?.currency || DEFAULT_SYSTEM_CURRENCY;
+
+  const { data: tenantTaxes } = useQuery({
+    queryKey: ['tenant-taxes', store?.id, selectedShop],
+    queryFn: async () => {
+      if (!store?.id) return [];
+      const { data, error } = await supabase
+        .from('tenant_taxes' as any)
+        .select('*')
+        .eq('business_id', store.id)
+        .eq('is_active', true);
+      if (error) {
+        console.warn('Error fetching tenant taxes:', error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!store?.id,
+  });
 
   // Load cart from localStorage on mount
   useEffect(() => {
@@ -174,6 +209,10 @@ export default function POS() {
 
       if (invNumError) throw invNumError;
 
+      const subtotal = calculateSubtotal(orderData.items);
+      const taxBreakdown = calculateTaxBreakdown(orderData.items);
+      const taxTotal = taxBreakdown.reduce((s, t) => s + t.amount, 0);
+
       // Create Invoice explicitly (Decoupled from Order)
       const { error: invoiceError } = await supabase
         .from('invoices')
@@ -181,13 +220,13 @@ export default function POS() {
           invoice_number: invoiceNumData,
           shop_id: orderData.shop_id,
           staff_id: user?.id,
-          total_amount: orderData.total,
-          subtotal: orderData.total / 1.18, // Approximate reverse tax calculation if not provided
-          tax_amount: orderData.total - (orderData.total / 1.18),
+          total_amount: subtotal + taxTotal,
+          subtotal: subtotal,
+          tax_amount: taxTotal,
           payment_method: orderData.payment_method,
           status: 'paid', // POS invoices are paid immediately
           items_snapshot: orderData.items,
-          customer_info: { phone: orderData.customer_phone, id: user?.id }, // Store customer info snapshot
+          customer_info: { phone: orderData.customer_phone, id: user?.id, tax_breakdown: taxBreakdown },
         });
 
       if (invoiceError) throw invoiceError;
@@ -229,14 +268,18 @@ export default function POS() {
 
       return order;
     },
-    onSuccess: (order: Order) => {
+    onSuccess: (order: Order, variables) => {
+      // Calculate and save tax breakdown for the receipt
+      const breakdown = calculateTaxBreakdown(variables.items);
+      setLastTaxBreakdown(breakdown);
+
       if (order.queued) {
         toast.success('Order queued for sync (offline mode)');
       } else {
         toast.success('Order created successfully!');
       }
       setLastOrder(order);
-      setLastItems(cart);
+      setLastItems(variables.items);
       setLastPayment({
         amountPaid: Number(amountTendered) || order.total_amount,
         change: Math.max(0, (Number(amountTendered) || order.total_amount) - order.total_amount)
@@ -256,7 +299,26 @@ export default function POS() {
     contentRef: receiptRef,
   });
 
-  const addToCart = (product: Product) => {
+  const addToCart = async (product: Product) => {
+    if (selectedShop) {
+      const { data: inventory } = await supabase
+        .from('shop_inventory')
+        .select('stock')
+        .eq('shop_id', selectedShop)
+        .eq('product_id', product.id)
+        .maybeSingle();
+
+      if (inventory) {
+        const existingItem = cart.find(item => item.product_id === product.id);
+        const currentQty = existingItem ? existingItem.quantity : 0;
+        
+        if (inventory.stock < currentQty + 1) {
+          toast.error(`Out of stock! Only ${inventory.stock} available.`);
+          return;
+        }
+      }
+    }
+
     const existingItem = cart.find(item => item.product_id === product.id);
     
     if (existingItem) {
@@ -277,11 +339,23 @@ export default function POS() {
     toast.success(`${product.name} added to cart`);
   };
 
-  const updateQuantity = (productId: string, newQuantity: number) => {
-    if (newQuantity < 1) {
-      removeFromCart(productId);
-      return;
+  const updateQuantity = async (productId: string, newQuantity: number) => {
+    if (newQuantity < 1) return;
+
+    if (selectedShop) {
+      const { data: inventory } = await supabase
+        .from('shop_inventory')
+        .select('stock')
+        .eq('shop_id', selectedShop)
+        .eq('product_id', productId)
+        .maybeSingle();
+
+      if (inventory && inventory.stock < newQuantity) {
+        toast.error(`Cannot update quantity. Only ${inventory.stock} in stock.`);
+        return;
+      }
     }
+    
     setCart(cart.map(item =>
       item.product_id === productId
         ? { ...item, quantity: newQuantity, subtotal: newQuantity * item.price }
@@ -293,19 +367,88 @@ export default function POS() {
     setCart(cart.filter(item => item.product_id !== productId));
   };
 
-  const calculateSubtotal = () => {
-    return cart.reduce((sum, item) => sum + item.subtotal, 0);
+  const calculateSubtotal = (items: CartItem[] = cart) => {
+    return items.reduce((sum, item) => sum + item.subtotal, 0);
   };
 
-  const calculateVAT = () => {
-    return calculateSubtotal() * 0.18;
+  const calculateTaxBreakdown = (items: CartItem[] = cart) => {
+    const subtotal = calculateSubtotal(items);
+    const now = new Date();
+    
+    const applicable = (tenantTaxes || []).filter((t: TenantTax) => {
+      const forShop = !t.shop_id || t.shop_id === selectedShop;
+      const fromOk = !t.effective_from || new Date(t.effective_from) <= now;
+      const toOk = !t.effective_to || new Date(t.effective_to) >= now;
+      return forShop && fromOk && toOk && t.is_active;
+    });
+
+    const getTaxType = (t: TenantTax) => {
+        if (t.type?.toLowerCase() === 'deducted' || t.name.toLowerCase().includes('deducted') || t.name.toLowerCase().includes('withholding')) return 'deducted';
+        if (t.is_compound) return 'compound';
+        return 'single';
+    };
+
+    // Sort: Single/Deducted first (base-based), then Compound (total-based)
+    applicable.sort((a: TenantTax, b: TenantTax) => {
+       const typeA = getTaxType(a);
+       const typeB = getTaxType(b);
+       
+       const score = (type: string) => {
+           if (type === 'single') return 1;
+           if (type === 'deducted') return 1; 
+           if (type === 'compound') return 2;
+           return 0;
+       };
+
+       return score(typeA) - score(typeB);
+    });
+
+    const breakdown: { name: string; rate: number; amount: number; type: string }[] = [];
+    let currentTotal = subtotal;
+
+    applicable.forEach((t: TenantTax) => {
+      const rate = Number(t.rate) / 100;
+      let amount = 0;
+      const type = getTaxType(t);
+
+      if (type === 'single') {
+          // 1. Single Tax: Add the specified percentage to the base amount
+          amount = subtotal * rate;
+          currentTotal += amount;
+      } else if (type === 'deducted') {
+          // 3. Deducted Tax: Subtract the specified percentage from the base amount
+          amount = -1 * subtotal * rate; 
+          currentTotal += amount;
+      } else if (type === 'compound') {
+          // 2. Compound Tax: Apply the percentage to the current total (including previous taxes)
+          amount = currentTotal * rate;
+          currentTotal += amount;
+      }
+
+      breakdown.push({ name: t.name, rate: Number(t.rate), amount, type });
+    });
+    
+    return breakdown;
+  };
+
+  const calculateTaxTotal = () => {
+    return calculateTaxBreakdown().reduce((sum, t) => sum + t.amount, 0);
   };
 
   const calculateTotal = () => {
-    return calculateSubtotal() + calculateVAT();
+    return calculateSubtotal() + calculateTaxTotal();
   };
 
   const handleBarcodeScanned = async (barcode: string) => {
+    // 1. Try local lookup first (Optimization)
+    const localProduct = products?.find(p => p.barcode === barcode && p.is_active);
+    
+    if (localProduct) {
+        await addToCart(localProduct);
+        return;
+    }
+
+    // 2. Fallback to DB lookup if not found locally
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -318,7 +461,7 @@ export default function POS() {
       return;
     }
 
-    addToCart(data);
+    await addToCart(data);
   };
 
   const handleCheckout = () => {
@@ -435,6 +578,9 @@ export default function POS() {
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center gap-4">
+                    <div className="self-end mb-1">
+                      <POSMuteToggle />
+                    </div>
                     <div className="flex-1">
                       <Label htmlFor="search">Search Products</Label>
                       <div className="relative mt-1">
@@ -562,49 +708,17 @@ export default function POS() {
                       <p className="text-center text-muted-foreground py-8">Cart is empty</p>
                     ) : (
                       cart.map((item) => (
-                        <Card key={item.product_id}>
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{item.name}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {formatCurrency(item.price, currency)}
-                                </p>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeFromCart(item.product_id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                                >
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                                <span className="w-8 text-center font-medium">{item.quantity}</span>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
-                              </div>
-                              <p className="font-bold">
-                                {formatCurrency(item.subtotal, currency)}
-                              </p>
-                            </div>
-                          </CardContent>
-                        </Card>
+                        <POSCartItemRow
+                          key={item.product_id}
+                          id={item.product_id}
+                          name={item.name}
+                          price={item.price}
+                          quantity={item.quantity}
+                          subtotal={item.subtotal}
+                          currency={currency}
+                          onUpdateQuantity={(qty) => updateQuantity(item.product_id, qty)}
+                          onRemove={() => removeFromCart(item.product_id)}
+                        />
                       ))
                     )}
                   </div>
@@ -617,10 +731,12 @@ export default function POS() {
                       <span className="text-muted-foreground">Subtotal:</span>
                       <span>{formatCurrency(calculateSubtotal(), currency)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">VAT (18%):</span>
-                      <span>{formatCurrency(calculateVAT(), currency)}</span>
-                    </div>
+                    {calculateTaxBreakdown().map((t, idx) => (
+                      <div key={idx} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{t.name} ({t.rate.toFixed(2)}%)</span>
+                        <span>{formatCurrency(t.amount, currency)}</span>
+                      </div>
+                    ))}
                     <Separator />
                     <div className="flex justify-between text-lg font-bold">
                       <span>Total:</span>
@@ -666,6 +782,7 @@ export default function POS() {
             payment={lastPayment || undefined}
             onCreateBalanceCase={handleCreateBalanceCase}
             currency={currency}
+            taxBreakdown={lastTaxBreakdown}
           />
         </div>
 

@@ -1,4 +1,14 @@
-export const playSound = (soundName: 'product-click' | 'add-to-cart' | 'checkout-success') => {
+export const isMuted = (): boolean => {
+  return localStorage.getItem('pos_muted') === 'true';
+};
+
+export const setMuted = (muted: boolean) => {
+  localStorage.setItem('pos_muted', String(muted));
+};
+
+export const playSound = (soundName: 'product-click' | 'add-to-cart' | 'checkout-success' | 'error' | 'success') => {
+  if (isMuted()) return;
+  
   try {
     const audio = new Audio(`/sounds/${soundName}.mp3`);
     audio.volume = 0.5; // Set volume to 50%
