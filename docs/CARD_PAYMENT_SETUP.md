@@ -61,3 +61,4 @@ Use the following test scenarios to verify the implementation:
 - **Physical Terminal Integration**: Connect to hardware terminals via WebSocket or local API.
 - **Receipt Printing**: Include authorization codes on printed receipts.
 - **Refunds**: Implement card refund logic in the transaction history.
+####
