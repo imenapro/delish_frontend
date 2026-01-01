@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { RegistrationData } from '@/pages/Register';
 import { ArrowLeft, Store } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { hexToHSL } from '@/lib/utils';
 
 interface BrandingCustomizationStepProps {
   data: Partial<RegistrationData>;
@@ -28,6 +29,9 @@ export function BrandingCustomizationStep({ data, onNext, onBack }: BrandingCust
   const handleSkip = () => {
     onNext({});
   };
+
+  const primaryHSL = hexToHSL(formData.primaryColor);
+  const secondaryHSL = hexToHSL(formData.secondaryColor);
 
   return (
     <div className="space-y-6">
@@ -104,45 +108,38 @@ export function BrandingCustomizationStep({ data, onNext, onBack }: BrandingCust
 
         <div>
           <Label className="mb-3 block">Preview</Label>
-          <Card 
-            className="p-6 border-2"
-            style={{ 
-              borderColor: formData.primaryColor,
-              backgroundColor: `${formData.secondaryColor}20`
+          <div
+            className="rounded-xl p-1"
+            style={{
+              // @ts-ignore
+              '--primary': primaryHSL,
+              '--secondary': secondaryHSL,
+              '--primary-foreground': '0 0% 100%',
+              '--secondary-foreground': primaryHSL,
             }}
           >
-            <div className="flex items-center gap-3 mb-4">
-              <div 
-                className="h-12 w-12 rounded-lg flex items-center justify-center"
-                style={{ backgroundColor: formData.primaryColor }}
-              >
-                <Store className="h-6 w-6" style={{ color: formData.secondaryColor }} />
+            <Card className="p-6 border-2 border-primary/20 bg-background">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center">
+                  <Store className="h-6 w-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-foreground">{data.businessName || 'Your Business'}</h3>
+                  {formData.slogan && (
+                    <p className="text-sm text-muted-foreground">{formData.slogan}</p>
+                  )}
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-lg">{data.businessName || 'Your Business'}</h3>
-                {formData.slogan && (
-                  <p className="text-sm text-muted-foreground">{formData.slogan}</p>
-                )}
+              <div className="space-y-2">
+                <Button className="w-full">
+                  Sample Button
+                </Button>
+                <div className="p-3 rounded bg-secondary text-secondary-foreground">
+                  <p className="text-sm">Sample content area</p>
+                </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Button 
-                style={{ 
-                  backgroundColor: formData.primaryColor,
-                  color: formData.secondaryColor 
-                }}
-                className="w-full"
-              >
-                Sample Button
-              </Button>
-              <div 
-                className="p-3 rounded"
-                style={{ backgroundColor: formData.secondaryColor }}
-              >
-                <p className="text-sm">Sample content area</p>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

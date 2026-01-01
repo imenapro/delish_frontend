@@ -14,22 +14,10 @@ interface BusinessSetupStepProps {
   onBack: () => void;
 }
 
-const businessTypes = [
-  'Grocery Store',
-  'Restaurant',
-  'Smoke Shop',
-  'Butcher Shop',
-  'Printing House',
-  'Electronics Store',
-  'Home Décor',
-  'Liquor Store',
-  'Pharmacy',
-  'Other',
-];
-
 export function BusinessSetupStep({ data, onNext, onBack }: BusinessSetupStepProps) {
   const { toast } = useToast();
   const [countries, setCountries] = useState<any[]>([]);
+  const [businessTypes, setBusinessTypes] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     businessName: data.businessName || '',
     businessType: data.businessType || '',
@@ -40,22 +28,47 @@ export function BusinessSetupStep({ data, onNext, onBack }: BusinessSetupStepPro
   });
 
   useEffect(() => {
+    const fetchBusinessTypes = async () => {
+      const { data, error } = await supabase
+        .from('business_types')
+        .select('name')
+        .eq('is_active', true)
+        .order('name');
+
+      if (data) {
+        setBusinessTypes(data.map(bt => bt.name));
+      } else if (error) {
+        console.error('Error fetching business types:', error);
+        // Fallback to hardcoded list if table doesn't exist or error
+        setBusinessTypes([
+          'Grocery Store', 'Restaurant', 'Smoke Shop', 'Butcher Shop',
+          'Printing House', 'Electronics Store', 'Home Décor',
+          'Liquor Store', 'Pharmacy', 'Other'
+        ]);
+      }
+    };
+    fetchBusinessTypes();
+  }, []);
+
+  useEffect(() => {
     const fetchCountries = async () => {
       const { data } = await supabase
-        .from('country_currency_mapping')
+        .from('countries')
         .select('*')
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .order('name');
       
       if (data) {
         setCountries(data);
         // Auto-select Mozambique if available and no country selected
         if (!formData.country) {
-            const mz = data.find(c => c.country_code === 'MZ');
+            const mz = data.find(c => c.code === 'MZ');
             if (mz) {
                 setFormData(prev => ({
                     ...prev,
-                    country: mz.country_code,
-                    currency: mz.currency_code
+                    country: mz.code || '',
+                    // Default to MZN for Mozambique, USD for others if not mapped
+                    currency: mz.code === 'MZ' ? 'MZN' : 'USD' 
                 }));
             }
         }
@@ -149,11 +162,11 @@ export function BusinessSetupStep({ data, onNext, onBack }: BusinessSetupStepPro
           <Select
             value={formData.country}
             onValueChange={(value) => {
-                const selected = countries.find(c => c.country_code === value);
+                const selected = countries.find(c => c.code === value);
                 setFormData({
                     ...formData,
                     country: value,
-                    currency: selected?.currency_code || 'USD'
+                    currency: selected?.code === 'MZ' ? 'MZN' : 'USD'
                 });
             }}
           >
@@ -162,8 +175,8 @@ export function BusinessSetupStep({ data, onNext, onBack }: BusinessSetupStepPro
             </SelectTrigger>
             <SelectContent>
               {countries.map((c) => (
-                <SelectItem key={c.country_code} value={c.country_code}>
-                  {c.country_code} - {c.currency_code}
+                <SelectItem key={c.id} value={c.code || c.id}>
+                  {c.name}
                 </SelectItem>
               ))}
             </SelectContent>

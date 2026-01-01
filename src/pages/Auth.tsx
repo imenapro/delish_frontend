@@ -282,7 +282,7 @@ export default function Auth() {
                   Don't have an account?{' '}
                   <button
                     type="button"
-                    onClick={() => setIsLogin(false)}
+                    onClick={() => navigate('/register')}
                     className="text-primary hover:underline font-medium"
                   >
                     Sign up
