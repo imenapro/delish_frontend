@@ -9,6 +9,7 @@ import { TenantEmailSettings } from '@/components/tenant/TenantEmailSettings';
 import { TenantCurrencySettings } from '@/components/tenant/TenantCurrencySettings';
 import { TenantTaxManagement } from '@/components/tenant/TenantTaxManagement';
 import { TenantDomainSettings } from '@/components/tenant/TenantDomainSettings';
+import { TenantPaymentMethods } from '@/components/finance/payment-methods/TenantPaymentMethods';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function TenantAdmin() {
@@ -18,6 +19,7 @@ export default function TenantAdmin() {
   const sections = [
     { id: 'domain', title: 'Custom Domain', component: <TenantDomainSettings />, category: 'general', keywords: ['domain', 'url', 'web', 'address'] },
     { id: 'currency', title: 'Currency Settings', component: <TenantCurrencySettings />, category: 'general', keywords: ['currency', 'money', 'format', 'symbol'] },
+    { id: 'payment-methods', title: 'Payment Methods', component: <TenantPaymentMethods />, category: 'financial', keywords: ['payment', 'card', 'visa', 'money', 'bank'] },
     { id: 'tax', title: 'Tax Management', component: <TenantTaxManagement />, category: 'financial', keywords: ['tax', 'vat', 'gst', 'rate'] },
     { id: 'email', title: 'Email Settings', component: <TenantEmailSettings />, category: 'communication', keywords: ['email', 'smtp', 'mail', 'sender'] },
   ];
@@ -103,7 +105,14 @@ export default function TenantAdmin() {
             </TabsContent>
 
             <TabsContent value="financial" className="space-y-6">
-              <TenantTaxManagement />
+              <div className="flex flex-col space-y-8">
+                <section>
+                  <TenantPaymentMethods />
+                </section>
+                <section className="pt-8 border-t">
+                  <TenantTaxManagement />
+                </section>
+              </div>
             </TabsContent>
 
             <TabsContent value="communication" className="space-y-6">
