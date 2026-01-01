@@ -271,7 +271,7 @@ export default function TenantPOS() {
 
     const breakdown: { name: string; rate: number; amount: number; type: string }[] = [];
     let currentTotal = subtotal;
-
+    // We are dealing with tenant
     applicable.forEach((t: TenantTax) => {
       const rate = Number(t.rate) / 100;
       let amount = 0;
