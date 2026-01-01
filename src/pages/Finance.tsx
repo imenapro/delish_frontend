@@ -10,6 +10,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { ExpenseDialog } from '@/components/finance/ExpenseDialog';
 import { format } from 'date-fns';
 
+import { PaymentMethodsTab } from '@/components/finance/payment-methods/PaymentMethodsTab';
+
 export default function Finance() {
   const { data: expenses, isLoading: expensesLoading } = useQuery({
     queryKey: ['expenses'],
@@ -153,7 +155,12 @@ export default function Finance() {
             <TabsList>
               <TabsTrigger value="expenses">Expenses</TabsTrigger>
               <TabsTrigger value="payroll">Payroll</TabsTrigger>
+              <TabsTrigger value="payment-methods">Payment Methods</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="payment-methods">
+              <PaymentMethodsTab />
+            </TabsContent>
 
             <TabsContent value="expenses" className="space-y-4">
               {expensesLoading ? (
