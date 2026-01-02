@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -7,13 +7,32 @@ import { TenantSidebar } from '@/components/navigation/TenantSidebar';
 import { Button } from '@/components/ui/button';
 import { Loader2, Menu } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { cn } from '@/lib/utils';
+import { cn, hexToHSL } from '@/lib/utils';
 
 export function TenantLayout() {
-  const { loading } = useStoreContext();
+  const { store, loading } = useStoreContext();
   const { loading: authLoading } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    if (store?.primaryColor && store?.secondaryColor) {
+      const primaryHSL = hexToHSL(store.primaryColor);
+      const secondaryHSL = hexToHSL(store.secondaryColor);
+      
+      document.documentElement.style.setProperty('--primary', primaryHSL);
+      document.documentElement.style.setProperty('--secondary', secondaryHSL);
+      document.documentElement.style.setProperty('--primary-foreground', '0 0% 100%');
+      document.documentElement.style.setProperty('--secondary-foreground', primaryHSL);
+    }
+
+    return () => {
+      document.documentElement.style.removeProperty('--primary');
+      document.documentElement.style.removeProperty('--secondary');
+      document.documentElement.style.removeProperty('--primary-foreground');
+      document.documentElement.style.removeProperty('--secondary-foreground');
+    };
+  }, [store]);
 
   if (loading || authLoading) {
     return (

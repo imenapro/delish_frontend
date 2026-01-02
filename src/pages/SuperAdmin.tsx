@@ -15,8 +15,7 @@ import { SubscriptionManagement } from '@/components/super-admin/SubscriptionMan
 import { AnalyticsDashboard } from '@/components/super-admin/AnalyticsDashboard';
 import { UserManagement } from '@/components/super-admin/UserManagement';
 import { AuditLogs } from '@/components/super-admin/AuditLogs';
-import { CurrencyManagement } from '@/components/super-admin/CurrencyManagement';
-import { SystemSettings } from '@/components/admin/SystemSettings';
+import { SuperAdminSettings } from '@/components/super-admin/SuperAdminSettings';
 import { Store as StoreType } from '@/contexts/StoreContext';
 import { toast } from 'sonner';
 
@@ -245,7 +244,7 @@ export default function SuperAdmin() {
           </TabsContent>
 
           <TabsContent value="settings">
-            <SystemSettings />
+            <SuperAdminSettings />
           </TabsContent>
 
         </Tabs>
