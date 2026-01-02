@@ -8,6 +8,7 @@ export interface ThemeConfig {
   bgImageUrl?: string;
   primaryColor: string;
   secondaryColor: string;
+  showLoginBackground: boolean;
 }
 
 export interface Store {
@@ -16,6 +17,7 @@ export interface Store {
   slug: string;
   logoUrl?: string;
   bgImageUrl?: string;
+  showLoginBackground: boolean;
   primaryColor: string;
   secondaryColor: string;
   slogan?: string;
@@ -90,6 +92,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             slug: business.slug,
             logoUrl: business.logo_url,
             bgImageUrl: business.bg_image_url,
+            showLoginBackground: business.show_login_background ?? true,
             primaryColor: business.primary_color || '#3B82F6',
             secondaryColor: business.secondary_color || '#10B981',
             slogan: business.slogan,
@@ -138,6 +141,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     bgImageUrl: store?.bgImageUrl,
     primaryColor: store?.primaryColor || '#8B4513',
     secondaryColor: store?.secondaryColor || '#D2691E',
+    showLoginBackground: store?.showLoginBackground ?? true,
   };
 
   // Apply theme colors dynamically
