@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { Store, Clock, CreditCard, Settings, Loader2, Package, Users, ShoppingCart, TrendingUp } from 'lucide-react';
+import { ThemeCustomizer } from '@/components/tenant/ThemeCustomizer';
 import { formatCurrency } from '@/utils/currency';
 
 export default function TenantDashboard() {
@@ -171,8 +172,12 @@ export default function TenantDashboard() {
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-lg">Theme Preview</CardTitle>
+              <ThemeCustomizer 
+                currentPrimary={store?.primaryColor || '#6366f1'} 
+                currentSecondary={store?.secondaryColor || '#ec4899'} 
+              />
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex gap-2">

@@ -137,13 +137,7 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
           {/* Ref hidden for POS invoices */}
           <div className="flex justify-between">
             <span>Date:</span>
-            <span>{(() => {
-              try {
-                return format(new Date(order.created_at || new Date()), 'dd/MM/yyyy HH:mm');
-              } catch {
-                return format(new Date(), 'dd/MM/yyyy HH:mm');
-              }
-            })()}</span>
+            <span>{format(new Date(order.created_at), 'dd/MM/yyyy HH:mm')}</span>
           </div>
           {order.customer_phone && (
             <div className="flex justify-between">
