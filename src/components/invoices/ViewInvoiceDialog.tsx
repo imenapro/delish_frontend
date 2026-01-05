@@ -7,11 +7,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { FileText, User, Store, CreditCard, Calendar, Info, Printer, Share2, ChevronDown } from 'lucide-react';
-import { format } from 'date-fns';
-import { Badge } from '@/components/ui/badge';
+import { FileText, Printer, Share2, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,10 +17,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useReactToPrint } from 'react-to-print';
 import { Receipt } from '@/components/pos/Receipt';
-import { InvoiceA4 } from '@/components/invoices/InvoiceA4';
+import { InvoiceTemplateRenderer } from '@/components/invoices/InvoiceTemplateRenderer';
+import { InvoiceData } from '@/components/invoices/types';
 import { ShareInvoiceDialog } from '@/components/invoices/ShareInvoiceDialog';
 import { useStoreContext } from '@/contexts/StoreContext';
-import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
+import { DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface ViewInvoiceDialogProps {
   open: boolean;
@@ -69,20 +66,65 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
     customer_phone: invoice.customer_info?.phone,
     payment_method: invoice.payment_method,
     total_amount: invoice.total_amount,
-    // Add other fields as needed by Receipt
-    order_code: invoice.invoice_number, // Fallback
+    order_code: invoice.invoice_number,
   };
 
   const receiptShop = invoice.shop || { name: 'Shop' };
   
-  // Mock business data if not available in invoice
   const receiptBusiness = {
-    // This would ideally come from the parent or context, but for now we use defaults or empty
-    // If shop has logo_url, we use it.
     logo_url: receiptShop.logo_url,
     metadata: {
-        registration_number: 'N/A' // Or fetch if available
+        registration_number: 'N/A'
     }
+  };
+
+  // Prepare invoice data for the renderer
+  const invoiceData: InvoiceData = {
+      invoiceNumber: invoice.invoice_number,
+      date: invoice.created_at,
+      status: invoice.status,
+      businessName: invoice.shop?.name || store?.name || 'Business Name',
+      businessAddress: invoice.shop?.address,
+      businessPhone: invoice.shop?.phone,
+      businessEmail: invoice.shop?.email,
+      businessLogo: invoice.shop?.logo_url || store?.logoUrl,
+      customerName: customer?.name || 'Guest',
+      customerAddress: customer?.address,
+      customerPhone: customer?.phone,
+      customerEmail: customer?.email,
+      items: items.map((item: any) => ({
+          name: item.name || item.product?.name,
+          quantity: item.quantity,
+          price: item.unit_price,
+          subtotal: item.subtotal || (item.unit_price * item.quantity),
+      })),
+      subtotal: Number(invoice.subtotal),
+      tax: Number(invoice.tax_amount),
+      total: Number(invoice.total_amount),
+      notes: invoice.notes,
+      currency: currency,
+      paymentMethod: invoice.payment_method,
+  };
+
+  const invoiceSettings = store?.invoiceSettings || {
+      fontFamily: 'Inter',
+      primaryColor: '#000000',
+      secondaryColor: '#666666',
+      showLogo: true,
+      logoPosition: 'left',
+      showBusinessDetails: true,
+      showCustomerDetails: true,
+      showPaymentTerms: true,
+      itemFormat: 'detailed',
+      footerText: '',
+  };
+
+  // Safe fallback for settings properties if they are missing
+  const safeSettings = {
+      ...invoiceSettings,
+      secondaryColor: invoiceSettings.secondaryColor || '#666666',
+      logoPosition: invoiceSettings.logoPosition || 'left',
+      itemFormat: invoiceSettings.itemFormat || 'detailed',
   };
 
   return (
@@ -95,90 +137,21 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
               Invoice Details
             </DialogTitle>
             <DialogDescription>
-              View detailed information about this invoice, including items, customer details, and payment status.
+              View detailed information about this invoice.
             </DialogDescription>
           </DialogHeader>
 
-          <Card className="flex-1 bg-muted/20 border-dashed flex flex-col overflow-hidden min-h-0 mt-2">
-            <CardHeader className="py-3 px-4 bg-muted/30 shrink-0 border-b">
-                <div className="flex justify-between items-center">
-                    <CardTitle className="text-sm font-medium">Invoice #{invoice.invoice_number}</CardTitle>
-                    <Badge variant={invoice.status === 'paid' ? 'default' : 'secondary'}>
-                        {invoice.status}
-                    </Badge>
+          <div className="flex-1 bg-muted/20 border-dashed flex flex-col overflow-hidden min-h-0 mt-2 rounded-lg border">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                <div className="origin-top scale-[0.6] sm:scale-[0.7] md:scale-[0.8] w-fit mx-auto shadow-lg">
+                     <InvoiceTemplateRenderer 
+                        templateId={store?.invoiceTemplateId || 'classic'} 
+                        data={invoiceData} 
+                        settings={safeSettings} 
+                    />
                 </div>
-            </CardHeader>
-            <CardContent className="p-0 flex-1 overflow-hidden flex flex-col min-h-0">
-                <ScrollArea className="h-full w-full">
-                    <div className="p-4 sm:p-6 space-y-6 text-sm pb-20">
-                        {/* Metadata Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-xs border-b pb-6">
-                            <span className="text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> Date:</span> 
-                            <span className="font-medium text-right">{format(new Date(invoice.created_at), 'MMM d, yyyy HH:mm')}</span>
-                            
-                            <span className="text-muted-foreground flex items-center gap-1"><Store className="h-3 w-3" /> Shop:</span> 
-                            <span className="font-medium text-right">{invoice.shop?.name || '-'}</span>
-                            
-                            <span className="text-muted-foreground flex items-center gap-1"><User className="h-3 w-3" /> Customer:</span> 
-                            <span className="font-medium text-right">{customer?.name || 'Guest'}</span>
-                            
-                            <span className="text-muted-foreground flex items-center gap-1"><FileText className="h-3 w-3" /> Ref:</span> 
-                            <span className="font-mono text-xs text-right">{invoice.invoice_number}</span>
-
-                            <span className="text-muted-foreground flex items-center gap-1"><Info className="h-3 w-3" /> Source:</span> 
-                            <span className="font-medium text-right uppercase">POS</span>
-                            
-                            <span className="text-muted-foreground flex items-center gap-1"><CreditCard className="h-3 w-3" /> Payment:</span> 
-                            <span className="font-medium text-right capitalize">{invoice.payment_method?.replace('_', ' ') || '-'}</span>
-                        </div>
-                        
-                        {/* Items */}
-                        <div>
-                            <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">Items</h4>
-                            <div className="border rounded-lg bg-card overflow-hidden">
-                                <div className="divide-y">
-                                    {items.map((item: any, index: number) => (
-                                        <div key={index} className="p-3 flex justify-between items-center text-sm">
-                                            <div>
-                                                <span className="font-medium">{item.quantity}x</span> {item.name || item.product?.name}
-                                            </div>
-                                            <div className="font-medium">
-                                                {formatCurrency((item.subtotal || (item.unit_price * item.quantity)), currency)}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Financials */}
-                        <div className="bg-card rounded-lg p-3 border space-y-2 shadow-sm">
-                            <div className="flex justify-between text-xs">
-                                <span>Subtotal</span>
-                                <span>{formatCurrency(Number(invoice.subtotal), currency)}</span>
-                            </div>
-                            <div className="flex justify-between text-xs">
-                                <span>Tax</span>
-                                <span>{formatCurrency(Number(invoice.tax_amount), currency)}</span>
-                            </div>
-                            <div className="border-t my-1"></div>
-                            <div className="flex justify-between font-bold text-sm">
-                                <span>Total Amount</span>
-                                <span className="text-primary">{formatCurrency(Number(invoice.total_amount), currency)}</span>
-                            </div>
-                        </div>
-
-                        {/* Notes */}
-                        {invoice.notes && (
-                            <div className="bg-muted rounded-lg p-3 overflow-hidden">
-                                <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-1">Notes</h4>
-                                <p className="text-xs italic">{invoice.notes}</p>
-                            </div>
-                        )}
-                    </div>
-                </ScrollArea>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           <DialogFooter className="mt-4 gap-2 sm:gap-0">
              <div className="flex w-full gap-2">
@@ -223,10 +196,22 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
 
       {/* Hidden Print Templates */}
       <div className="hidden">
-        <InvoiceA4 ref={a4PrintRef} invoice={invoice} size="a4" currency={currency} />
-        <InvoiceA4 ref={a5PrintRef} invoice={invoice} size="a5" currency={currency} />
+        <div ref={a4PrintRef}>
+            <InvoiceTemplateRenderer 
+                templateId={store?.invoiceTemplateId || 'classic'} 
+                data={invoiceData} 
+                settings={safeSettings} 
+            />
+        </div>
+        <div ref={a5PrintRef}>
+             <InvoiceTemplateRenderer 
+                templateId={store?.invoiceTemplateId || 'classic'} 
+                data={invoiceData} 
+                settings={safeSettings} 
+            />
+        </div>
         <Receipt 
-            ref={thermalPrintRef} 
+            ref={thermalPrintRef}  
             order={receiptOrder} 
             items={items} 
             shop={receiptShop} 
@@ -237,6 +222,8 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
             }}
             width="80mm"
             currency={currency}
+            invoiceSettings={safeSettings}
+            templateId={store?.invoiceTemplateId}
         />
         <Receipt 
             ref={thermal58PrintRef} 
@@ -250,8 +237,11 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
             }}
             width="58mm"
             currency={currency}
+            invoiceSettings={safeSettings}
+            templateId={store?.invoiceTemplateId}
         />
       </div>
     </>
   );
 }
+

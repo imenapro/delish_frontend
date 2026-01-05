@@ -11,6 +11,19 @@ export interface ThemeConfig {
   showLoginBackground: boolean;
 }
 
+export interface InvoiceSettings {
+  showLogo: boolean;
+  logoPosition: 'left' | 'center' | 'right';
+  primaryColor: string;
+  secondaryColor: string;
+  showBusinessDetails: boolean;
+  showCustomerDetails: boolean;
+  showPaymentTerms: boolean;
+  itemFormat: 'detailed' | 'condensed';
+  footerText: string;
+  fontFamily: string;
+}
+
 export interface Store {
   id: string;
   name: string;
@@ -29,6 +42,8 @@ export interface Store {
   locale: 'pt' | 'en' | 'fr';
   customDomain?: string;
   currency: string;
+  invoiceTemplateId: string;
+  invoiceSettings: InvoiceSettings;
 }
 
 interface StoreContextType {
@@ -104,6 +119,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             locale: business.locale || 'en',
             customDomain: business.custom_domain,
             currency: business.currency || 'USD',
+            invoiceTemplateId: business.invoice_template_id || 'classic',
+            invoiceSettings: business.invoice_settings || {
+              showLogo: true,
+              logoPosition: 'right',
+              primaryColor: business.primary_color || '#000000',
+              secondaryColor: business.secondary_color || '#ffffff',
+              showBusinessDetails: true,
+              showCustomerDetails: true,
+              showPaymentTerms: true,
+              itemFormat: 'detailed',
+              footerText: 'Thank you for your business!',
+              fontFamily: 'Inter'
+            },
           });
         } else {
           setStore(null);

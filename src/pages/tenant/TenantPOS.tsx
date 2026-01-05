@@ -912,6 +912,8 @@ export default function TenantPOS() {
           }}
           currency={currency}
           taxBreakdown={lastTaxBreakdown}
+          invoiceSettings={store?.invoiceSettings}
+          templateId={store?.invoiceTemplateId}
         />
       </div>
 

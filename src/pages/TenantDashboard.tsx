@@ -160,6 +160,12 @@ export default function TenantDashboard() {
                 <p className="text-sm text-muted-foreground">Store Name</p>
                 <p className="font-medium">{store?.name}</p>
               </div>
+              {store?.slogan && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Slogan</p>
+                  <p className="font-medium">{store.slogan}</p>
+                </div>
+              )}
               <div>
                 <p className="text-sm text-muted-foreground">URL Slug</p>
                 <p className="font-mono text-sm">/{store?.slug}</p>

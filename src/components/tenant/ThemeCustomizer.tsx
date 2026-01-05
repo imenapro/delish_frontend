@@ -39,6 +39,7 @@ export function ThemeCustomizer({ currentPrimary, currentSecondary }: ThemeCusto
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [bgPreviewUrl, setBgPreviewUrl] = useState<string | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const [slogan, setSlogan] = useState('');
 
   // Initialize state from store
   useEffect(() => {
@@ -48,6 +49,7 @@ export function ThemeCustomizer({ currentPrimary, currentSecondary }: ThemeCusto
       setShowLoginBackground(store.showLoginBackground ?? true);
       setBgPreviewUrl(store.bgImageUrl || null);
       setLogoPreviewUrl(store.logoUrl || null);
+      setSlogan(store.slogan || '');
       setBgImageFile(null);
       setLogoFile(null);
     }
@@ -116,6 +118,15 @@ export function ThemeCustomizer({ currentPrimary, currentSecondary }: ThemeCusto
       return;
     }
 
+    if (slogan.length > 100) {
+      toast({
+        title: "Slogan too long",
+        description: "Slogan must be 100 characters or less.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       let bgUrl = store.bgImageUrl;
@@ -137,7 +148,8 @@ export function ThemeCustomizer({ currentPrimary, currentSecondary }: ThemeCusto
           secondary_color: secondary,
           show_login_background: showLoginBackground,
           bg_image_url: bgUrl,
-          logo_url: logoUrl
+          logo_url: logoUrl,
+          slogan: slogan
         })
         .eq('id', store.id);
 
@@ -273,6 +285,20 @@ export function ThemeCustomizer({ currentPrimary, currentSecondary }: ThemeCusto
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="slogan">Business Slogan</Label>
+                  <Input 
+                    id="slogan" 
+                    placeholder="e.g. Baking memories since 2024"
+                    value={slogan}
+                    onChange={(e) => setSlogan(e.target.value)}
+                    maxLength={100}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Displayed below your store name on the login page.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Background Image</Label>
                   <div className="flex flex-col gap-4">
                     {bgPreviewUrl && showLoginBackground && (
@@ -328,12 +354,17 @@ export function ThemeCustomizer({ currentPrimary, currentSecondary }: ThemeCusto
                      }}
                    >
                      <div className="text-center text-white z-10 p-4">
-                       {logoPreviewUrl && (
-                         <img src={logoPreviewUrl} alt="Logo" className="h-12 w-12 mx-auto mb-2 rounded-full object-cover" />
-                       )}
-                       <div className="h-4 w-24 bg-white/20 rounded mx-auto mb-2" />
-                       <div className="h-3 w-16 bg-white/20 rounded mx-auto" />
-                     </div>
+                      {logoPreviewUrl && (
+                        <img src={logoPreviewUrl} alt="Logo" className="h-12 w-12 mx-auto mb-2 rounded-full object-cover" />
+                      )}
+                      <div className="h-4 w-24 bg-white/20 rounded mx-auto mb-2" />
+                      {slogan && (
+                        <p className="text-xs text-white/80 max-w-[150px] mx-auto truncate">
+                          {slogan}
+                        </p>
+                      )}
+                      {!slogan && <div className="h-3 w-16 bg-white/20 rounded mx-auto" />}
+                    </div>
                    </div>
                    
                    {/* Right Side (Form) */}

@@ -2,6 +2,9 @@ import React, { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { QRCodeSVG } from 'qrcode.react';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
+import { InvoiceTemplateRenderer } from '@/components/invoices/InvoiceTemplateRenderer';
+import { InvoiceData } from '@/components/invoices/types';
+import { InvoiceSettings } from '@/contexts/StoreContext';
 
 interface ReceiptItem {
   name: string;
@@ -48,11 +51,54 @@ interface ReceiptProps {
   width?: string;
   currency?: string;
   taxBreakdown?: { name: string; rate: number; amount: number; type?: string }[];
+  invoiceSettings?: InvoiceSettings;
+  templateId?: string;
 }
 
 export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
-  ({ order, items, shop, business, payment, onCreateBalanceCase, width = '80mm', currency = DEFAULT_SYSTEM_CURRENCY, taxBreakdown }, ref) => {
+  ({ order, items, shop, business, payment, onCreateBalanceCase, width = '80mm', currency = DEFAULT_SYSTEM_CURRENCY, taxBreakdown, invoiceSettings, templateId }, ref) => {
     if (!order) return null;
+
+    // Use selected invoice template if available
+    if (invoiceSettings && templateId) {
+      const invoiceData: InvoiceData = {
+        invoiceNumber: order.invoice_number || order.order_code,
+        date: order.created_at,
+        businessName: shop?.name || 'Shop',
+        businessAddress: shop?.address || '',
+        businessPhone: shop?.phone || '',
+        businessEmail: '', 
+        businessLogo: business?.logo_url,
+        customerName: order.customer_phone ? 'Customer' : 'Walk-in Customer',
+        customerAddress: '',
+        customerEmail: '',
+        customerPhone: order.customer_phone || '',
+        items: items.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          subtotal: item.subtotal
+        })),
+        subtotal: items.reduce((sum, item) => sum + item.subtotal, 0),
+        tax: taxBreakdown?.reduce((sum, t) => sum + t.amount, 0) || 0,
+        total: order.total_amount,
+        currency: currency,
+        status: 'paid',
+        paymentMethod: order.payment_method || 'cash',
+        notes: ''
+      };
+
+      return (
+        <div ref={ref} style={{ width }} className="bg-white">
+          <InvoiceTemplateRenderer 
+            templateId={templateId} 
+            data={invoiceData} 
+            settings={invoiceSettings} 
+            isCompact={true} 
+          />
+        </div>
+      );
+    }
 
     // Format address components
     const formatAddress = (address: string) => {

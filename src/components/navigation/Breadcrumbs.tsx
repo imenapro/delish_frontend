@@ -25,6 +25,8 @@ const routeLabels: Record<string, string> = {
   admin: 'Administration',
   chat: 'Chat',
   wallet: 'Wallet',
+  invoices: 'Invoices',
+  settings: 'Settings',
 };
 
 export function Breadcrumbs() {

@@ -18,6 +18,7 @@ import {
   TenantWallet,
   TenantShiftManagement,
   TenantInvoiceManagement,
+  InvoiceSettings,
   InventorySettings,
 } from "./pages/tenant";
 
@@ -28,6 +29,7 @@ export const TenantRoutes = (
     <Route path="pos" element={<TenantPOS />} />
     <Route path="shifts" element={<TenantShiftManagement />} />
     <Route path="invoices" element={<TenantInvoiceManagement />} />
+    <Route path="invoices/settings" element={<InvoiceSettings />} />
     <Route path="shops" element={<TenantShops />} />
     <Route path="products" element={<TenantProducts />} />
     <Route path="orders" element={<TenantOrders />} />
