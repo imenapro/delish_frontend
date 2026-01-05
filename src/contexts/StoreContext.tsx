@@ -133,8 +133,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return diffDays;
   };
 
-  const isExpired = store ? new Date(store.subscriptionEndDate) < new Date() : false;
-  const daysUntilExpiration = calculateDaysUntilExpiration();
+  const isExpired = store ? (store.status === 'Bought' ? false : new Date(store.subscriptionEndDate) < new Date()) : false;
+  const daysUntilExpiration = store?.status === 'Bought' ? 36500 : calculateDaysUntilExpiration();
 
   const themeConfig: ThemeConfig = {
     logoUrl: store?.logoUrl,

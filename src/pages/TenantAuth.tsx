@@ -124,9 +124,11 @@ export default function TenantAuth() {
             {store.slogan && (
               <p className="text-lg">{store.slogan}</p>
             )}
-            <div className="mt-4 inline-block rounded-full bg-white/20 px-4 py-1 text-sm backdrop-blur-sm">
-              {store.planType.toUpperCase()} Plan
-            </div>
+            {store.status !== 'Bought' && (
+              <div className="mt-4 inline-block rounded-full bg-white/20 px-4 py-1 text-sm backdrop-blur-sm">
+                {store.planType.toUpperCase()} Plan
+              </div>
+            )}
           </div>
         </div>
       </div>

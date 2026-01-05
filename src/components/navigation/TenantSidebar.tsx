@@ -156,12 +156,14 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <h2 className="font-bold text-lg truncate">{store?.name}</h2>
-              <Badge 
-                variant={isExpired ? 'destructive' : daysUntilExpiration <= 7 ? 'secondary' : 'default'}
-                className="text-xs"
-              >
-                {isExpired ? 'Expired' : `${daysUntilExpiration}d left`}
-              </Badge>
+              {store?.status !== 'Bought' && (
+                <Badge 
+                  variant={isExpired ? 'destructive' : daysUntilExpiration <= 7 ? 'secondary' : 'default'}
+                  className="text-xs"
+                >
+                  {isExpired ? 'Expired' : `${daysUntilExpiration}d left`}
+                </Badge>
+              )}
             </div>
           )}
         </div>

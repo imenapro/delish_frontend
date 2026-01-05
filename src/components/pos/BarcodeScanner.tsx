@@ -13,6 +13,19 @@ interface BarcodeScannerProps {
   className?: string;
 }
 
+const SCANNER_CONFIG = {
+  FPS: 20, // Increased from 15 for smoother scanning on capable devices
+  QRBOX_SIZE: 250,
+  ASPECT_RATIO: 1.0,
+  MIN_DELAY_BETWEEN_SCANS: 1000, // Reduced from 1500ms for faster throughput
+  VIDEO_CONSTRAINTS: {
+    focusMode: 'continuous',
+    width: { min: 640, ideal: 1280, max: 1920 },
+    height: { min: 480, ideal: 720, max: 1080 },
+    facingMode: 'environment'
+  }
+};
+
 export function BarcodeScanner({ onScanSuccess, className }: BarcodeScannerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,20 +47,17 @@ export function BarcodeScanner({ onScanSuccess, className }: BarcodeScannerProps
     audioRef.current = new Audio('/sounds/product-click.mp3');
   }, []);
 
+  // Play sound helper
   const playScanSound = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(e => console.error("Audio play failed", e));
+      audioRef.current.play().catch(e => console.error("Error playing sound:", e));
     }
   };
 
+  // Log scan performance
   const logPerformanceMetrics = (success: boolean, duration: number, error?: any) => {
-    console.log('[Scanner Metrics]', {
-      success,
-      durationMs: duration,
-      timestamp: new Date().toISOString(),
-      error: error || 'none'
-    });
+    // console.log(`Scan ${success ? 'Success' : 'Failed'} | Duration: ${duration}ms | Attempts: ${scanStats.attempts}`, error || '');
   };
 
   // Fetch available cameras
@@ -81,15 +91,10 @@ export function BarcodeScanner({ onScanSuccess, className }: BarcodeScannerProps
       await scannerRef.current.start(
         cameraId,
         {
-          fps: 15, // Increased FPS for lower latency
-          aspectRatio: 1.0,
-          qrbox: { width: 250, height: 250 }, // Restore qrbox for focused scanning
-          videoConstraints: {
-            focusMode: 'continuous',
-            width: { min: 640, ideal: 1280, max: 1920 },
-            height: { min: 480, ideal: 720, max: 1080 },
-            facingMode: 'environment'
-          }
+          fps: SCANNER_CONFIG.FPS,
+          aspectRatio: SCANNER_CONFIG.ASPECT_RATIO,
+          qrbox: { width: SCANNER_CONFIG.QRBOX_SIZE, height: SCANNER_CONFIG.QRBOX_SIZE },
+          videoConstraints: SCANNER_CONFIG.VIDEO_CONSTRAINTS
         },
         (decodedText) => {
           // Success callback
@@ -101,14 +106,6 @@ export function BarcodeScanner({ onScanSuccess, className }: BarcodeScannerProps
           toast.success(`Scanned: ${decodedText}`);
           setScanMessage('Scan successful!');
           
-          // Stop scanning and close - REMOVED for continuous scanning
-          // if (scannerRef.current) {
-          //   scannerRef.current.stop().then(() => {
-          //       scannerRef.current?.clear();
-          //       setIsOpen(false);
-          //   }).catch(console.error);
-          // }
-
           // Pause briefly to prevent duplicate scans
           if (scannerRef.current) {
              scannerRef.current.pause(true);
@@ -117,7 +114,7 @@ export function BarcodeScanner({ onScanSuccess, className }: BarcodeScannerProps
                      scannerRef.current.resume();
                      setScanMessage('Ready to scan');
                  }
-             }, 1500); // 1.5s delay
+             }, SCANNER_CONFIG.MIN_DELAY_BETWEEN_SCANS);
           }
         },
         (errorMessage) => {

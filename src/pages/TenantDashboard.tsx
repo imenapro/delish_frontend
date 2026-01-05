@@ -52,7 +52,8 @@ export default function TenantDashboard() {
         {/* Quick Actions */}
         <QuickActions />
 
-        {/* Subscription Status Card */}
+        {/* Subscription Status Card - Hidden for 'Bought' status */}
+        {store?.status !== 'Bought' && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -97,6 +98,7 @@ export default function TenantDashboard() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Store Overview Cards */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">

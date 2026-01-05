@@ -102,7 +102,7 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   }
 
   // Show warning banner if expiring soon
-  if (daysUntilExpiration <= 7 && daysUntilExpiration > 0) {
+  if (store?.status !== 'Bought' && daysUntilExpiration <= 7 && daysUntilExpiration > 0) {
     return (
       <>
         <Alert variant="default" className="rounded-none border-x-0 border-t-0">
