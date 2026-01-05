@@ -1,5 +1,10 @@
+-- Drop tables if they exist to ensure clean state with correct schema
+-- This prevents issues where 'CREATE TABLE IF NOT EXISTS' skips creation but the existing table has the wrong schema
+DROP TABLE IF EXISTS public.subscription_statuses CASCADE;
+DROP TABLE IF EXISTS public.subscription_plans CASCADE;
+
 -- Create subscription_plans table
-CREATE TABLE IF NOT EXISTS public.subscription_plans (
+CREATE TABLE public.subscription_plans (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
     description text,
@@ -14,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.subscription_plans (
 
 -- Create subscription_statuses table
 -- This tracks the active subscription for a business
-CREATE TABLE IF NOT EXISTS public.subscription_statuses (
+CREATE TABLE public.subscription_statuses (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id uuid REFERENCES public.businesses(id) ON DELETE CASCADE,
     plan_id uuid REFERENCES public.subscription_plans(id),
@@ -69,24 +74,24 @@ CREATE POLICY "Super admins can manage statuses" ON public.subscription_statuses
         )
     );
 
--- Add 'Bought' to allowed statuses check if I missed it in the initial create (I added it above)
--- But just in case the prompt mentioned specific enums: 'Active','Expired','Cancelled','Pending','Suspended'.
--- The prompt explicitly listed those, but then in point 3 said "When a business has a subscription status marked as 'Bought'".
--- So 'Bought' MUST be a valid status.
-
 -- Indexes for performance
 CREATE INDEX idx_subscription_plans_is_active ON public.subscription_plans(is_active);
 CREATE INDEX idx_subscription_statuses_business_id ON public.subscription_statuses(business_id);
 CREATE INDEX idx_subscription_statuses_status ON public.subscription_statuses(status);
 
 -- Function to update updated_at timestamp
+-- Using robust definition with SECURITY DEFINER and explicit search_path
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
     NEW.updated_at = now();
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$;
 
 CREATE TRIGGER update_subscription_plans_updated_at
     BEFORE UPDATE ON public.subscription_plans
