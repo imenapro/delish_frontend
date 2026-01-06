@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { StoreProvider } from "@/contexts/StoreContext";
+import { UIPersistenceProvider } from "@/contexts/ui-persistence-context";
 import Landing from "./pages/Landing";
 import Register from "./pages/Register";
 import Index from "./pages/Index";
@@ -18,16 +19,24 @@ import { TenantLayout } from "./components/TenantLayout";
 import { TenantRoutes } from "./TenantRoutes";
 import { isCustomDomain } from "./utils/domainMapping";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  },
+});
 
 const App = () => {
   const isCustom = isCustomDomain(window.location.hostname);
 
   return (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
+    <UIPersistenceProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
       <BrowserRouter>
         <AuthProvider>
           <StoreProvider>
@@ -81,7 +90,8 @@ const App = () => {
           </StoreProvider>
         </AuthProvider>
       </BrowserRouter>
-    </TooltipProvider>
+      </TooltipProvider>
+    </UIPersistenceProvider>
   </QueryClientProvider>
 );
 };

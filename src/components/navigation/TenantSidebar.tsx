@@ -42,16 +42,21 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
   const navigate = useNavigate();
 
   const hasRole = (roleNames: string[]) => {
-    return roles.some(r => roleNames.includes(r.role));
+    // Debug logging
+    console.log('[TenantSidebar] Current user roles:', roles.map(r => r.role));
+    console.log('[TenantSidebar] Checking access for:', roleNames);
+    const hasAccess = roles.some(r => roleNames.includes(r.role));
+    console.log('[TenantSidebar] Access granted:', hasAccess);
+    return hasAccess;
   };
 
   const navigationItems = [
     { name: 'Dashboard', href: getTenantRoute('/dashboard'), icon: LayoutDashboard, show: true },
-    { name: 'POS', href: getTenantRoute('/pos'), icon: CreditCard, show: hasRole(['seller', 'admin', 'branch_manager', 'store_owner']) },
-    { name: 'Shifts', href: getTenantRoute('/shifts'), icon: ClipboardList, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller']) },
-    { name: 'Invoices', href: getTenantRoute('/invoices'), icon: Receipt, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller']) },
-    { name: 'Shops', href: getTenantRoute('/shops'), icon: Store, show: hasRole(['admin', 'store_owner', 'branch_manager']) },
-    { name: 'Products', href: getTenantRoute('/products'), icon: Package, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
+    { name: 'POS', href: getTenantRoute('/pos'), icon: CreditCard, show: hasRole(['seller', 'admin', 'branch_manager', 'store_owner', 'super_admin']) },
+    { name: 'Shifts', href: getTenantRoute('/shifts'), icon: ClipboardList, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller', 'super_admin']) },
+    { name: 'Invoices', href: getTenantRoute('/invoices'), icon: Receipt, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller', 'super_admin']) },
+    { name: 'Shops', href: getTenantRoute('/shops'), icon: Store, show: hasRole(['admin', 'store_owner', 'branch_manager', 'super_admin']) },
+    { name: 'Products', href: getTenantRoute('/products'), icon: Package, show: hasRole(['admin', 'branch_manager', 'store_owner', 'super_admin']) },
     { name: 'Orders', href: getTenantRoute('/orders'), icon: ShoppingCart, show: true },
     { name: 'Kitchen', href: getTenantRoute('/kitchen'), icon: ChefHat, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
     { name: 'Inventory', href: getTenantRoute('/inventory'), icon: PackageOpen, show: hasRole(['store_keeper', 'admin', 'branch_manager', 'store_owner']) },

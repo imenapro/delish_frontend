@@ -11,6 +11,7 @@ import { TenantTaxManagement } from '@/components/tenant/TenantTaxManagement';
 import { TenantDomainSettings } from '@/components/tenant/TenantDomainSettings';
 import { TenantPaymentMethods } from '@/components/finance/payment-methods/TenantPaymentMethods';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { UIPersistenceSettings } from '@/components/settings/ui-persistence-settings';
 
 export default function TenantAdmin() {
   const { store } = useStoreContext();
@@ -18,6 +19,7 @@ export default function TenantAdmin() {
 
   const sections = [
     { id: 'domain', title: 'Custom Domain', component: <TenantDomainSettings />, category: 'general', keywords: ['domain', 'url', 'web', 'address'] },
+    { id: 'ui-persistence', title: 'UI Persistence', component: <UIPersistenceSettings />, category: 'general', keywords: ['ui', 'persistence', 'window', 'blur', 'close'] },
     { id: 'currency', title: 'Currency Settings', component: <TenantCurrencySettings />, category: 'general', keywords: ['currency', 'money', 'format', 'symbol'] },
     { id: 'payment-methods', title: 'Payment Methods', component: <TenantPaymentMethods />, category: 'financial', keywords: ['payment', 'card', 'visa', 'money', 'bank'] },
     { id: 'tax', title: 'Tax Management', component: <TenantTaxManagement />, category: 'financial', keywords: ['tax', 'vat', 'gst', 'rate'] },
@@ -101,6 +103,7 @@ export default function TenantAdmin() {
 
             <TabsContent value="general" className="space-y-6">
               <TenantDomainSettings />
+              <UIPersistenceSettings />
               <TenantCurrencySettings />
             </TabsContent>
 
