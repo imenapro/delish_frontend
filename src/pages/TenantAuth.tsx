@@ -362,10 +362,14 @@ export default function TenantAuth() {
             </form>
             )}
 
-            <div className="mt-4 rounded-lg bg-muted p-3 text-xs">
-              <p className="font-medium mb-2">Demo Credentials:</p>
-              <p>Email: {store.ownerEmail}</p>
-              <p>Password: owner123</p>
+            <div className="mt-6 rounded-lg bg-muted/50 p-4 text-xs text-muted-foreground border border-border/50">
+              <p className="font-medium mb-2 flex items-center gap-1.5 text-foreground">
+                <span role="img" aria-label="lock">🔒</span> Keep your account secure
+              </p>
+              <div className="space-y-1 pl-1">
+                <p>Never share your login details with anyone.</p>
+                <p>If you forget your password, use the “Reset Password” option.</p>
+              </div>
             </div>
           </CardContent>
         </Card>

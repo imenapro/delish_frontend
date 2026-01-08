@@ -29,6 +29,7 @@ import {
   ChevronRight,
   ClipboardList,
   Receipt,
+  User,
 } from 'lucide-react';
 
 import { useMenus } from '@/hooks/useMenus';
@@ -203,27 +204,46 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
       {/* User Profile */}
       <div className={cn("p-4", collapsed && "p-2")}>
         {collapsed ? (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={handleLogout}
-                className="w-full"
-              >
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.user_metadata?.avatar_url} />
-                  <AvatarFallback className="text-xs">{getUserInitials()}</AvatarFallback>
-                </Avatar>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <div>
-                <p className="font-medium">{user?.email}</p>
-                <p className="text-xs text-muted-foreground">{getPrimaryRole()}</p>
-              </div>
-            </TooltipContent>
-          </Tooltip>
+          <div className="space-y-2">
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => navigate(getTenantRoute('/profile'))}
+                  className="w-full"
+                >
+                  <User className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                Profile
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={handleLogout}
+                  className="w-full"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user?.user_metadata?.avatar_url} />
+                    <AvatarFallback className="text-xs">{getUserInitials()}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <div>
+                  <p className="font-medium">{user?.email}</p>
+                  <p className="text-xs text-muted-foreground">{getPrimaryRole()}</p>
+                  <p className="text-xs text-red-500 mt-1">Click to Logout</p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         ) : (
           <>
             <div className="flex items-center gap-3 mb-3">
@@ -236,6 +256,15 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
                 <p className="text-xs text-muted-foreground">{getPrimaryRole()}</p>
               </div>
             </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full justify-start mb-2"
+              onClick={() => navigate(getTenantRoute('/profile'))}
+            >
+              <User className="mr-2 h-4 w-4" />
+              Profile
+            </Button>
             <Button 
               variant="outline" 
               size="sm" 

@@ -19,12 +19,14 @@ import {
   TenantShiftManagement,
   TenantInvoiceManagement,
   InventorySettings,
+  TenantProfile,
 } from "./pages/tenant";
 
 export const TenantRoutes = (
   <>
     <Route index element={<Navigate to="dashboard" replace />} />
     <Route path="dashboard" element={<TenantDashboard />} />
+    <Route path="profile" element={<TenantProfile />} />
     <Route path="pos" element={<TenantPOS />} />
     <Route path="shifts" element={<TenantShiftManagement />} />
     <Route path="invoices" element={<TenantInvoiceManagement />} />
