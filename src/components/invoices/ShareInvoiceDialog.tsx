@@ -17,7 +17,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { format } from 'date-fns';
 import { MessageSquare, Mail, Smartphone, Copy, Check, Facebook, Twitter, Linkedin, Send, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
-
+// invoice
 import { generateInvoicePDF } from '@/utils/generateInvoicePDF';
 import { supabase } from '@/integrations/supabase/client';
 import { useStoreContext } from '@/contexts/StoreContext';

@@ -18,7 +18,7 @@ export function ProfessionalTemplate({ data, settings, isCompact }: InvoiceTempl
              <p>{new Date(data.date).toLocaleDateString()}</p>
            </div>
         </div>
-
+{/* invoice */}
         <div className="px-2 mb-4">
           <table className="w-full">
             <thead>

@@ -6,7 +6,7 @@ export interface InvoiceItem {
   price: number;
   subtotal: number;
 }
-
+// invoice
 export interface InvoiceData {
   invoiceNumber: string;
   date: string;

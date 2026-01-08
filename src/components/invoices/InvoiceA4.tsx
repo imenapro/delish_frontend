@@ -7,7 +7,7 @@ interface InvoiceA4Props {
   size?: 'a4' | 'a5';
   currency?: string;
 }
-
+// invoice
 export const InvoiceA4 = forwardRef<HTMLDivElement, InvoiceA4Props>(({ invoice, size = 'a4', currency = DEFAULT_SYSTEM_CURRENCY }, ref) => {
   if (!invoice) return null;
 

@@ -3,7 +3,7 @@ import { formatCurrency } from '@/utils/currency';
 
 export function ClassicTemplate({ data, settings, isCompact }: InvoiceTemplateProps) {
   const { showLogo, logoPosition, primaryColor, showBusinessDetails, showCustomerDetails, showPaymentTerms, footerText } = settings;
-
+// invoice
   const logoAlignment = {
     left: 'justify-start',
     center: 'justify-center',

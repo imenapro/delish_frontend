@@ -22,7 +22,7 @@ import { InvoiceData } from '@/components/invoices/types';
 import { ShareInvoiceDialog } from '@/components/invoices/ShareInvoiceDialog';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
-
+// invoice
 interface ViewInvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

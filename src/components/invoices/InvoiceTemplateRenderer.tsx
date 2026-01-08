@@ -8,7 +8,7 @@ import { InvoiceTemplateProps } from './types';
 interface RendererProps extends InvoiceTemplateProps {
   templateId: string;
 }
-
+// invoice
 export function InvoiceTemplateRenderer({ templateId, ...props }: RendererProps) {
   switch (templateId) {
     case 'modern':
