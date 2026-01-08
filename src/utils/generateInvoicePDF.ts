@@ -44,7 +44,7 @@ export const generateInvoicePDF = (invoice: Invoice, currency: string = DEFAULT_
   const shop = invoice.shop || {};
   const customer = invoice.customer_info || {};
   const items = invoice.items_snapshot || [];
-  const taxBreakdown = (customer as any)?.tax_breakdown as Array<{ name: string; rate: number; amount: number }> | undefined;
+  const taxBreakdown = (customer as { tax_breakdown?: Array<{ name: string; rate: number; amount: number }> })?.tax_breakdown;
 
   // Colors
   const primaryColor = [20, 20, 20]; // Dark gray/Black

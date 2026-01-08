@@ -109,7 +109,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             event === 'INITIAL_SESSION';
 
           if (shouldFetch) {
-            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+            // Only set loading if it's an initial session or if the user has actually changed.
+            // This prevents the UI from unmounting (and resetting state) when the session is just refreshed/recovered for the same user.
+            if (event === 'INITIAL_SESSION' || (event === 'SIGNED_IN' && session.user.id !== lastFetchedUserId.current)) {
               setLoading(true);
             }
             

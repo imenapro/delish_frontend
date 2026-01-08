@@ -65,27 +65,39 @@ export default function StaffManagement() {
   });
 
   // Fetch all staff members with shop info
-  const { data: staffMembers, isLoading } = useQuery({
+  const { data: staffMembers, isLoading, error } = useQuery({
     queryKey: ['staffMembers'],
     queryFn: async () => {
+      console.log('Fetching staff members...');
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        throw profilesError;
+      }
+      console.log('Fetched profiles:', profiles.length);
 
       const { data: userRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('*');
 
-      if (rolesError) throw rolesError;
+      if (rolesError) {
+        console.error('Error fetching user_roles:', rolesError);
+        throw rolesError;
+      }
+      console.log('Fetched user_roles:', userRoles.length);
 
       const { data: shops, error: shopsError } = await supabase
         .from('shops')
         .select('id, name');
 
-      if (shopsError) throw shopsError;
+      if (shopsError) {
+        console.error('Error fetching shops:', shopsError);
+        throw shopsError;
+      }
 
       return profiles.map(profile => {
         const profileRoles = userRoles.filter(ur => ur.user_id === profile.id);
@@ -355,9 +367,22 @@ export default function StaffManagement() {
                 <div className="flex justify-center py-8">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
                 </div>
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center py-8 text-destructive">
+                  <p>Error loading staff members. Please try again.</p>
+                  <p className="text-sm text-muted-foreground mt-2">{(error as Error).message}</p>
+                </div>
+              ) : staffMembers?.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
+                  <Users className="h-12 w-12 mb-4 opacity-20" />
+                  <p className="text-lg font-medium">No staff members found</p>
+                  <p className="text-sm">Get started by adding a new staff member.</p>
+                </div>
               ) : (
-                <Table>
-                  <TableHeader>
+                <div className="rounded-md border overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
@@ -423,7 +448,9 @@ export default function StaffManagement() {
                       </TableRow>
                     ))}
                   </TableBody>
-                </Table>
+                    </Table>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

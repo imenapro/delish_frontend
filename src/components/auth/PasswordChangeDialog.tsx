@@ -13,6 +13,7 @@ interface PasswordChangeDialogProps {
 }
 
 export function PasswordChangeDialog({ open, userId, onSuccess }: PasswordChangeDialogProps) {
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,14 +40,40 @@ export function PasswordChangeDialog({ open, userId, onSuccess }: PasswordChange
 
     setLoading(true);
     try {
-      // Update password
+      // 1. Verify current password if provided (usually for in-session changes, not forced reset)
+      // Note: If this dialog is forced on login (must_change_password), they JUST logged in, so we might skip this.
+      // But if accessed from settings, we should check.
+      // Since this component is named PasswordChangeDialog and often used for "First Login Change", 
+      // let's check if we have a current password field filled.
+      
+      if (currentPassword) {
+         const { data: { user } } = await supabase.auth.getUser();
+         if (user?.email) {
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email: user.email,
+                password: currentPassword
+            });
+            if (signInError) {
+                throw new Error("Current password is incorrect");
+            }
+         }
+      }
+
+      // 2. Update password
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
       if (updateError) throw updateError;
 
-      // Update profile to mark password as changed
+      // 3. Log Audit
+      await supabase.from("audit_logs").insert({
+          action: "password_changed",
+          details: "User changed their password via dialog",
+          performed_by: userId,
+      });
+
+      // 4. Update profile to mark password as changed
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
@@ -85,6 +112,16 @@ export function PasswordChangeDialog({ open, userId, onSuccess }: PasswordChange
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="current-password">Current Password (Optional if forcing reset)</Label>
+            <Input
+              id="current-password"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Enter current password"
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="new-password">New Password</Label>
             <Input

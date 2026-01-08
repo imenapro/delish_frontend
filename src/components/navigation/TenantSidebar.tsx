@@ -31,6 +31,8 @@ import {
   Receipt,
 } from 'lucide-react';
 
+import { useMenus } from '@/hooks/useMenus';
+
 interface TenantSidebarProps {
   collapsed: boolean;
   onToggle: () => void;
@@ -40,35 +42,35 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
   const { store, daysUntilExpiration, isExpired, getTenantRoute } = useStoreContext();
   const { user, roles, signOut } = useAuth();
   const navigate = useNavigate();
+  const { data: menus = [] } = useMenus();
 
-  const hasRole = (roleNames: string[]) => {
-    // Debug logging
-    console.log('[TenantSidebar] Current user roles:', roles.map(r => r.role));
-    console.log('[TenantSidebar] Checking access for:', roleNames);
-    const hasAccess = roles.some(r => roleNames.includes(r.role));
-    console.log('[TenantSidebar] Access granted:', hasAccess);
-    return hasAccess;
+  const iconMap: Record<string, any> = {
+    LayoutDashboard, 
+    CreditCard, 
+    Store, 
+    Package, 
+    ShoppingCart, 
+    ChefHat, 
+    PackageOpen, 
+    DollarSign, 
+    Calendar, 
+    FileText, 
+    Truck, 
+    Users, 
+    Shield, 
+    MessageSquare, 
+    Wallet,
+    LogOut,
+    ClipboardList,
+    Receipt,
   };
 
-  const navigationItems = [
-    { name: 'Dashboard', href: getTenantRoute('/dashboard'), icon: LayoutDashboard, show: true },
-    { name: 'POS', href: getTenantRoute('/pos'), icon: CreditCard, show: hasRole(['seller', 'admin', 'branch_manager', 'store_owner', 'super_admin']) },
-    { name: 'Shifts', href: getTenantRoute('/shifts'), icon: ClipboardList, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller', 'super_admin']) },
-    { name: 'Invoices', href: getTenantRoute('/invoices'), icon: Receipt, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller', 'super_admin']) },
-    { name: 'Shops', href: getTenantRoute('/shops'), icon: Store, show: hasRole(['admin', 'store_owner', 'branch_manager', 'super_admin']) },
-    { name: 'Products', href: getTenantRoute('/products'), icon: Package, show: hasRole(['admin', 'branch_manager', 'store_owner', 'super_admin']) },
-    { name: 'Orders', href: getTenantRoute('/orders'), icon: ShoppingCart, show: true },
-    { name: 'Kitchen', href: getTenantRoute('/kitchen'), icon: ChefHat, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
-    { name: 'Inventory', href: getTenantRoute('/inventory'), icon: PackageOpen, show: hasRole(['store_keeper', 'admin', 'branch_manager', 'store_owner']) },
-    { name: 'Finance', href: getTenantRoute('/finance'), icon: DollarSign, show: hasRole(['accountant', 'admin', 'store_owner']) },
-    { name: 'Workforce', href: getTenantRoute('/workforce'), icon: Calendar, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
-    { name: 'Reports', href: getTenantRoute('/reports'), icon: FileText, show: hasRole(['accountant', 'admin', 'branch_manager', 'store_owner']) },
-    { name: 'Delivery', href: getTenantRoute('/delivery'), icon: Truck, show: hasRole(['delivery', 'admin', 'store_owner']) },
-    { name: 'Staff', href: getTenantRoute('/staff'), icon: Users, show: hasRole(['branch_manager', 'store_owner']) },
-    { name: 'Admin', href: getTenantRoute('/admin'), icon: Shield, show: hasRole(['admin', 'store_owner']) },
-    { name: 'Chat', href: getTenantRoute('/chat'), icon: MessageSquare, show: true },
-    { name: 'Wallet', href: getTenantRoute('/wallet'), icon: Wallet, show: true },
-  ].filter(item => item.show);
+  const navigationItems = menus.map(menu => ({
+    name: menu.label,
+    href: getTenantRoute(menu.path),
+    icon: iconMap[menu.icon] || LayoutDashboard,
+    show: true
+  }));
 
   const handleLogout = async () => {
     await signOut();

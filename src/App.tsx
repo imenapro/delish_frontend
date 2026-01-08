@@ -11,6 +11,7 @@ import Landing from "./pages/Landing";
 import Register from "./pages/Register";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/auth/ResetPassword";
 import SuperAdmin from "./pages/SuperAdmin";
 import TenantAuth from "./pages/TenantAuth";
 import NotFound from "./pages/NotFound";
@@ -69,6 +70,9 @@ const App = () => {
                   {/* Registration */}
                   <Route path="/register" element={<Register />} />
                   
+                  {/* Password Reset */}
+                  <Route path="/reset-password" element={<ResetPassword />} />
+
                   {/* Super Admin Routes */}
                   <Route path="/super-admin" element={<SuperAdmin />} />
                   

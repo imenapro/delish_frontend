@@ -7,12 +7,21 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { Eye, EyeOff } from 'lucide-react';
+
+import { isCustomDomain, MAIN_DOMAIN } from '@/utils/domainMapping';
 
 export default function TenantAuth() {
   const { store, loading, themeConfig, getTenantRoute } = useStoreContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetStep, setResetStep] = useState<'request' | 'verify'>('request');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -46,6 +55,54 @@ export default function TenantAuth() {
       </div>
     );
   }
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      if (resetStep === 'request') {
+        // Request Code
+        const { data, error } = await supabase.functions.invoke('reset-password-flow', {
+          body: { step: 'request', email, businessId: store?.id }
+        });
+
+        if (error || !data.success) throw new Error(data?.error || "Failed to send code");
+
+        toast.success("Verification code sent to your email");
+        setResetStep('verify');
+      } else {
+        // Verify Code and Reset
+        if (newPassword !== confirmNewPassword) {
+            toast.error("Passwords do not match");
+            setIsLoading(false);
+            return;
+        }
+
+        const { data, error } = await supabase.functions.invoke('reset-password-flow', {
+            body: { 
+                step: 'verify', 
+                email, 
+                token: resetCode, 
+                newPassword 
+            }
+        });
+
+        if (error || !data.success) throw new Error(data?.error || "Failed to reset password");
+
+        toast.success("Password updated successfully! Please login.");
+        setIsForgotPassword(false);
+        setResetStep('request');
+        setResetCode('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+      }
+    } catch (error: any) {
+      toast.error(error.message || "An error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,7 +210,98 @@ export default function TenantAuth() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            {isForgotPassword ? (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                 {resetStep === 'request' ? (
+                   <>
+                    <div className="space-y-2">
+                      <Label htmlFor="reset-email">Email Address</Label>
+                      <Input
+                        id="reset-email"
+                        type="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <Button 
+                      type="submit" 
+                      className="w-full" 
+                      disabled={isLoading}
+                      style={{
+                        backgroundColor: themeConfig.primaryColor,
+                      }}
+                    >
+                      {isLoading ? 'Sending Code...' : 'Send Verification Code'}
+                    </Button>
+                   </>
+                 ) : (
+                   <>
+                     <div className="space-y-2">
+                      <Label htmlFor="reset-code">Verification Code</Label>
+                      <Input
+                        id="reset-code"
+                        type="text"
+                        placeholder="123456"
+                        value={resetCode}
+                        onChange={(e) => setResetCode(e.target.value)}
+                        required
+                        maxLength={6}
+                        className="text-center tracking-widest text-lg"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password">New Password</Label>
+                      <Input
+                        id="new-password"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-new-password">Confirm New Password</Label>
+                      <Input
+                        id="confirm-new-password"
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                    <Button 
+                      type="submit" 
+                      className="w-full" 
+                      disabled={isLoading}
+                      style={{
+                        backgroundColor: themeConfig.primaryColor,
+                      }}
+                    >
+                      {isLoading ? 'Resetting...' : 'Reset Password'}
+                    </Button>
+                   </>
+                 )}
+                
+                <div className="text-center">
+                  <Button 
+                    variant="link" 
+                    type="button"
+                    onClick={() => {
+                        setIsForgotPassword(false);
+                        setResetStep('request');
+                    }}
+                    className="text-sm text-muted-foreground"
+                  >
+                    Back to Login
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -166,16 +314,40 @@ export default function TenantAuth() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <Button 
+                    variant="link" 
+                    className="p-0 h-auto font-normal text-xs text-muted-foreground"
+                    type="button"
+                    onClick={() => setIsForgotPassword(true)}
+                  >
+                    Forgot password?
+                  </Button>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
               <Button 
                 type="submit" 
@@ -188,6 +360,7 @@ export default function TenantAuth() {
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </Button>
             </form>
+            )}
 
             <div className="mt-4 rounded-lg bg-muted p-3 text-xs">
               <p className="font-medium mb-2">Demo Credentials:</p>

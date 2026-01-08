@@ -104,6 +104,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             locale: business.locale || 'en',
             customDomain: business.custom_domain,
             currency: business.currency || 'USD',
+            invoiceTemplateId: business.invoice_template_id,
+            invoiceSettings: business.invoice_settings,
           });
         } else {
           setStore(null);
