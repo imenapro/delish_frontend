@@ -19,11 +19,7 @@ import {
   TenantWallet,
   TenantShiftManagement,
   TenantInvoiceManagement,
-<<<<<<< HEAD
-  InvoiceSettings,
-=======
   TenantInvoiceSettingsPage,
->>>>>>> development
   InventorySettings,
   TenantProfile,
 } from "./pages/tenant";
@@ -32,19 +28,15 @@ export const TenantRoutes = (
   <>
     <Route index element={<Navigate to="dashboard" replace />} />
     <Route path="dashboard" element={<TenantDashboard />} />
-    <Route path="profile" element={<TenantProfile />} />
-    <Route path="pos" element={<TenantPOS />} />
-    <Route path="shifts" element={<TenantShiftManagement />} />
-    <Route path="invoices" element={<TenantInvoiceManagement />} />
-<<<<<<< HEAD
-    <Route path="invoices/settings" element={<InvoiceSettings />} />
-=======
-    <Route path="invoices/settings" element={
-      <ProtectedRoute requiredRoles={['admin', 'store_owner', 'super_admin']}>
-        <TenantInvoiceSettingsPage />
-      </ProtectedRoute>
-    } />
->>>>>>> development
+  <Route path="profile" element={<TenantProfile />} />
+  <Route path="pos" element={<TenantPOS />} />
+  <Route path="shifts" element={<TenantShiftManagement />} />
+  <Route path="invoices" element={<TenantInvoiceManagement />} />
+  <Route path="invoices/settings" element={
+    <ProtectedRoute requiredRoles={['admin', 'store_owner', 'super_admin']}>
+      <TenantInvoiceSettingsPage />
+    </ProtectedRoute>
+  } />
     <Route path="shops" element={<TenantShops />} />
     <Route path="products" element={<TenantProducts />} />
     <Route path="orders" element={<TenantOrders />} />

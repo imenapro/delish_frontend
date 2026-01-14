@@ -1,10 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-<<<<<<< HEAD
-import { useSearchParams, useNavigate } from 'react-router-dom';
-=======
 import { useSearchParams, Link } from 'react-router-dom';
->>>>>>> development
 import { TenantPageWrapper } from '@/components/tenant/TenantPageWrapper';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -191,12 +187,6 @@ export default function TenantInvoiceManagement() {
       title="Invoice Management"
       description="View and manage customer invoices"
       actions={
-<<<<<<< HEAD
-        <Button onClick={() => navigate('settings')} variant="outline">
-          <Settings className="mr-2 h-4 w-4" />
-          Invoice Settings
-        </Button>
-=======
         canManageSettings ? (
           <Button asChild variant="outline">
             <Link to={getTenantRoute('/invoices/settings')}>
@@ -205,7 +195,6 @@ export default function TenantInvoiceManagement() {
             </Link>
           </Button>
         ) : undefined
->>>>>>> development
       }
     >
       <div className="flex flex-col gap-4 mb-6">
