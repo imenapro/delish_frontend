@@ -29,6 +29,21 @@ export interface Store {
   locale: 'pt' | 'en' | 'fr';
   customDomain?: string;
   currency: string;
+  invoiceTemplateId?: string;
+  invoiceSettings?: InvoiceSettings;
+}
+
+export interface InvoiceSettings {
+  fontFamily: string;
+  primaryColor: string;
+  secondaryColor: string;
+  showLogo: boolean;
+  logoPosition: 'left' | 'center' | 'right';
+  showBusinessDetails: boolean;
+  showCustomerDetails: boolean;
+  showPaymentTerms: boolean;
+  itemFormat: 'simple' | 'detailed';
+  footerText: string;
 }
 
 interface StoreContextType {

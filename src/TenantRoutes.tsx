@@ -1,5 +1,6 @@
 import React from "react";
 import { Route, Navigate } from "react-router-dom";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import TenantDashboard from "./pages/TenantDashboard";
 import {
   TenantPOS,
@@ -18,6 +19,7 @@ import {
   TenantWallet,
   TenantShiftManagement,
   TenantInvoiceManagement,
+  TenantInvoiceSettingsPage,
   InventorySettings,
   TenantProfile,
 } from "./pages/tenant";
@@ -30,6 +32,11 @@ export const TenantRoutes = (
     <Route path="pos" element={<TenantPOS />} />
     <Route path="shifts" element={<TenantShiftManagement />} />
     <Route path="invoices" element={<TenantInvoiceManagement />} />
+    <Route path="invoices/settings" element={
+      <ProtectedRoute requiredRoles={['admin', 'store_owner', 'super_admin']}>
+        <TenantInvoiceSettingsPage />
+      </ProtectedRoute>
+    } />
     <Route path="shops" element={<TenantShops />} />
     <Route path="products" element={<TenantProducts />} />
     <Route path="orders" element={<TenantOrders />} />

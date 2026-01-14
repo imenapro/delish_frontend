@@ -64,7 +64,7 @@ export default function TenantAdmin() {
           </div>
         ) : (
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList>
+            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5 h-auto">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="financial">Financial</TabsTrigger>
