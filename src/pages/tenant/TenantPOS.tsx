@@ -210,13 +210,13 @@ export default function TenantPOS() {
         .eq('user_id', user.id)
             .eq('status', 'open')
             .order('opened_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .limit(1);
+            
       if (error) {
         console.error('[TenantPOS] Error fetching session:', error);
         throw error;
       }
-      return data;
+      return data?.[0] || null;
     },
     enabled: !!user?.id,
   });
