@@ -208,8 +208,10 @@ export default function TenantPOS() {
           shop:shops(id, name, logo_url, address, phone, owner_email)
         `)
         .eq('user_id', user.id)
-        .eq('status', 'open')
-        .maybeSingle();
+            .eq('status', 'open')
+            .order('opened_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
       if (error) {
         console.error('[TenantPOS] Error fetching session:', error);
         throw error;
@@ -355,6 +357,18 @@ export default function TenantPOS() {
     staleTime: 1000 * 60 * 5, // Cache products for 5 minutes
     gcTime: 1000 * 60 * 10,   // Keep in garbage collection for 10 minutes
   });
+
+  // Diagnostic logging for tenant product loading
+  useEffect(() => {
+    if (!productsLoading && selectedShop) {
+      console.log(`[TenantPOS] Loaded ${products.length} products for shop ${selectedShop}`);
+      if (products.length === 0) {
+        console.warn('[TenantPOS] No products found. Check shop_inventory table for shop_id:', selectedShop);
+        // Optional: Toast for visibility if debugging
+        // toast.info("No products found for this shop. Please check inventory.");
+      }
+    }
+  }, [productsLoading, products.length, selectedShop]);
 
   // Today's sales stats for current session
   const { data: sessionStats } = useQuery({
