@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -30,10 +30,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const navigate = useNavigate();
+  const lastFetchedUserId = useRef<string | null>(null);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setRoles([]);
+    lastFetchedUserId.current = null;
     navigate('/auth');
   }, [navigate]);
 
@@ -99,14 +101,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Only set loading if we're signing in or initial session
-          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-            setLoading(true);
+          // Optimization: Only fetch roles if user changed or it's a fresh sign-in
+          // This prevents re-fetching on TOKEN_REFRESHED or focus events
+          const shouldFetch = 
+            session.user.id !== lastFetchedUserId.current || 
+            event === 'SIGNED_IN' || 
+            event === 'INITIAL_SESSION';
+
+          if (shouldFetch) {
+            // Only set loading if it's an initial session or if the user has actually changed.
+            // This prevents the UI from unmounting (and resetting state) when the session is just refreshed/recovered for the same user.
+            if (event === 'INITIAL_SESSION' || (event === 'SIGNED_IN' && session.user.id !== lastFetchedUserId.current)) {
+              setLoading(true);
+            }
+            
+            // Update the ref immediately to prevent race conditions
+            lastFetchedUserId.current = session.user.id;
+            
+            setTimeout(() => {
+              fetchUserRoles(session.user.id);
+            }, 0);
           }
-          setTimeout(() => {
-            fetchUserRoles(session.user.id);
-          }, 0);
         } else {
+          lastFetchedUserId.current = null;
           setRoles([]);
         }
       }
@@ -116,6 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        // Initial load always fetches
+        lastFetchedUserId.current = session.user.id;
         fetchUserRoles(session.user.id);
       } else {
         setLoading(false);

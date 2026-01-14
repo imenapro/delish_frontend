@@ -42,8 +42,26 @@ export interface Store {
   locale: 'pt' | 'en' | 'fr';
   customDomain?: string;
   currency: string;
+<<<<<<< HEAD
   invoiceTemplateId: string;
   invoiceSettings: InvoiceSettings;
+=======
+  invoiceTemplateId?: string;
+  invoiceSettings?: InvoiceSettings;
+}
+
+export interface InvoiceSettings {
+  fontFamily: string;
+  primaryColor: string;
+  secondaryColor: string;
+  showLogo: boolean;
+  logoPosition: 'left' | 'center' | 'right';
+  showBusinessDetails: boolean;
+  showCustomerDetails: boolean;
+  showPaymentTerms: boolean;
+  itemFormat: 'simple' | 'detailed';
+  footerText: string;
+>>>>>>> development
 }
 
 interface StoreContextType {
@@ -119,6 +137,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             locale: business.locale || 'en',
             customDomain: business.custom_domain,
             currency: business.currency || 'USD',
+<<<<<<< HEAD
             invoiceTemplateId: business.invoice_template_id || 'classic',
             invoiceSettings: business.invoice_settings || {
               showLogo: true,
@@ -132,6 +151,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               footerText: 'Thank you for your business!',
               fontFamily: 'Inter'
             },
+=======
+            invoiceTemplateId: business.invoice_template_id,
+            invoiceSettings: business.invoice_settings,
+>>>>>>> development
           });
         } else {
           setStore(null);
@@ -161,8 +184,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return diffDays;
   };
 
-  const isExpired = store ? new Date(store.subscriptionEndDate) < new Date() : false;
-  const daysUntilExpiration = calculateDaysUntilExpiration();
+  const isExpired = store ? (store.status === 'Bought' ? false : new Date(store.subscriptionEndDate) < new Date()) : false;
+  const daysUntilExpiration = store?.status === 'Bought' ? 36500 : calculateDaysUntilExpiration();
 
   const themeConfig: ThemeConfig = {
     logoUrl: store?.logoUrl,

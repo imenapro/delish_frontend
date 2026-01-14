@@ -196,7 +196,7 @@ export default function TenantPOS() {
   });
 
   // Check for active POS session
-  const { data: activeSession, isLoading: sessionLoading } = useQuery({
+  const { data: activeSession, isLoading: sessionLoading, error: sessionError } = useQuery({
     queryKey: ['active-pos-session', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -208,8 +208,10 @@ export default function TenantPOS() {
           shop:shops(id, name, logo_url, address, phone, owner_email)
         `)
         .eq('user_id', user.id)
-        .eq('status', 'open')
-        .maybeSingle();
+            .eq('status', 'open')
+            .order('opened_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
       if (error) {
         console.error('[TenantPOS] Error fetching session:', error);
         throw error;
@@ -355,6 +357,18 @@ export default function TenantPOS() {
     staleTime: 1000 * 60 * 5, // Cache products for 5 minutes
     gcTime: 1000 * 60 * 10,   // Keep in garbage collection for 10 minutes
   });
+
+  // Diagnostic logging for tenant product loading
+  useEffect(() => {
+    if (!productsLoading && selectedShop) {
+      console.log(`[TenantPOS] Loaded ${products.length} products for shop ${selectedShop}`);
+      if (products.length === 0) {
+        console.warn('[TenantPOS] No products found. Check shop_inventory table for shop_id:', selectedShop);
+        // Optional: Toast for visibility if debugging
+        // toast.info("No products found for this shop. Please check inventory.");
+      }
+    }
+  }, [productsLoading, products.length, selectedShop]);
 
   // Today's sales stats for current session
   const { data: sessionStats } = useQuery({
@@ -644,8 +658,30 @@ export default function TenantPOS() {
     );
   }
 
-  // Show open shift dialog if no active session
-  if (!activeSession && store?.id) {
+  // If there was an error checking the active session, surface it clearly
+  if (sessionError && store?.id) {
+    return (
+      <TenantPageWrapper title="Point of Sale" description="Process sales and manage transactions">
+        <div className="flex flex-col items-center justify-center h-64 text-center">
+          <Clock className="h-16 w-16 text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Unable to check active shift</h2>
+          <p className="text-muted-foreground mb-4 max-w-md">
+            There was an error while checking your POS shift status. This is usually caused
+            by missing Supabase policies or migrations for the <code>pos_sessions</code> table.
+          </p>
+          <p className="text-xs text-muted-foreground max-w-md mb-4">
+            Technical details: {sessionError.message}
+          </p>
+          <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['active-pos-session'] })}>
+            Retry
+          </Button>
+        </div>
+      </TenantPageWrapper>
+    );
+  }
+
+  // Show open shift dialog if no active session (and loading is finished)
+  if (!sessionLoading && !activeSession && store?.id) {
     return (
       <>
         <TenantPageWrapper title="Point of Sale" description="Process sales and manage transactions">

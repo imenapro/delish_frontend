@@ -6,7 +6,11 @@ export interface InvoiceItem {
   price: number;
   subtotal: number;
 }
+<<<<<<< HEAD
 
+=======
+// invoice
+>>>>>>> development
 export interface InvoiceData {
   invoiceNumber: string;
   date: string;

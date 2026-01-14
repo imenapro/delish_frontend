@@ -29,7 +29,10 @@ import {
   ChevronRight,
   ClipboardList,
   Receipt,
+  User,
 } from 'lucide-react';
+
+import { useMenus } from '@/hooks/useMenus';
 
 interface TenantSidebarProps {
   collapsed: boolean;
@@ -40,30 +43,35 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
   const { store, daysUntilExpiration, isExpired, getTenantRoute } = useStoreContext();
   const { user, roles, signOut } = useAuth();
   const navigate = useNavigate();
+  const { data: menus = [] } = useMenus();
 
-  const hasRole = (roleNames: string[]) => {
-    return roles.some(r => roleNames.includes(r.role));
+  const iconMap: Record<string, any> = {
+    LayoutDashboard, 
+    CreditCard, 
+    Store, 
+    Package, 
+    ShoppingCart, 
+    ChefHat, 
+    PackageOpen, 
+    DollarSign, 
+    Calendar, 
+    FileText, 
+    Truck, 
+    Users, 
+    Shield, 
+    MessageSquare, 
+    Wallet,
+    LogOut,
+    ClipboardList,
+    Receipt,
   };
 
-  const navigationItems = [
-    { name: 'Dashboard', href: getTenantRoute('/dashboard'), icon: LayoutDashboard, show: true },
-    { name: 'POS', href: getTenantRoute('/pos'), icon: CreditCard, show: hasRole(['seller', 'admin', 'branch_manager', 'store_owner']) },
-    { name: 'Shifts', href: getTenantRoute('/shifts'), icon: ClipboardList, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller']) },
-    { name: 'Invoices', href: getTenantRoute('/invoices'), icon: Receipt, show: hasRole(['admin', 'store_owner', 'branch_manager', 'seller']) },
-    { name: 'Shops', href: getTenantRoute('/shops'), icon: Store, show: hasRole(['admin', 'store_owner', 'branch_manager']) },
-    { name: 'Products', href: getTenantRoute('/products'), icon: Package, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
-    { name: 'Orders', href: getTenantRoute('/orders'), icon: ShoppingCart, show: true },
-    { name: 'Kitchen', href: getTenantRoute('/kitchen'), icon: ChefHat, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
-    { name: 'Inventory', href: getTenantRoute('/inventory'), icon: PackageOpen, show: hasRole(['store_keeper', 'admin', 'branch_manager', 'store_owner']) },
-    { name: 'Finance', href: getTenantRoute('/finance'), icon: DollarSign, show: hasRole(['accountant', 'admin', 'store_owner']) },
-    { name: 'Workforce', href: getTenantRoute('/workforce'), icon: Calendar, show: hasRole(['admin', 'branch_manager', 'store_owner']) },
-    { name: 'Reports', href: getTenantRoute('/reports'), icon: FileText, show: hasRole(['accountant', 'admin', 'branch_manager', 'store_owner']) },
-    { name: 'Delivery', href: getTenantRoute('/delivery'), icon: Truck, show: hasRole(['delivery', 'admin', 'store_owner']) },
-    { name: 'Staff', href: getTenantRoute('/staff'), icon: Users, show: hasRole(['branch_manager', 'store_owner']) },
-    { name: 'Admin', href: getTenantRoute('/admin'), icon: Shield, show: hasRole(['admin', 'store_owner']) },
-    { name: 'Chat', href: getTenantRoute('/chat'), icon: MessageSquare, show: true },
-    { name: 'Wallet', href: getTenantRoute('/wallet'), icon: Wallet, show: true },
-  ].filter(item => item.show);
+  const navigationItems = menus.map(menu => ({
+    name: menu.label,
+    href: getTenantRoute(menu.path),
+    icon: iconMap[menu.icon] || LayoutDashboard,
+    show: true
+  }));
 
   const handleLogout = async () => {
     await signOut();
@@ -156,12 +164,14 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <h2 className="font-bold text-lg truncate">{store?.name}</h2>
-              <Badge 
-                variant={isExpired ? 'destructive' : daysUntilExpiration <= 7 ? 'secondary' : 'default'}
-                className="text-xs"
-              >
-                {isExpired ? 'Expired' : `${daysUntilExpiration}d left`}
-              </Badge>
+              {store?.status !== 'Bought' && (
+                <Badge 
+                  variant={isExpired ? 'destructive' : daysUntilExpiration <= 7 ? 'secondary' : 'default'}
+                  className="text-xs"
+                >
+                  {isExpired ? 'Expired' : `${daysUntilExpiration}d left`}
+                </Badge>
+              )}
             </div>
           )}
         </div>
@@ -194,27 +204,46 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
       {/* User Profile */}
       <div className={cn("p-4", collapsed && "p-2")}>
         {collapsed ? (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={handleLogout}
-                className="w-full"
-              >
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.user_metadata?.avatar_url} />
-                  <AvatarFallback className="text-xs">{getUserInitials()}</AvatarFallback>
-                </Avatar>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <div>
-                <p className="font-medium">{user?.email}</p>
-                <p className="text-xs text-muted-foreground">{getPrimaryRole()}</p>
-              </div>
-            </TooltipContent>
-          </Tooltip>
+          <div className="space-y-2">
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => navigate(getTenantRoute('/profile'))}
+                  className="w-full"
+                >
+                  <User className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                Profile
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={handleLogout}
+                  className="w-full"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user?.user_metadata?.avatar_url} />
+                    <AvatarFallback className="text-xs">{getUserInitials()}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <div>
+                  <p className="font-medium">{user?.email}</p>
+                  <p className="text-xs text-muted-foreground">{getPrimaryRole()}</p>
+                  <p className="text-xs text-red-500 mt-1">Click to Logout</p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         ) : (
           <>
             <div className="flex items-center gap-3 mb-3">
@@ -227,6 +256,15 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
                 <p className="text-xs text-muted-foreground">{getPrimaryRole()}</p>
               </div>
             </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full justify-start mb-2"
+              onClick={() => navigate(getTenantRoute('/profile'))}
+            >
+              <User className="mr-2 h-4 w-4" />
+              Profile
+            </Button>
             <Button 
               variant="outline" 
               size="sm" 

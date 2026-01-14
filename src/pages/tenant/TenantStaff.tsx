@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TenantPageWrapper } from '@/components/tenant/TenantPageWrapper';
 import { InviteStaffDialog } from '@/components/staff/InviteStaffDialog';
 import { StaffTable } from '@/components/staff/StaffTable';
+import { UserPermissionManagement } from '@/components/staff/UserPermissionManagement';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +15,11 @@ export default function TenantStaff() {
   const { store } = useStoreContext();
   const queryClient = useQueryClient();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [isPermissionsDialogOpen, setIsPermissionsDialogOpen] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Fetch shops for assignment
   const { data: shops = [] } = useQuery({
@@ -190,6 +196,10 @@ export default function TenantStaff() {
               staff={staff}
               loading={staffLoading}
               onSuspend={(userId, suspend) => suspendMutation.mutate({ userId, suspend })}
+              onManagePermissions={(member) => {
+                setSelectedStaff({ id: member.id, name: member.name });
+                setIsPermissionsDialogOpen(true);
+              }}
             />
           )}
         </CardContent>
@@ -202,6 +212,15 @@ export default function TenantStaff() {
         shops={shops}
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ['tenant-staff'] })}
       />
+      {selectedStaff && store?.id && (
+        <UserPermissionManagement
+          userId={selectedStaff.id}
+          userName={selectedStaff.name}
+          businessId={store.id}
+          isOpen={isPermissionsDialogOpen}
+          onClose={() => setIsPermissionsDialogOpen(false)}
+        />
+      )}
     </TenantPageWrapper>
   );
 }

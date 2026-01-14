@@ -1,19 +1,32 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface ProtectedRouteProps {
   children: ReactNode;
   requiredRole?: 'super_admin' | 'branch_manager' | 'admin' | 'seller' | 'manager' | 'delivery' | 'customer' | 'store_keeper' | 'manpower' | 'accountant' | 'store_owner';
   requiredRoles?: ('super_admin' | 'branch_manager' | 'admin' | 'seller' | 'manager' | 'delivery' | 'customer' | 'store_keeper' | 'manpower' | 'accountant' | 'store_owner')[];
+  requiredPermission?: string;
 }
 
-export function ProtectedRoute({ children, requiredRole, requiredRoles }: ProtectedRouteProps) {
-  const { user, roles, loading } = useAuth();
+export function ProtectedRoute({ children, requiredRole, requiredRoles, requiredPermission }: ProtectedRouteProps) {
+  const { user, roles, loading: authLoading } = useAuth();
+  const { hasPermission, isLoading: permsLoading } = usePermissions();
   const navigate = useNavigate();
 
+  const loading = authLoading || (requiredPermission ? permsLoading : false);
+
   const hasAccess = useCallback(() => {
+    // Super admin bypass
     if (roles.some(r => r.role === 'super_admin')) return true;
+    
+    // Check permission if required
+    if (requiredPermission) {
+      if (!hasPermission(requiredPermission)) return false;
+    }
+
+    // Check roles if required (existing logic)
     if (roles.some(r => r.role === 'admin')) return true;
     if (requiredRoles) {
       return roles.some(r => requiredRoles.includes(r.role));
@@ -22,17 +35,17 @@ export function ProtectedRoute({ children, requiredRole, requiredRoles }: Protec
       return roles.some(r => r.role === requiredRole);
     }
     return true;
-  }, [roles, requiredRoles, requiredRole]);
+  }, [roles, requiredRoles, requiredRole, requiredPermission, hasPermission]);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
     }
     
-    if (!loading && (requiredRole || requiredRoles) && !hasAccess()) {
+    if (!loading && user && (requiredRole || requiredRoles || requiredPermission) && !hasAccess()) {
       navigate('/');
     }
-  }, [user, roles, loading, requiredRole, requiredRoles, navigate, hasAccess]);
+  }, [user, roles, loading, requiredRole, requiredRoles, requiredPermission, navigate, hasAccess]);
 
   if (loading) {
     return (
@@ -46,7 +59,7 @@ export function ProtectedRoute({ children, requiredRole, requiredRoles }: Protec
     return null;
   }
 
-  if ((requiredRole || requiredRoles) && !hasAccess()) {
+  if ((requiredRole || requiredRoles || requiredPermission) && !hasAccess()) {
     return null;
   }
 

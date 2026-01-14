@@ -3,7 +3,11 @@ import { formatCurrency } from '@/utils/currency';
 
 export function ModernTemplate({ data, settings, isCompact }: InvoiceTemplateProps) {
   const { showLogo, logoPosition, primaryColor, secondaryColor, showBusinessDetails, showCustomerDetails, footerText } = settings;
+<<<<<<< HEAD
 
+=======
+// invoice
+>>>>>>> development
   if (isCompact) {
     return (
       <div className="w-full bg-white text-xs font-sans pb-4" style={{ fontFamily: settings.fontFamily }}>

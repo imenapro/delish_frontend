@@ -11,6 +11,8 @@ import { TenantTaxManagement } from '@/components/tenant/TenantTaxManagement';
 import { TenantDomainSettings } from '@/components/tenant/TenantDomainSettings';
 import { TenantPaymentMethods } from '@/components/finance/payment-methods/TenantPaymentMethods';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { UIPersistenceSettings } from '@/components/settings/ui-persistence-settings';
+import { RoleManagement } from '@/components/admin/RoleManagement';
 
 export default function TenantAdmin() {
   const { store } = useStoreContext();
@@ -18,10 +20,12 @@ export default function TenantAdmin() {
 
   const sections = [
     { id: 'domain', title: 'Custom Domain', component: <TenantDomainSettings />, category: 'general', keywords: ['domain', 'url', 'web', 'address'] },
+    { id: 'ui-persistence', title: 'UI Persistence', component: <UIPersistenceSettings />, category: 'general', keywords: ['ui', 'persistence', 'window', 'blur', 'close'] },
     { id: 'currency', title: 'Currency Settings', component: <TenantCurrencySettings />, category: 'general', keywords: ['currency', 'money', 'format', 'symbol'] },
     { id: 'payment-methods', title: 'Payment Methods', component: <TenantPaymentMethods />, category: 'financial', keywords: ['payment', 'card', 'visa', 'money', 'bank'] },
     { id: 'tax', title: 'Tax Management', component: <TenantTaxManagement />, category: 'financial', keywords: ['tax', 'vat', 'gst', 'rate'] },
     { id: 'email', title: 'Email Settings', component: <TenantEmailSettings />, category: 'communication', keywords: ['email', 'smtp', 'mail', 'sender'] },
+    { id: 'roles', title: 'Roles & Permissions', component: <RoleManagement />, category: 'access', keywords: ['role', 'permission', 'access', 'user', 'rbac'] },
   ];
 
   const filteredSections = sections.filter(section => 
@@ -60,11 +64,12 @@ export default function TenantAdmin() {
           </div>
         ) : (
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList>
+            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5 h-auto">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="financial">Financial</TabsTrigger>
               <TabsTrigger value="communication">Communication</TabsTrigger>
+              <TabsTrigger value="access">Access Control</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
@@ -101,6 +106,7 @@ export default function TenantAdmin() {
 
             <TabsContent value="general" className="space-y-6">
               <TenantDomainSettings />
+              <UIPersistenceSettings />
               <TenantCurrencySettings />
             </TabsContent>
 
@@ -117,6 +123,10 @@ export default function TenantAdmin() {
 
             <TabsContent value="communication" className="space-y-6">
               <TenantEmailSettings />
+            </TabsContent>
+
+            <TabsContent value="access" className="space-y-6">
+              <RoleManagement />
             </TabsContent>
           </Tabs>
         )}

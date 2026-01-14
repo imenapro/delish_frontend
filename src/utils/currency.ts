@@ -19,7 +19,7 @@ export const DEFAULT_LOCALES: Record<string, string> = {
 
 export const formatCurrency = (amount: number | string | undefined | null, currencyCode: string = DEFAULT_SYSTEM_CURRENCY, locale?: string): string => {
   // Safe default for currencyCode to ensure it's a valid string
-  let safeCurrency = (currencyCode && typeof currencyCode === 'string' ? currencyCode : DEFAULT_SYSTEM_CURRENCY).trim().toUpperCase();
+  const safeCurrency = (currencyCode && typeof currencyCode === 'string' ? currencyCode : DEFAULT_SYSTEM_CURRENCY).trim().toUpperCase();
   
   // Normalize aliases if any exist in the future
   
@@ -60,7 +60,7 @@ export const convertCurrency = (amount: number, rate: number): number => {
 };
 
 export const getCurrencySymbol = (currencyCode: string, locale?: string): string => {
-  let safeCurrency = (currencyCode && typeof currencyCode === 'string' ? currencyCode : DEFAULT_SYSTEM_CURRENCY).trim().toUpperCase();
+  const safeCurrency = (currencyCode && typeof currencyCode === 'string' ? currencyCode : DEFAULT_SYSTEM_CURRENCY).trim().toUpperCase();
   
   // Normalize aliases if any exist in the future
   

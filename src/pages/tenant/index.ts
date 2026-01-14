@@ -14,5 +14,10 @@ export { default as TenantChat } from './TenantChat';
 export { default as TenantWallet } from './TenantWallet';
 export { default as TenantShiftManagement } from './TenantShiftManagement';
 export { default as TenantInvoiceManagement } from './TenantInvoiceManagement';
+<<<<<<< HEAD
 export { default as InvoiceSettings } from './InvoiceSettings';
+=======
+export { default as TenantInvoiceSettingsPage } from './TenantInvoiceSettingsPage';
+>>>>>>> development
 export { default as InventorySettings } from './InventorySettings';
+export { default as TenantProfile } from './TenantProfile';

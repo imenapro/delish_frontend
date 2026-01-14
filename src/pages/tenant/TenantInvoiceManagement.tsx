@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+<<<<<<< HEAD
 import { useSearchParams, useNavigate } from 'react-router-dom';
+=======
+import { useSearchParams, Link } from 'react-router-dom';
+>>>>>>> development
 import { TenantPageWrapper } from '@/components/tenant/TenantPageWrapper';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -10,9 +14,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useStoreContext } from '@/contexts/StoreContext';
+import { useAuth } from '@/hooks/useAuth';
 import { format, subDays } from 'date-fns';
 import { Search, Eye, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { ViewInvoiceDialog } from '@/components/invoices/ViewInvoiceDialog';
+import { InvoiceItem } from '@/components/invoices/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
@@ -32,12 +38,13 @@ interface Invoice {
   payment_method: string;
   subtotal: number;
   tax_amount: number;
-  items_snapshot: any[];
+  items_snapshot: InvoiceItem[];
   notes?: string;
 }
 
 export default function TenantInvoiceManagement() {
-  const { store } = useStoreContext();
+  const { store, getTenantRoute } = useStoreContext();
+  const { roles } = useAuth();
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -52,6 +59,8 @@ export default function TenantInvoiceManagement() {
     key: 'created_at',
     direction: 'desc',
   });
+
+  const canManageSettings = roles.some(r => ['admin', 'store_owner', 'super_admin'].includes(r.role));
 
   const invoiceId = searchParams.get('invoiceId');
   const viewDialogOpen = !!invoiceId;
@@ -182,10 +191,21 @@ export default function TenantInvoiceManagement() {
       title="Invoice Management"
       description="View and manage customer invoices"
       actions={
+<<<<<<< HEAD
         <Button onClick={() => navigate('settings')} variant="outline">
           <Settings className="mr-2 h-4 w-4" />
           Invoice Settings
         </Button>
+=======
+        canManageSettings ? (
+          <Button asChild variant="outline">
+            <Link to={getTenantRoute('/invoices/settings')}>
+              <Settings className="mr-2 h-4 w-4" />
+              Invoice Settings
+            </Link>
+          </Button>
+        ) : undefined
+>>>>>>> development
       }
     >
       <div className="flex flex-col gap-4 mb-6">

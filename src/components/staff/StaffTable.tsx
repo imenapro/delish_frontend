@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MoreHorizontal, UserX, UserCheck, Edit, Trash2 } from 'lucide-react';
+import { MoreHorizontal, UserX, UserCheck, Edit, Trash2, Shield } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface StaffMember {
@@ -23,6 +23,7 @@ interface StaffTableProps {
   onSuspend: (userId: string, suspend: boolean) => void;
   onEdit?: (staff: StaffMember) => void;
   onDelete?: (userId: string) => void;
+  onManagePermissions?: (staff: StaffMember) => void;
 }
 
 const getRoleBadgeVariant = (role: string) => {
@@ -45,7 +46,7 @@ const formatRole = (role: string) => {
   ).join(' ');
 };
 
-export function StaffTable({ staff, loading, onSuspend, onEdit, onDelete }: StaffTableProps) {
+export function StaffTable({ staff, loading, onSuspend, onEdit, onDelete, onManagePermissions }: StaffTableProps) {
   if (loading) {
     return (
       <div className="space-y-3">
@@ -57,11 +58,18 @@ export function StaffTable({ staff, loading, onSuspend, onEdit, onDelete }: Staf
   }
 
   if (staff.length === 0) {
-    return null;
+    return (
+      <div className="flex flex-col items-center justify-center p-8 border border-dashed rounded-lg bg-muted/50 text-muted-foreground">
+        <p className="text-lg font-medium">No staff members found</p>
+        <p className="text-sm">Add staff members to get started.</p>
+      </div>
+    );
   }
 
   return (
-    <Table>
+    <div className="rounded-md border overflow-hidden">
+      <div className="overflow-x-auto">
+        <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Staff Member</TableHead>
@@ -127,6 +135,12 @@ export function StaffTable({ staff, loading, onSuspend, onEdit, onDelete }: Staf
                       Edit
                     </DropdownMenuItem>
                   )}
+                  {onManagePermissions && (
+                    <DropdownMenuItem onClick={() => onManagePermissions(member)}>
+                      <Shield className="mr-2 h-4 w-4" />
+                      Manage Permissions
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => onSuspend(member.id, !member.is_suspended)}>
                     {member.is_suspended ? (
                       <>
@@ -155,6 +169,8 @@ export function StaffTable({ staff, loading, onSuspend, onEdit, onDelete }: Staf
           </TableRow>
         ))}
       </TableBody>
-    </Table>
+        </Table>
+      </div>
+    </div>
   );
 }
