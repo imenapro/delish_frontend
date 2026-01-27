@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Phone, Clock, Edit, MoreHorizontal, Users, Package } from 'lucide-react';
+import { MapPin, Phone, Clock, Edit, MoreHorizontal, Users, Package, Trash2 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface Shop {
@@ -20,9 +20,10 @@ interface ShopCardProps {
   shop: Shop;
   onEdit?: (shop: Shop) => void;
   onViewDetails?: (shop: Shop) => void;
+   onDelete?: (shop: Shop) => void;
 }
 
-export function ShopCard({ shop, onEdit, onViewDetails }: ShopCardProps) {
+export function ShopCard({ shop, onEdit, onViewDetails, onDelete }: ShopCardProps) {
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
@@ -59,6 +60,15 @@ export function ShopCard({ shop, onEdit, onViewDetails }: ShopCardProps) {
             {onViewDetails && (
               <DropdownMenuItem onClick={() => onViewDetails(shop)}>
                 View Details
+              </DropdownMenuItem>
+            )}
+            {onDelete && (
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => onDelete(shop)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Shop
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

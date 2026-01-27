@@ -96,10 +96,11 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
             product:products (name)
           )
         `)
+        // Use time-based filtering to ensure we catch all orders for this session
+        // This is more robust than pos_session_id which might be missing on older orders
         .eq('shop_id_origin', session.shop_id)
-        .eq('seller_id', session.user_id) // Ensure we only get orders for this user session
+        .eq('seller_id', session.user_id)
         .gte('created_at', session.opened_at)
-        .lte('created_at', new Date().toISOString())
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -122,11 +123,6 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
             .eq('shop_id', session.shop_id)
             .eq('role', 'branch_manager');
             
-        // const managerEmails: string[] = [];
-        // if (managers && managers.length > 0) {
-        //     // Placeholder logic for managers
-        // }
-
         return {
             currentUserEmail: user?.email,
             ownerEmail: session.shop?.owner_email,
@@ -134,6 +130,30 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
         };
     },
     enabled: open
+  });
+
+  // Fetch Current Inventory Snapshot
+  const { data: inventory } = useQuery({
+    queryKey: ['shop-inventory-snapshot', session.shop_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('shop_inventory')
+        .select(`
+          product_id,
+          stock,
+          product:products(name, category)
+        `)
+        .eq('shop_id', session.shop_id);
+
+      if (error) throw error;
+      return data?.map(item => ({
+        product_id: item.product_id,
+        product_name: item.product?.name || 'Unknown',
+        category: item.product?.category,
+        quantity: item.stock
+      })) || [];
+    },
+    enabled: open,
   });
 
   const handleAddRecipient = () => {
@@ -160,7 +180,8 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
         shiftOrders: shiftOrders || [],
         closingCash: closingCashNum,
         expectedCash,
-        description
+        description,
+        inventorySnapshot: inventory || undefined
     });
     setIsGeneratingPdf(false);
   };
@@ -191,6 +212,25 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
         .eq('id', session.id);
 
       if (error) throw error;
+
+      // Save Inventory Snapshot
+      if (inventory && inventory.length > 0) {
+        const snapshotData = inventory.map(item => ({
+          session_id: session.id,
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: item.quantity
+        }));
+
+        const { error: snapshotError } = await supabase
+          .from('pos_session_inventory_snapshots')
+          .insert(snapshotData);
+
+        if (snapshotError) {
+             console.error("Failed to save inventory snapshot:", snapshotError);
+             toast.warning("Failed to save inventory snapshot");
+        }
+      }
       
       // Send Email Notification
       try {
@@ -210,7 +250,8 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                 closingCash: closingCashNum,
                 expectedCash,
                 description,
-                currency
+                currency,
+                inventorySnapshot: inventory || undefined
             });
 
             const emailHtml = `

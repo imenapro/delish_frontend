@@ -21,6 +21,7 @@ import {
   FileText
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { useStoreContext } from '@/contexts/StoreContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -29,6 +30,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { user, roles, signOut } = useAuth();
   const location = useLocation();
+  const { getTenantRoute } = useStoreContext();
 
   const hasRole = (role: string) => roles.some(r => r.role === role);
   const isAdmin = hasRole('admin');
@@ -82,9 +84,10 @@ export function Layout({ children }: LayoutProps) {
         <nav className="space-y-1 p-4">
           {navigation.map((item) => {
             if (!item.show) return null;
-            const isActive = location.pathname === item.href;
+            const tenantHref = getTenantRoute(item.href);
+            const isActive = location.pathname === tenantHref;
             return (
-              <Link key={item.name} to={item.href}>
+              <Link key={item.name} to={tenantHref}>
                 <Button
                   variant={isActive ? 'secondary' : 'ghost'}
                   className="w-full justify-start"

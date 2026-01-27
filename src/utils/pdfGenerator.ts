@@ -19,6 +19,12 @@ interface Order {
   order_items?: OrderItem[];
 }
 
+interface InventorySnapshotItem {
+  product_name: string;
+  quantity: number;
+  category?: string;
+}
+
 interface ShiftReportData {
   session: {
     id: string;
@@ -40,6 +46,7 @@ interface ShiftReportData {
   expectedCash: number;
   description?: string;
   currency?: string;
+  inventorySnapshot?: InventorySnapshotItem[];
 }
 
 interface jsPDFWithAutoTable extends jsPDF {
@@ -54,7 +61,8 @@ const createShiftReportDoc = ({
   closingCash,
   expectedCash,
   description,
-  currency = DEFAULT_SYSTEM_CURRENCY
+  currency = DEFAULT_SYSTEM_CURRENCY,
+  inventorySnapshot
 }: ShiftReportData) => {
   const doc = new jsPDF();
   const shopName = session.shop?.name || 'Shop Name';
@@ -131,6 +139,24 @@ const createShiftReportDoc = ({
       head: [['Order #', 'Time', 'Payment', 'Total']],
       body: shiftOrders.map(order =>
         [`${order.order_code}`, format(new Date(order.created_at), 'HH:mm'), order.payment_method || '-', formatCurrency(Number(order.total_amount), currency)]
+      ),
+      theme: 'grid',
+      headStyles: { fillColor: [66, 66, 66] },
+      styles: { fontSize: 9, cellPadding: 3 },
+    });
+  }
+
+  // Inventory Snapshot Table
+  if (inventorySnapshot && inventorySnapshot.length > 0) {
+    const finalY = (doc as unknown as jsPDFWithAutoTable).lastAutoTable.finalY || 100;
+    doc.setFontSize(12);
+    doc.text("Inventory Snapshot", 14, finalY + 15);
+
+    autoTable(doc, {
+      startY: finalY + 20,
+      head: [['Product', 'Category', 'Quantity']],
+      body: inventorySnapshot.map(item =>
+        [item.product_name, item.category || '-', item.quantity.toString()]
       ),
       theme: 'grid',
       headStyles: { fillColor: [66, 66, 66] },

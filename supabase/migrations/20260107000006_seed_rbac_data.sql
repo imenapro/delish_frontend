@@ -148,4 +148,5 @@ INSERT INTO public.menus (label, path, icon, sort_order, permission_required_id)
 ('Staff', '/staff', 'Users', 140, (SELECT id FROM public.permissions WHERE code = 'staff.view')),
 ('Admin', '/admin', 'Shield', 150, (SELECT id FROM public.permissions WHERE code = 'admin.view')),
 ('Chat', '/chat', 'MessageSquare', 160, NULL),
-('Wallet', '/wallet', 'Wallet', 170, NULL);
+('Wallet', '/wallet', 'Wallet', 170, NULL)
+ON CONFLICT (path) DO NOTHING;

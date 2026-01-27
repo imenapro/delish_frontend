@@ -10,9 +10,10 @@ interface PasswordChangeDialogProps {
   open: boolean;
   userId: string;
   onSuccess: () => void;
+  onClose?: () => void;
 }
 
-export function PasswordChangeDialog({ open, userId, onSuccess }: PasswordChangeDialogProps) {
+export function PasswordChangeDialog({ open, userId, onSuccess, onClose }: PasswordChangeDialogProps) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -74,21 +75,31 @@ export function PasswordChangeDialog({ open, userId, onSuccess }: PasswordChange
       });
 
       // 4. Update profile to mark password as changed
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          must_change_password: false,
-          password_changed_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
+      // CRITICAL: This status update ensures the modal doesn't appear again.
+      // It is performed only after a successful password update.
+      // We use an RPC call to bypass potential RLS issues and ensure atomicity
+      const { error: profileError } = await supabase.rpc('complete_password_change');
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.warn('RPC complete_password_change failed, falling back to direct update', profileError);
+        // Fallback to direct update if RPC fails (e.g. older migration)
+        const { error: directError } = await supabase
+          .from('profiles')
+          .update({
+            must_change_password: false,
+            password_changed_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+
+        if (directError) throw directError;
+      }
 
       toast({
         title: "Password changed",
         description: "Your password has been updated successfully.",
       });
 
+      // 5. Sync frontend state
       onSuccess();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
@@ -103,7 +114,7 @@ export function PasswordChangeDialog({ open, userId, onSuccess }: PasswordChange
   };
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Change Your Password</DialogTitle>

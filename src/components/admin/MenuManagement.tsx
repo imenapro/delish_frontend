@@ -174,15 +174,24 @@ export function MenuManagement() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={handleCreate}>
+    <section className="space-y-4" aria-label="Navigation menu configuration">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <MenuIcon className="h-4 w-4" />
+            Menus
+          </h3>
+          <p className="text-sm text-muted-foreground max-w-xl">
+            Configure sidebar items and which permissions are required to see them.
+          </p>
+        </div>
+        <Button onClick={handleCreate} className="self-start sm:self-auto" aria-label="Add a new navigation menu item">
           <Plus className="mr-2 h-4 w-4" />
           Add Menu Item
         </Button>
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -195,9 +204,9 @@ export function MenuManagement() {
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {menus.map((menu) => (
-              <TableRow key={menu.id}>
+            <TableBody>
+              {menus.map((menu) => (
+                <TableRow key={menu.id}>
                 <TableCell className="font-medium">{menu.label}</TableCell>
                 <TableCell>{menu.path}</TableCell>
                 <TableCell>{menu.icon}</TableCell>
@@ -206,14 +215,24 @@ export function MenuManagement() {
                 <TableCell>{menu.sort_order}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(menu)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(menu)}
+                      aria-label={`Edit menu item ${menu.label}`}
+                    >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => {
-                      if (confirm('Are you sure you want to delete this menu item?')) {
-                        deleteMenuMutation.mutate(menu.id);
-                      }
-                    }}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        if (confirm('Are you sure you want to delete this menu item?')) {
+                          deleteMenuMutation.mutate(menu.id);
+                        }
+                      }}
+                      aria-label={`Delete menu item ${menu.label}`}
+                    >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
@@ -225,7 +244,7 @@ export function MenuManagement() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent aria-label={selectedMenu ? 'Edit menu item' : 'Add menu item'}>
           <DialogHeader>
             <DialogTitle>{selectedMenu ? 'Edit Menu' : 'Add Menu'}</DialogTitle>
             <DialogDescription>Configure navigation menu item.</DialogDescription>
@@ -291,6 +310,6 @@ export function MenuManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   );
 }

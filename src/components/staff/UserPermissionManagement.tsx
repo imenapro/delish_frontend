@@ -232,7 +232,10 @@ export function UserPermissionManagement({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent
+        className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0"
+        aria-label={`Manage permissions for ${userName}`}
+      >
         <DialogHeader className="px-6 py-4 border-b flex-none">
           <DialogTitle>Manage Permissions: {userName}</DialogTitle>
           <DialogDescription>
@@ -242,14 +245,24 @@ export function UserPermissionManagement({
         
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
           <div className="px-6 py-2 border-b bg-muted/40 flex-none">
-             <TabsList>
-               <TabsTrigger value="roles">Assigned Roles</TabsTrigger>
-               <TabsTrigger value="permissions">Granular Permissions</TabsTrigger>
+             <TabsList className="flex w-full flex-wrap gap-2" aria-label="User permission sections">
+               <TabsTrigger
+                 value="roles"
+                 className="flex-1 min-w-[120px] justify-center data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+               >
+                 Assigned Roles
+               </TabsTrigger>
+               <TabsTrigger
+                 value="permissions"
+                 className="flex-1 min-w-[150px] justify-center data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+               >
+                 Granular Permissions
+               </TabsTrigger>
              </TabsList>
           </div>
 
           <TabsContent value="roles" className="flex-1 flex flex-col mt-0 p-0 overflow-hidden">
-             <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto">
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {rolesLoading ? (
@@ -289,7 +302,9 @@ export function UserPermissionManagement({
               </div>
             </div>
             <div className="p-4 border-t bg-background flex justify-end gap-2">
-               <Button variant="outline" onClick={onClose}>Close</Button>
+               <Button variant="outline" onClick={onClose}>
+                 Close
+               </Button>
             </div>
           </TabsContent>
 
@@ -303,7 +318,7 @@ export function UserPermissionManagement({
                       </h3>
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {perms.map(perm => {
-                           const status = getPermissionStatus(perm.id);
+                          const status = getPermissionStatus(perm.id);
                            const overrideValue = getOverrideValue(perm.id);
                            
                            return (
@@ -331,15 +346,15 @@ export function UserPermissionManagement({
                                    </span>
                                  </div>
                                </div>
-                               
-                               <div className="min-w-[140px]">
+                              
+                               <div className="min-w-[160px]">
                                  <Select 
                                     value={overrideValue} 
                                     onValueChange={(val: 'default' | 'grant' | 'deny') => 
                                       setOverrideMutation.mutate({ permissionId: perm.id, value: val })
                                     }
                                  >
-                                   <SelectTrigger className="h-8">
+                                   <SelectTrigger className="h-8" aria-label={`Override access for ${perm.code}`}>
                                      <SelectValue />
                                    </SelectTrigger>
                                    <SelectContent>

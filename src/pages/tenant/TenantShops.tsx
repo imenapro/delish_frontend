@@ -9,6 +9,17 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useStoreContext } from '@/contexts/StoreContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 import { Store, MapPin, Plus, Building2 } from 'lucide-react';
 
 export default function TenantShops() {
@@ -16,6 +27,7 @@ export default function TenantShops() {
   const queryClient = useQueryClient();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [shopToDelete, setShopToDelete] = useState<ShopWithCounts | null>(null);
   
   interface ShopWithCounts {
     id: string;
@@ -74,6 +86,27 @@ export default function TenantShops() {
   // Stats
   const totalShops = shops.length;
   const activeShops = shops.filter(s => s.is_active).length;
+
+  const handleConfirmDeleteShop = async () => {
+    if (!shopToDelete) return;
+
+    try {
+      const { error } = await supabase
+        .from('shops')
+        .delete()
+        .eq('id', shopToDelete.id);
+
+      if (error) throw error;
+
+      toast.success('Shop deleted successfully');
+      setShopToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ['tenant-shops-full'] });
+      queryClient.invalidateQueries({ queryKey: ['userShops'] });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete shop';
+      toast.error(message);
+    }
+  };
 
   return (
     <TenantPageWrapper
@@ -157,6 +190,7 @@ export default function TenantShops() {
                     setSelectedShop(s);
                     setEditDialogOpen(true);
                   }}
+                  onDelete={(s) => setShopToDelete(s)}
                 />
               ))}
             </div>
@@ -186,6 +220,33 @@ export default function TenantShops() {
           }}
         />
       )}
+
+      <AlertDialog
+        open={!!shopToDelete}
+        onOpenChange={(open) => {
+          if (!open) setShopToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Shop</AlertDialogTitle>
+            <AlertDialogDescription>
+              {shopToDelete
+                ? `Are you sure you want to delete ${shopToDelete.name}? This action cannot be undone.`
+                : 'Are you sure you want to delete this shop? This action cannot be undone.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeleteShop}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TenantPageWrapper>
   );
 }

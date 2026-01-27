@@ -31,23 +31,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const navigate = useNavigate();
   const lastFetchedUserId = useRef<string | null>(null);
+  const fetchRolesAbortController = useRef<AbortController | null>(null);
+  const passwordChangeCompletedAt = useRef<number | null>(null);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setRoles([]);
     lastFetchedUserId.current = null;
+    if (fetchRolesAbortController.current) {
+      fetchRolesAbortController.current.abort();
+    }
     navigate('/auth');
   }, [navigate]);
 
   const fetchUserRoles = useCallback(async (userId: string) => {
+    // Cancel previous fetch to avoid race conditions
+    if (fetchRolesAbortController.current) {
+      fetchRolesAbortController.current.abort();
+    }
+    const controller = new AbortController();
+    fetchRolesAbortController.current = controller;
+
     try {
       console.log('[useAuth] Fetching roles for user:', userId);
       const { data, error } = await supabase
         .from('user_roles')
         .select('*')
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .abortSignal(controller.signal);
 
       if (error) throw error;
+      
+      if (controller.signal.aborted) return;
 
       // Define role priority for sorting (higher number = higher priority)
       const ROLE_PRIORITY: Record<string, number> = {
@@ -74,23 +89,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRoles(sortedRoles);
 
       // Check if password change is required
-      const { data: profile } = await supabase
+      // If we recently changed the password (within last 10 seconds), assume false to avoid race conditions with DB replication
+      if (passwordChangeCompletedAt.current && (Date.now() - passwordChangeCompletedAt.current < 10000)) {
+        console.log('[useAuth] Skipping profile fetch for password check - recently changed');
+        setMustChangePassword(false);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .single()
+        .abortSignal(controller.signal);
+      
+      if (profileError && profileError.code !== 'PGRST116') {
+         // PGRST116 is "The result contains 0 rows" which is fine if profile missing? 
+         // Actually profile should exist.
+         console.error('Error fetching profile:', profileError);
+      }
+
+      if (controller.signal.aborted) return;
 
       if (profile?.is_suspended) {
         await signOut();
         return;
       }
 
+      console.log('[useAuth] Profile fetched:', profile);
       setMustChangePassword(profile?.must_change_password || false);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[useAuth] Fetch aborted');
+        return;
+      }
       console.error('Error fetching roles:', error);
       setRoles([]);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [signOut]);
 
@@ -178,8 +216,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           userId={user.id}
           onSuccess={() => {
             setMustChangePassword(false);
-            navigate('/');
+            passwordChangeCompletedAt.current = Date.now();
+            // Re-fetch to ensure state is synced with DB and cancel any stale pending fetches
+            // Note: fetchUserRoles checks passwordChangeCompletedAt to avoid reading stale "true" value
+            fetchUserRoles(user.id);
           }}
+          onClose={() => setMustChangePassword(false)}
         />
       )}
       {children}

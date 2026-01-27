@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { UserRole } from '@/hooks/useAuth';
 import { UserPlus, Mail, Phone, Shield, MessageSquare } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 
 interface InviteStaffDialogProps {
   open: boolean;
@@ -19,16 +20,34 @@ interface InviteStaffDialogProps {
   onSuccess: () => void;
 }
 
-const AVAILABLE_ROLES = [
-  { value: 'seller', label: 'Seller', description: 'Can process sales and view orders' },
-  { value: 'branch_manager', label: 'Branch Manager', description: 'Manages a specific shop location' },
-  { value: 'store_keeper', label: 'Store Keeper', description: 'Manages inventory and stock' },
-  { value: 'accountant', label: 'Accountant', description: 'Access to financial reports' },
-  { value: 'delivery', label: 'Delivery', description: 'Handles order deliveries' },
-];
-
 export function InviteStaffDialog({ open, onOpenChange, shops, onSuccess }: InviteStaffDialogProps) {
   const { store } = useStoreContext();
+
+  // Fetch roles from DB to include custom roles
+  const { data: availableRoles = [] } = useQuery({
+    queryKey: ['roles', store?.id],
+    queryFn: async () => {
+      if (!store?.id) return [];
+      const { data, error } = await supabase
+        .from('roles')
+        .select('name, description')
+        .or(`business_id.eq.${store.id},is_system.eq.true`)
+        .order('name');
+      
+      if (error) {
+        console.error('Error fetching roles:', error);
+        return [];
+      }
+      
+      return data.map(r => ({
+        value: r.name,
+        label: r.name,
+        description: r.description
+      }));
+    },
+    enabled: !!store?.id && open 
+  });
+
   const [isLoading, setIsLoading] = useState(false);
   const [showSmsPreview, setShowSmsPreview] = useState(false);
   const [smsPreview, setSmsPreview] = useState('');
@@ -73,7 +92,7 @@ Login: ${loginUrl}`;
   };
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.email || !formData.role) {
+    if (!formData.name || !formData.email || !formData.role || !formData.phone) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -114,7 +133,12 @@ Login: ${loginUrl}`;
         },
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        if (authError.message?.includes('already registered')) {
+          throw new Error('This email address is already registered. Please use a different email or contact support.');
+        }
+        throw authError;
+      }
       if (!authData.user) throw new Error('Failed to create user');
 
       // Update profile with must_change_password flag
@@ -133,12 +157,15 @@ Login: ${loginUrl}`;
       // Assign role with business and shop context
       const { error: roleError } = await supabase.from('user_roles').insert({
         user_id: authData.user.id,
-        role: formData.role as UserRole['role'],
+        role: formData.role as any, // Allow dynamic roles
         business_id: store.id,
         shop_id: formData.shopId || null,
       });
 
-      if (roleError) throw roleError;
+      if (roleError) {
+        console.error('Role assignment error:', roleError);
+        throw new Error(`User created but role assignment failed: ${roleError.message}. Please contact support.`);
+      }
 
       // Add to user_businesses junction table
       const { error: businessError } = await supabase.from('user_businesses').insert({
@@ -331,7 +358,7 @@ Login: ${loginUrl}`;
           <div className="space-y-2">
             <Label htmlFor="phone" className="flex items-center gap-2">
               <Phone className="h-4 w-4" />
-              Phone Number
+              Phone Number *
             </Label>
             <Input
               id="phone"
@@ -382,7 +409,7 @@ Login: ${loginUrl}`;
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
-                {AVAILABLE_ROLES.map((role) => (
+                {availableRoles.map((role) => (
                   <SelectItem key={role.value} value={role.value}>
                     <div>
                       <p className="font-medium">{role.label}</p>
@@ -421,7 +448,7 @@ Login: ${loginUrl}`;
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isLoading}>
+          <Button onClick={handleSubmit} disabled={isLoading || !formData.name || !formData.email || !formData.role || !formData.phone}>
             {isLoading ? 'Inviting...' : 'Send Invite'}
           </Button>
         </DialogFooter>

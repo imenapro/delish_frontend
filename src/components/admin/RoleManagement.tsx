@@ -225,27 +225,27 @@ export function RoleManagement() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
+    <section className="space-y-6" aria-label="Access control management">
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1.5">
           <h2 className="text-2xl font-bold tracking-tight">Access Control</h2>
-          <p className="text-muted-foreground">
-            Manage system roles, permissions, menus, and audit logs.
+          <p className="text-sm text-muted-foreground max-w-2xl">
+            Configure roles, granular permissions, navigation menus, and audit history across your organization.
           </p>
         </div>
-      </div>
+      </header>
 
       <Tabs defaultValue="roles" className="w-full">
-        <TabsList>
-          <TabsTrigger value="roles">
+        <TabsList className="flex w-full flex-wrap gap-2 md:gap-3" aria-label="Access control sections">
+          <TabsTrigger value="roles" className="flex-1 min-w-[140px] justify-center data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <Users className="mr-2 h-4 w-4" />
             Roles & Permissions
           </TabsTrigger>
-          <TabsTrigger value="menus">
+          <TabsTrigger value="menus" className="flex-1 min-w-[140px] justify-center data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <MenuIcon className="mr-2 h-4 w-4" />
             Menu Configuration
           </TabsTrigger>
-          <TabsTrigger value="audit">
+          <TabsTrigger value="audit" className="flex-1 min-w-[140px] justify-center data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <History className="mr-2 h-4 w-4" />
             Audit Logs
           </TabsTrigger>
@@ -256,7 +256,7 @@ export function RoleManagement() {
             <PermissionGuard requiredPermission="roles.manage">
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button>
+                  <Button aria-label="Create a new role">
                     <Plus className="mr-2 h-4 w-4" />
                     Create Role
                   </Button>
@@ -289,14 +289,20 @@ export function RoleManagement() {
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={() => {
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
                       if (roles.some(r => r.name.toLowerCase() === roleName.toLowerCase())) {
                         toast.error("A role with this name already exists.");
                         return;
                       }
                       createRoleMutation.mutate();
-                    }}>Create Role</Button>
+                    }}
+                    >
+                      Create Role
+                    </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -334,6 +340,7 @@ export function RoleManagement() {
                           <Button 
                             variant="ghost" 
                             size="icon"
+                            aria-label={`Edit role ${role.name}`}
                             onClick={() => handleEditClick(role)}
                           >
                             <Pencil className="h-4 w-4" />
@@ -342,6 +349,7 @@ export function RoleManagement() {
                             <Button 
                               variant="ghost" 
                               size="icon"
+                              aria-label={`Delete role ${role.name}`}
                               onClick={() => {
                                 if (confirm(`Are you sure you want to delete the role "${role.name}"?`)) {
                                   deleteRoleMutation.mutate(role.id);
@@ -375,11 +383,17 @@ export function RoleManagement() {
       </Tabs>
 
       {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
-        setIsEditDialogOpen(open);
-        if (!open) setActiveTab("edit");
-      }}>
-        <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 gap-0">
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) setActiveTab("edit");
+        }}
+      >
+        <DialogContent
+          className="max-w-5xl h-[90vh] flex flex-col p-0 gap-0"
+          aria-label={selectedRole ? `Edit permissions for role ${selectedRole.name}` : 'Edit role permissions'}
+        >
           <DialogHeader className="px-6 py-4 border-b flex-none">
             <DialogTitle>Edit Role: {selectedRole?.name}</DialogTitle>
             <DialogDescription>
@@ -389,10 +403,20 @@ export function RoleManagement() {
           
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="px-6 py-2 border-b bg-muted/40 flex-none">
-                <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-                  <TabsTrigger value="edit">1. Configure Permissions</TabsTrigger>
-                  <TabsTrigger value="review">2. Review & Save</TabsTrigger>
-                </TabsList>
+              <TabsList className="grid w-full grid-cols-2 max-w-[420px]" aria-label="Role editing steps">
+                <TabsTrigger
+                  value="edit"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  1. Configure Permissions
+                </TabsTrigger>
+                <TabsTrigger
+                  value="review"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  2. Review & Save
+                </TabsTrigger>
+              </TabsList>
             </div>
 
             <TabsContent value="edit" className="flex-1 flex flex-col mt-0 p-0">
@@ -416,7 +440,7 @@ export function RoleManagement() {
                   </div>
                </div>
                
-               <div className="px-6 pb-4 flex-1 min-h-0 overflow-hidden">
+               <div className="relative px-6 pb-4 flex-1 min-h-0 overflow-hidden">
                  <ScrollArea className="h-full rounded-md border">
                    <div className="p-4">
                      <PermissionMatrix 
@@ -434,6 +458,7 @@ export function RoleManagement() {
                      />
                    </div>
                  </ScrollArea>
+                 <div className="pointer-events-none absolute inset-x-6 bottom-4 h-6 bg-gradient-to-t from-background to-transparent rounded-b-md" />
                </div>
                
                <div className="p-6 border-t mt-auto flex justify-between items-center bg-background flex-none">
@@ -441,7 +466,9 @@ export function RoleManagement() {
                     {selectedPermissions.length} permissions selected
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+                    <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                      Cancel
+                    </Button>
                     <Button onClick={() => setActiveTab("review")}>
                       Review Changes <ChevronRight className="ml-2 h-4 w-4" />
                     </Button>
@@ -450,7 +477,7 @@ export function RoleManagement() {
             </TabsContent>
 
             <TabsContent value="review" className="flex-1 flex flex-col mt-0 p-0">
-               <div className="px-6 py-4 flex-1 min-h-0 overflow-hidden">
+               <div className="relative px-6 py-4 flex-1 min-h-0 overflow-hidden">
                  <ScrollArea className="h-full rounded-md border">
                    <div className="p-4 space-y-6">
                      <div className="flex items-center gap-2 mb-6">
@@ -473,17 +500,22 @@ export function RoleManagement() {
                      />
                    </div>
                  </ScrollArea>
+                 <div className="pointer-events-none absolute inset-x-6 bottom-4 h-6 bg-gradient-to-t from-background to-transparent rounded-b-md" />
                </div>
                
                <div className="p-6 border-t mt-auto flex justify-between items-center bg-background flex-none">
-                  <Button variant="ghost" onClick={() => setActiveTab("edit")}>Back to Edit</Button>
-                  <Button onClick={() => updateRoleMutation.mutate()}>Confirm & Save Role</Button>
+                  <Button variant="ghost" onClick={() => setActiveTab("edit")}>
+                    Back to Edit
+                  </Button>
+                  <Button onClick={() => updateRoleMutation.mutate()}>
+                    Confirm & Save Role
+                  </Button>
                </div>
             </TabsContent>
           </Tabs>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   );
 }
 

@@ -161,38 +161,45 @@ export default function TenantPOS() {
   const { data: shops = [], isLoading: shopsLoading } = useQuery({
     queryKey: ['tenant-shops', store?.id, user?.id],
     queryFn: async () => {
-      if (!store?.id) return [];
-      
+      if (!store?.id || !user?.id) return [];
+
       const { data, error } = await supabase
         .from('shops')
         .select('id, name')
-        .eq('business_id', store.id)
         .eq('is_active', true);
-        
+      
+      // Note: We intentionally do NOT filter by business_id here.
+      // We trust the RLS policy (get_user_shops) to return only shops the user has access to.
+      // This handles cases where a user has a direct role assignment to a shop that might 
+      // have a mismatched business_id in the database, or if the user works across businesses.
+
       if (error) throw error;
-      
-      const allShops = data || [];
-      
-      // Check permissions
-      const isGlobalAdmin = roles.some(r => ['super_admin', 'admin', 'store_owner', 'branch_manager'].includes(r.role));
-      
-      if (isGlobalAdmin) {
-        return allShops;
-      }
-      
-      // Filter shops based on user assignments
-      const allowedShopIds = roles
-        .map(r => r.shop_id)
-        .filter((id): id is string => !!id);
-        
-      if (allowedShopIds.length > 0) {
-        return allShops.filter(shop => allowedShopIds.includes(shop.id));
-      }
-      
-      // If no explicit assignments and not admin, user might not have access to any shop
-      return [];
+
+      return data || [];
     },
-    enabled: !!store?.id && !!user?.id && roles.length > 0,
+    enabled: !!store?.id && !!user?.id,
+  });
+
+  // Diagnostic: Fetch specific shop details if assigned (always declare hooks before any conditional returns)
+  const { data: assignedShopDetails } = useQuery({
+    queryKey: ['diagnostic-shop', roles],
+    queryFn: async () => {
+      const assignedShopId = roles.find(r => r.shop_id)?.shop_id;
+      if (!assignedShopId) return null;
+
+      const { data, error } = await supabase
+        .from('shops')
+        .select('id, name, business_id, is_active')
+        .eq('id', assignedShopId)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Diagnostic fetch error:', error);
+        return null;
+      }
+      return data;
+    },
+    enabled: shops.length === 0 && roles.some(r => r.shop_id),
   });
 
   // Check for active POS session
@@ -643,16 +650,66 @@ export default function TenantPOS() {
     );
   }
 
-  // Show error if no shops assigned
-  if (shops.length === 0) {
+  if (shops.length === 0 && !shopsLoading) {
     return (
-      <TenantPageWrapper title="Point of Sale" description="Access Denied">
-        <div className="flex flex-col items-center justify-center h-64 text-center">
-          <Store className="h-16 w-16 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-semibold mb-2">No Shops Assigned</h2>
-          <p className="text-muted-foreground mb-4">
+      <TenantPageWrapper>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
+          <h2 className="text-2xl font-bold mb-2">No Shops Assigned</h2>
+          <p className="text-muted-foreground mb-8">
             You are not assigned to any shop in this business. Please contact your administrator.
           </p>
+
+          {/* Diagnostic Info */}
+          <div className="mt-8 p-4 bg-muted/50 rounded-lg text-left max-w-lg w-full text-xs font-mono border">
+            <h3 className="font-semibold mb-2 border-b pb-1">Diagnostic Info</h3>
+            <div className="grid grid-cols-[100px_1fr] gap-1">
+              <span className="text-muted-foreground">User ID:</span>
+              <span className="break-all">{user?.id}</span>
+              
+              <span className="text-muted-foreground">Business ID:</span>
+              <span className="break-all">{store?.id}</span>
+              
+              <span className="text-muted-foreground">Roles:</span>
+              <div>
+                {roles.map((r, i) => (
+                  <div key={i}>
+                    {r.role} {r.shop_id ? `(Shop: ${r.shop_id})` : '(No Shop)'}
+                  </div>
+                ))}
+              </div>
+              
+              <span className="text-muted-foreground">Shops Found:</span>
+              <span>{shops.length} (Expected &gt; 0)</span>
+
+              {assignedShopDetails && (
+                <>
+                  <div className="col-span-2 border-t my-1 pt-1 font-semibold text-amber-600">
+                    Target Shop Analysis:
+                  </div>
+                  <span className="text-muted-foreground">Shop ID:</span>
+                  <span className="break-all">{assignedShopDetails.id}</span>
+                  <span className="text-muted-foreground">Name:</span>
+                  <span>{assignedShopDetails.name}</span>
+                  <span className="text-muted-foreground">Is Active:</span>
+                  <span className={assignedShopDetails.is_active ? "text-green-600" : "text-red-600"}>
+                    {String(assignedShopDetails.is_active)}
+                  </span>
+                  <span className="text-muted-foreground">Shop Biz ID:</span>
+                  <span className={assignedShopDetails.business_id === store?.id ? "text-green-600" : "text-red-600 font-bold"}>
+                    {assignedShopDetails.business_id || 'NULL'}
+                  </span>
+                  {assignedShopDetails.business_id !== store?.id && (
+                    <div className="col-span-2 text-red-600 mt-1">
+                      MISMATCH: Shop belongs to different business!
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="mt-2 text-muted-foreground italic">
+              Note: Access is determined by your role assignment. If you have a business-level role (e.g. Admin, Owner, HQ Staff), you should see all shops. If you have a shop-specific role, you only see assigned shops.
+            </div>
+          </div>
         </div>
       </TenantPageWrapper>
     );

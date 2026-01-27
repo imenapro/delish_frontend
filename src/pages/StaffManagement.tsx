@@ -6,33 +6,56 @@ import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Users, UserPlus, ArrowRightLeft, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Users, UserPlus, Ban, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+import { StaffTable, StaffMember } from '@/components/staff/StaffTableEnhanced';
+import { StaffForm, StaffFormValues } from '@/components/staff/StaffForm';
 
 export default function StaffManagement() {
   const { user, roles } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [newStaff, setNewStaff] = useState({
-    email: '',
-    password: '',
-    name: '',
-    phone: '',
-    role: '',
-    shopId: '',
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [generatedPassword, setGeneratedPassword] = useState('');
 
-  const isSuperAdmin = roles.some(r => r.role === 'super_admin');
-  const isBranchManager = roles.some(r => r.role === 'branch_manager');
+  // Dialog States
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isBatchTransferDialogOpen, setIsBatchTransferDialogOpen] = useState(false);
+  const [isBatchDeleteDialogOpen, setIsBatchDeleteDialogOpen] = useState(false);
+
+  // Selected Data States
+  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [transferTargetShopId, setTransferTargetShopId] = useState<string>('');
 
   // Fetch shops
   const { data: shops } = useQuery({
@@ -49,7 +72,7 @@ export default function StaffManagement() {
     },
   });
 
-  // Fetch manageable roles based on current user's role
+  // Fetch manageable roles
   const { data: manageableRoles } = useQuery({
     queryKey: ['manageableRoles', user?.id],
     queryFn: async () => {
@@ -64,40 +87,22 @@ export default function StaffManagement() {
     enabled: !!user,
   });
 
-  // Fetch all staff members with shop info
+  // Fetch staff
   const { data: staffMembers, isLoading, error } = useQuery({
     queryKey: ['staffMembers'],
     queryFn: async () => {
-      console.log('Fetching staff members...');
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (profilesError) {
-        console.error('Error fetching profiles:', profilesError);
-        throw profilesError;
-      }
-      console.log('Fetched profiles:', profiles.length);
+      if (profilesError) throw profilesError;
 
       const { data: userRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('*');
 
-      if (rolesError) {
-        console.error('Error fetching user_roles:', rolesError);
-        throw rolesError;
-      }
-      console.log('Fetched user_roles:', userRoles.length);
-
-      const { data: shops, error: shopsError } = await supabase
-        .from('shops')
-        .select('id, name');
-
-      if (shopsError) {
-        console.error('Error fetching shops:', shopsError);
-        throw shopsError;
-      }
+      if (rolesError) throw rolesError;
 
       return profiles.map(profile => {
         const profileRoles = userRoles.filter(ur => ur.user_id === profile.id);
@@ -108,76 +113,173 @@ export default function StaffManagement() {
             shop: role.shop_id ? shops?.find(s => s.id === role.shop_id) : null,
           })),
         };
-      });
+      }) as StaffMember[];
     },
-    enabled: !!user,
+    enabled: !!user && !!shops,
   });
 
-  const generatePassword = () => {
-    const length = 12;
-    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-    let password = '';
-    for (let i = 0; i < length; i++) {
-      password += charset.charAt(Math.floor(Math.random() * charset.length));
+  // Helper for audit logs
+  const logAudit = async (action: string, details: string) => {
+    try {
+      await supabase.from('audit_logs').insert({
+        action,
+        details,
+        performed_by: user?.id,
+        created_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Audit log failed', e);
     }
-    setGeneratedPassword(password);
-    setNewStaff({ ...newStaff, password });
   };
 
+  // Mutations
   const createStaffMutation = useMutation({
-    mutationFn: async (staffData: typeof newStaff) => {
-      // Create user account
+    mutationFn: async (staffData: StaffFormValues) => {
+      // 1. Determine businessId (logic from original file)
+      let businessId = null;
+      if (staffData.shopId && staffData.shopId !== 'none' && shops) {
+        const selectedShop = shops.find(s => s.id === staffData.shopId);
+        if (selectedShop?.business_id) businessId = selectedShop.business_id;
+      }
+      if (!businessId && roles.length > 0) {
+        const roleWithBusiness = roles.find(r => r.business_id);
+        if (roleWithBusiness) businessId = roleWithBusiness.business_id;
+      }
+
+      // 2. Create user
       const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email: staffData.email,
         password: staffData.password,
         email_confirm: true,
-        user_metadata: {
-          name: staffData.name,
-          phone: staffData.phone,
-        },
+        user_metadata: { name: staffData.name, phone: staffData.phone },
       });
 
-      if (authError) throw authError;
+      if (authError) {
+          if (authError.message?.includes('already registered')) {
+             throw new Error('This email address is already registered.');
+          }
+          throw authError;
+      }
 
-      // Set must_change_password flag
+      // 3. Update profile & roles
+      try {
+        await supabase.from('profiles').update({ must_change_password: true }).eq('id', authData.user.id);
+        await supabase.from('user_roles').insert([{
+          user_id: authData.user.id,
+          role: staffData.role as any,
+          shop_id: staffData.shopId && staffData.shopId !== 'none' ? staffData.shopId : null,
+          business_id: businessId
+        }]);
+        
+        await logAudit('CREATE_STAFF', `Created staff member ${staffData.name} (${staffData.email})`);
+      } catch (err) {
+        // Rollback
+        await supabase.auth.admin.deleteUser(authData.user.id);
+        throw err;
+      }
+    },
+    onSuccess: () => {
+      toast({ title: "Staff member created" });
+      queryClient.invalidateQueries({ queryKey: ['staffMembers'] });
+      setIsCreateDialogOpen(false);
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateStaffMutation = useMutation({
+    mutationFn: async (staffData: StaffFormValues) => {
+      if (!selectedStaff) return;
+      
+      // Update profile
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({ must_change_password: true })
-        .eq('id', authData.user.id);
-
+        .update({ name: staffData.name, phone: staffData.phone })
+        .eq('id', selectedStaff.id);
       if (profileError) throw profileError;
 
-      // Assign role and shop
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .insert([{
-          user_id: authData.user.id,
-          role: staffData.role as "owner" | "manager" | "staff", // Casting to expected union if possible, or string
-          shop_id: staffData.shopId || null,
-        }]);
+      // Update roles (simplified: remove old, add new for primary role)
+      // Note: This replaces all roles with the single selected role. 
+      // For a more complex multi-role system, we'd need a better UI.
+      // Based on the form, we treat it as single role.
+      
+      // Get businessId
+      let businessId = null;
+      if (staffData.shopId && staffData.shopId !== 'none' && shops) {
+          const s = shops.find(sh => sh.id === staffData.shopId);
+          if (s) businessId = s.business_id;
+      }
+
+      // Delete existing roles
+      await supabase.from('user_roles').delete().eq('user_id', selectedStaff.id);
+      
+      // Insert new role
+      const { error: roleError } = await supabase.from('user_roles').insert([{
+        user_id: selectedStaff.id,
+        role: staffData.role as any,
+        shop_id: staffData.shopId && staffData.shopId !== 'none' ? staffData.shopId : null,
+        business_id: businessId
+      }]);
 
       if (roleError) throw roleError;
 
-      return authData;
+      await logAudit('UPDATE_STAFF', `Updated staff member ${staffData.name}`);
     },
     onSuccess: () => {
-      toast({
-        title: "Staff member created",
-        description: `${newStaff.name} has been added successfully.`,
-      });
+      toast({ title: "Staff member updated" });
       queryClient.invalidateQueries({ queryKey: ['staffMembers'] });
-      setIsCreateDialogOpen(false);
-      setNewStaff({ email: '', password: '', name: '', phone: '', role: '', shopId: '' });
-      setGeneratedPassword('');
+      setIsEditDialogOpen(false);
+      setSelectedStaff(null);
     },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : "An error occurred";
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive",
-      });
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const transferShopMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedStaff || !transferTargetShopId) return;
+      
+      // Update shop_id for all roles of this user
+      // Note: This moves ALL their roles to the new shop.
+      const shopIdToSet = transferTargetShopId === 'none' ? null : transferTargetShopId;
+      
+      const { error } = await supabase
+        .from('user_roles')
+        .update({ shop_id: shopIdToSet })
+        .eq('user_id', selectedStaff.id);
+
+      if (error) throw error;
+
+      const oldShopNames = selectedStaff.roles.map(r => r.shop?.name || 'None').join(', ');
+      const newShopName = shops?.find(s => s.id === transferTargetShopId)?.name || 'None';
+
+      await logAudit('TRANSFER_STAFF', `Transferred ${selectedStaff.name} from [${oldShopNames}] to [${newShopName}]`);
     },
+    onSuccess: () => {
+      toast({ title: "Staff transferred successfully" });
+      queryClient.invalidateQueries({ queryKey: ['staffMembers'] });
+      setIsTransferDialogOpen(false);
+      setSelectedStaff(null);
+      setTransferTargetShopId('');
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteStaffMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedStaff) return;
+      
+      // Delete user (cascades to profile usually, but we do explicitly if needed)
+      const { error } = await supabase.auth.admin.deleteUser(selectedStaff.id);
+      if (error) throw error;
+
+      await logAudit('DELETE_STAFF', `Deleted staff member ${selectedStaff.name} (${selectedStaff.email})`);
+    },
+    onSuccess: () => {
+      toast({ title: "Staff member deleted" });
+      queryClient.invalidateQueries({ queryKey: ['staffMembers'] });
+      setIsDeleteDialogOpen(false);
+      setSelectedStaff(null);
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const suspendStaffMutation = useMutation({
@@ -192,38 +294,90 @@ export default function StaffManagement() {
         .eq('id', userId);
 
       if (error) throw error;
+      await logAudit(suspend ? 'SUSPEND_STAFF' : 'REACTIVATE_STAFF', `Staff ${userId} ${suspend ? 'suspended' : 'reactivated'}`);
     },
     onSuccess: (_, variables) => {
-      toast({
-        title: variables.suspend ? "Staff suspended" : "Staff reactivated",
-        description: `Staff member has been ${variables.suspend ? 'suspended' : 'reactivated'}.`,
-      });
+      toast({ title: variables.suspend ? "Staff suspended" : "Staff reactivated" });
       queryClient.invalidateQueries({ queryKey: ['staffMembers'] });
     },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : "An error occurred";
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive",
-      });
-    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const getRoleBadgeColor = (role: string) => {
-    const colors: Record<string, string> = {
-      super_admin: 'bg-purple-500',
-      branch_manager: 'bg-blue-500',
-      admin: 'bg-red-500',
-      manager: 'bg-orange-500',
-      seller: 'bg-green-500',
-      store_keeper: 'bg-cyan-500',
-      accountant: 'bg-indigo-500',
-      manpower: 'bg-yellow-500',
-      delivery: 'bg-pink-500',
-      customer: 'bg-gray-500',
-    };
-    return colors[role] || 'bg-gray-500';
+  const batchTransferMutation = useMutation({
+    mutationFn: async () => {
+      const selectedIds = Object.keys(rowSelection);
+      if (selectedIds.length === 0 || !transferTargetShopId) return;
+
+      const shopIdToSet = transferTargetShopId === 'none' ? null : transferTargetShopId;
+      const newShopName = shops?.find(s => s.id === transferTargetShopId)?.name || 'None';
+
+      // Perform updates in parallel
+      await Promise.all(selectedIds.map(async (userId) => {
+        const { error } = await supabase
+          .from('user_roles')
+          .update({ shop_id: shopIdToSet })
+          .eq('user_id', userId);
+        
+        if (error) throw error;
+        
+        // Find staff name for log
+        const staff = staffMembers?.find(s => s.id === userId);
+        const staffName = staff?.name || userId;
+        await logAudit('TRANSFER_STAFF', `Batch transferred ${staffName} to [${newShopName}]`);
+      }));
+    },
+    onSuccess: () => {
+      toast({ title: "Batch transfer successful" });
+      queryClient.invalidateQueries({ queryKey: ['staffMembers'] });
+      setIsBatchTransferDialogOpen(false);
+      setRowSelection({});
+      setTransferTargetShopId('');
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const batchDeleteMutation = useMutation({
+    mutationFn: async () => {
+      const selectedIds = Object.keys(rowSelection);
+      if (selectedIds.length === 0) return;
+
+      await Promise.all(selectedIds.map(async (userId) => {
+        const { error } = await supabase.auth.admin.deleteUser(userId);
+        if (error) throw error;
+
+        const staff = staffMembers?.find(s => s.id === userId);
+        const staffName = staff?.name || userId;
+        await logAudit('DELETE_STAFF', `Batch deleted staff member ${staffName}`);
+      }));
+    },
+    onSuccess: () => {
+      toast({ title: "Batch delete successful" });
+      queryClient.invalidateQueries({ queryKey: ['staffMembers'] });
+      setIsBatchDeleteDialogOpen(false);
+      setRowSelection({});
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  // Handlers
+  const handleEdit = (staff: StaffMember) => {
+    setSelectedStaff(staff);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleTransfer = (staff: StaffMember) => {
+    setSelectedStaff(staff);
+    // Default to first role's shop or none
+    setTransferTargetShopId(staff.roles[0]?.shop_id || 'none');
+    setIsTransferDialogOpen(true);
+  };
+
+  const handleDelete = (staffId: string) => {
+    const staff = staffMembers?.find(s => s.id === staffId);
+    if (staff) {
+      setSelectedStaff(staff);
+      setIsDeleteDialogOpen(true);
+    }
   };
 
   return (
@@ -254,206 +408,208 @@ export default function StaffManagement() {
                     Enter the staff member's details. They will be required to change their password on first login.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      value={newStaff.name}
-                      onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })}
-                      placeholder="John Doe"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={newStaff.email}
-                      onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })}
-                      placeholder="john@example.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      value={newStaff.phone}
-                      onChange={(e) => setNewStaff({ ...newStaff, phone: e.target.value })}
-                      placeholder="+250 xxx xxx xxx"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role</Label>
-                    <Select value={newStaff.role} onValueChange={(value) => setNewStaff({ ...newStaff, role: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {manageableRoles?.map((role) => (
-                          <SelectItem key={role} value={role}>
-                            {role.replace('_', ' ').toUpperCase()}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="shop">Assign to Shop (Optional)</Label>
-                    <Select value={newStaff.shopId} onValueChange={(value) => setNewStaff({ ...newStaff, shopId: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a shop" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No shop assignment</SelectItem>
-                        {shops?.map((shop) => (
-                          <SelectItem key={shop.id} value={shop.id}>
-                            {shop.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password">Initial Password</Label>
-                      <Button type="button" variant="outline" size="sm" onClick={generatePassword}>
-                        Generate
-                      </Button>
-                    </div>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? 'text' : 'password'}
-                        value={newStaff.password}
-                        onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
-                        placeholder="Enter or generate password"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                    {generatedPassword && (
-                      <p className="text-sm text-muted-foreground">
-                        Save this password securely. It will not be shown again.
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  onClick={() => createStaffMutation.mutate(newStaff)}
-                  disabled={createStaffMutation.isPending || !newStaff.email || !newStaff.password || !newStaff.role}
-                  className="w-full"
-                >
-                  {createStaffMutation.isPending ? "Creating..." : "Create Staff Member"}
-                </Button>
+                <StaffForm
+                  onSubmit={(data) => createStaffMutation.mutate(data)}
+                  isLoading={createStaffMutation.isPending}
+                  shops={shops}
+                  manageableRoles={manageableRoles}
+                />
               </DialogContent>
             </Dialog>
           </div>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Staff Members</CardTitle>
-              <CardDescription>View and manage all staff accounts</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Staff Members</CardTitle>
+                <CardDescription>View and manage all staff accounts</CardDescription>
+              </div>
+              {Object.keys(rowSelection).length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setIsBatchTransferDialogOpen(true)}>
+                    <ArrowRightLeft className="mr-2 h-4 w-4" />
+                    Transfer ({Object.keys(rowSelection).length})
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => setIsBatchDeleteDialogOpen(true)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete ({Object.keys(rowSelection).length})
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
-              {isLoading ? (
-                <div className="flex justify-center py-8">
-                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-                </div>
-              ) : error ? (
+              {error ? (
                 <div className="flex flex-col items-center justify-center py-8 text-destructive">
                   <p>Error loading staff members. Please try again.</p>
                   <p className="text-sm text-muted-foreground mt-2">{(error as Error).message}</p>
                 </div>
-              ) : staffMembers?.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
-                  <Users className="h-12 w-12 mb-4 opacity-20" />
-                  <p className="text-lg font-medium">No staff members found</p>
-                  <p className="text-sm">Get started by adding a new staff member.</p>
-                </div>
               ) : (
-                <div className="rounded-md border overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Roles</TableHead>
-                      <TableHead>Shop</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {staffMembers?.map((staff) => (
-                      <TableRow key={staff.id}>
-                        <TableCell className="font-medium">{staff.name}</TableCell>
-                        <TableCell>{staff.id}</TableCell>
-                        <TableCell>{staff.phone || 'N/A'}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1 flex-wrap">
-                            {staff.roles.map((role) => (
-                              <Badge key={role.id} className={getRoleBadgeColor(role.role)}>
-                                {role.role.replace('_', ' ')}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {staff.roles[0]?.shop?.name || 'All shops'}
-                        </TableCell>
-                        <TableCell>
-                          {staff.is_suspended ? (
-                            <Badge variant="destructive">Suspended</Badge>
-                          ) : staff.must_change_password ? (
-                            <Badge variant="outline">Password Change Required</Badge>
-                          ) : (
-                            <Badge variant="default">Active</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            {staff.is_suspended ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => suspendStaffMutation.mutate({ userId: staff.id, suspend: false })}
-                                disabled={suspendStaffMutation.isPending}
-                              >
-                                <CheckCircle className="mr-1 h-3 w-3" />
-                                Reactivate
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => suspendStaffMutation.mutate({ userId: staff.id, suspend: true })}
-                                disabled={suspendStaffMutation.isPending}
-                              >
-                                <Ban className="mr-1 h-3 w-3" />
-                                Suspend
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                    </Table>
-                  </div>
-                </div>
+                <StaffTable
+                  data={staffMembers || []}
+                  isLoading={isLoading}
+                  onEdit={handleEdit}
+                  onTransfer={handleTransfer}
+                  onDelete={handleDelete}
+                  onSuspend={(id, suspend) => suspendStaffMutation.mutate({ userId: id, suspend })}
+                  rowSelection={rowSelection}
+                  setRowSelection={setRowSelection}
+                />
               )}
             </CardContent>
           </Card>
+
+          {/* Edit Dialog */}
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Edit Staff Member</DialogTitle>
+                <DialogDescription>
+                  Update staff details.
+                </DialogDescription>
+              </DialogHeader>
+              {selectedStaff && (
+                <StaffForm
+                  initialData={{
+                    name: selectedStaff.name,
+                    email: selectedStaff.email,
+                    phone: selectedStaff.phone || '',
+                    role: selectedStaff.roles[0]?.role || '',
+                    shopId: selectedStaff.roles[0]?.shop_id || 'none',
+                  }}
+                  onSubmit={(data) => updateStaffMutation.mutate(data)}
+                  isEditing
+                  isLoading={updateStaffMutation.isPending}
+                  shops={shops}
+                  manageableRoles={manageableRoles}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Transfer Dialog */}
+          <Dialog open={isTransferDialogOpen} onOpenChange={setIsTransferDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Transfer Shop</DialogTitle>
+                <DialogDescription>
+                  Move {selectedStaff?.name} to another shop. This will update all their roles.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Current Shop</Label>
+                  <div className="p-2 border rounded-md bg-muted">
+                    {selectedStaff?.roles.map(r => r.shop?.name).filter(Boolean).join(', ') || 'None'}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>New Shop</Label>
+                  <Select value={transferTargetShopId} onValueChange={setTransferTargetShopId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select new shop" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Shop (Headquarters)</SelectItem>
+                      {shops?.map((shop) => (
+                        <SelectItem key={shop.id} value={shop.id}>
+                          {shop.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsTransferDialogOpen(false)}>Cancel</Button>
+                <Button onClick={() => transferShopMutation.mutate()} disabled={transferShopMutation.isPending}>
+                  {transferShopMutation.isPending ? 'Transferring...' : 'Confirm Transfer'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Confirmation */}
+          <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete the staff member
+                  <strong> {selectedStaff?.name}</strong> and remove their access to the system.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => deleteStaffMutation.mutate()}
+                  disabled={deleteStaffMutation.isPending}
+                >
+                  {deleteStaffMutation.isPending ? 'Deleting...' : 'Delete Staff'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Batch Transfer Dialog */}
+          <Dialog open={isBatchTransferDialogOpen} onOpenChange={setIsBatchTransferDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Batch Transfer Staff</DialogTitle>
+                <DialogDescription>
+                  Move {Object.keys(rowSelection).length} selected staff members to another shop.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>New Shop</Label>
+                  <Select value={transferTargetShopId} onValueChange={setTransferTargetShopId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select new shop" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Shop (Headquarters)</SelectItem>
+                      {shops?.map((shop) => (
+                        <SelectItem key={shop.id} value={shop.id}>
+                          {shop.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsBatchTransferDialogOpen(false)}>Cancel</Button>
+                <Button onClick={() => batchTransferMutation.mutate()} disabled={batchTransferMutation.isPending || !transferTargetShopId}>
+                  {batchTransferMutation.isPending ? 'Transferring...' : 'Confirm Transfer'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Batch Delete Confirmation */}
+          <AlertDialog open={isBatchDeleteDialogOpen} onOpenChange={setIsBatchDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete 
+                  <strong> {Object.keys(rowSelection).length}</strong> staff members and remove their access to the system.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => batchDeleteMutation.mutate()}
+                  disabled={batchDeleteMutation.isPending}
+                >
+                  {batchDeleteMutation.isPending ? 'Deleting...' : 'Delete All Selected'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
         </div>
       </Layout>
     </ProtectedRoute>

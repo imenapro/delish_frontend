@@ -73,11 +73,24 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
             product:products (name)
           )
         `)
-        .eq('shop_id_origin', session.shop_id)
-        .eq('seller_id', session.user_id)
-        .gte('created_at', session.opened_at)
-        .lte('created_at', session.closed_at || new Date().toISOString())
+        .eq('pos_session_id', session.id)
         .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!session && open,
+  });
+
+  // Fetch Inventory Snapshot
+  const { data: inventorySnapshot, isLoading: isLoadingSnapshot } = useQuery({
+    queryKey: ['session-snapshot', session?.id],
+    queryFn: async () => {
+      if (!session) return [];
+      const { data, error } = await supabase
+        .from('pos_session_inventory_snapshots')
+        .select('*')
+        .eq('session_id', session.id);
       
       if (error) throw error;
       return data;
@@ -98,7 +111,8 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
         closingCash: closingCashNum,
         expectedCash,
         description: session.notes || undefined,
-        currency
+        currency,
+        inventorySnapshot: inventorySnapshot || undefined
     });
     setIsGeneratingPdf(false);
   };
@@ -237,6 +251,48 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
                                                 <p className="text-xs text-muted-foreground italic text-center py-4">No orders recorded in this session.</p>
                                             )}
                                         </Accordion>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Inventory Snapshot */}
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Inventory Snapshot</h4>
+                                <span className="text-xs bg-secondary px-2 py-0.5 rounded-full">{inventorySnapshot?.length || 0} Items</span>
+                            </div>
+
+                            {isLoadingSnapshot ? (
+                                <div className="flex justify-center py-4">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : (
+                                <div className="border rounded-lg bg-card overflow-hidden">
+                                    <div className="max-h-[200px] overflow-y-auto">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-muted/50 sticky top-0">
+                                                <tr className="border-b">
+                                                    <th className="text-left px-3 py-2 font-medium">Product</th>
+                                                    <th className="text-right px-3 py-2 font-medium">Qty</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {inventorySnapshot?.map((item) => (
+                                                    <tr key={item.id} className="border-b last:border-0 hover:bg-muted/20">
+                                                        <td className="px-3 py-2 truncate max-w-[200px]">{item.product_name}</td>
+                                                        <td className="px-3 py-2 text-right font-mono">{Number(item.quantity)}</td>
+                                                    </tr>
+                                                ))}
+                                                {(!inventorySnapshot || inventorySnapshot.length === 0) && (
+                                                    <tr>
+                                                        <td colSpan={2} className="px-3 py-4 text-center text-muted-foreground italic">
+                                                            No inventory snapshot available for this session.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             )}
