@@ -166,13 +166,9 @@ export default function TenantPOS() {
       const { data, error } = await supabase
         .from('shops')
         .select('id, name')
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('business_id', store.id);
       
-      // Note: We intentionally do NOT filter by business_id here.
-      // We trust the RLS policy (get_user_shops) to return only shops the user has access to.
-      // This handles cases where a user has a direct role assignment to a shop that might 
-      // have a mismatched business_id in the database, or if the user works across businesses.
-
       if (error) throw error;
 
       return data || [];
@@ -180,6 +176,18 @@ export default function TenantPOS() {
     enabled: !!store?.id && !!user?.id,
   });
 
+  const isAdminLike = roles.some(r =>
+    ['super_admin', 'admin', 'store_owner', 'branch_manager'].includes(r.role) &&
+    (r.business_id ? r.business_id === store?.id : true)
+  );
+
+  const assignedShopIds = roles
+    .filter(r => r.shop_id && (r.business_id ? r.business_id === store?.id : true))
+    .map(r => r.shop_id as string);
+
+  const visibleShops = isAdminLike || assignedShopIds.length === 0
+    ? shops
+    : shops.filter(s => assignedShopIds.includes(s.id));
   // Diagnostic: Fetch specific shop details if assigned (always declare hooks before any conditional returns)
   const { data: assignedShopDetails } = useQuery({
     queryKey: ['diagnostic-shop', roles],
@@ -756,7 +764,7 @@ export default function TenantPOS() {
         <OpenShiftDialog
           open={openShiftDialogOpen}
           onOpenChange={setOpenShiftDialogOpen}
-          shops={shops}
+          shops={visibleShops}
           businessId={store.id}
           onShiftOpened={handleShiftOpened}
           currency={store.currency}

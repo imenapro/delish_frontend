@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -36,10 +36,11 @@ export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShift
   const [selectedShop, setSelectedShop] = useState('');
   const [openingCash, setOpeningCash] = useState('');
 
-  // Auto-select shop if there's only one
-  if (shops.length === 1 && !selectedShop) {
-    setSelectedShop(shops[0].id);
-  }
+  useEffect(() => {
+    if (shops.length === 1 && !selectedShop) {
+      setSelectedShop(shops[0].id);
+    }
+  }, [shops, selectedShop]);
 
   const openShiftMutation = useMutation({
     mutationFn: async () => {
