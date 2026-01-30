@@ -90,7 +90,7 @@ export function ProductManagementDialog() {
     mutationFn: async (productId: string) => {
       const { error } = await supabase
         .from('products')
-        .update({ is_active: false })
+        .delete()
         .eq('id', productId);
       if (error) throw error;
     },
@@ -287,7 +287,7 @@ export function ProductManagementDialog() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Product</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this product? This will mark it as inactive.
+              Are you sure you want to delete this product? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -42,7 +42,18 @@ export default function TenantInventory() {
     queryKey: ['business-inventory', businessId],
     queryFn: async () => {
       if (!shopIds.length) return [];
-      const { data, error } = await supabase
+
+      // 1. Fetch all active products
+      const { data: allProducts, error: prodError } = await supabase
+        .from('products')
+        .select('id, name, category, image_url, price')
+        .eq('business_id', businessId)
+        .eq('is_active', true);
+        
+      if (prodError) throw prodError;
+
+      // 2. Fetch existing inventory
+      const { data: existingInventory, error: invError } = await supabase
         .from('shop_inventory')
         .select(`
           id,
@@ -53,10 +64,36 @@ export default function TenantInventory() {
           product:products (id, name, category, image_url)
         `)
         .in('shop_id', shopIds);
-      if (error) throw error;
+      if (invError) throw invError;
       
-      // Filter out items where product is null (deleted/inactive)
-      return (data || []).filter(item => item.product);
+      // 3. Create map
+      const invMap = new Map();
+      existingInventory?.forEach(item => {
+        invMap.set(`${item.shop_id}-${item.product_id}`, item);
+      });
+
+      // 4. Generate result
+      const result = [];
+      for (const shopId of shopIds) {
+        for (const product of allProducts || []) {
+           const key = `${shopId}-${product.id}`;
+           const existing = invMap.get(key);
+           
+           if (existing && existing.product) {
+             result.push(existing);
+           } else {
+             result.push({
+               id: `virtual-${key}`,
+               shop_id: shopId,
+               product_id: product.id,
+               price: product.price,
+               stock: 0,
+               product: product
+             });
+           }
+        }
+      }
+      return result;
     },
     enabled: shopIds.length > 0,
   });

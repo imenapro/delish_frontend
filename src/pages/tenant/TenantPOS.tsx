@@ -342,34 +342,43 @@ export default function TenantPOS() {
     queryFn: async () => {
       if (!store?.id || !selectedShop) return [];
       
-      const { data, error } = await supabase
+      // 1. Fetch all active products for the business
+      const { data: allProducts, error: prodError } = await supabase
+        .from('products')
+        .select('id, name, category, image_url, barcode, discount_price, promotion_description, price')
+        .eq('business_id', store.id)
+        .eq('is_active', true);
+
+      if (prodError) throw prodError;
+
+      // 2. Fetch inventory for this shop
+      const { data: inventory, error: invError } = await supabase
         .from('shop_inventory')
-        .select(`
-          id,
-          price,
-          stock,
-          product:products(id, name, category, image_url, barcode, discount_price, promotion_description)
-        `)
+        .select('product_id, price, stock')
         .eq('shop_id', selectedShop);
-      if (error) throw error;
-      
-      // Filter out items where product is null (deleted/inactive)
-      const validItems = (data || []).filter(item => item.product);
-      
-      return validItems.map(item => ({
-        id: item.product!.id,
-        name: item.product!.name,
-        price: item.price,
-        category: item.product!.category,
-        image_url: item.product!.image_url,
-        stock: item.stock,
-        barcode: item.product!.barcode,
-        discount_price: item.product!.discount_price,
-        promotion_description: item.product!.promotion_description,
-      }));
+
+      if (invError) throw invError;
+
+      // 3. Merge
+      const invMap = new Map(inventory?.map(i => [i.product_id, i]));
+
+      return (allProducts || []).map(p => {
+        const inv = invMap.get(p.id);
+        return {
+          id: p.id,
+          name: p.name,
+          price: p.price, // Use master price
+          category: p.category,
+          image_url: p.image_url,
+          stock: inv ? inv.stock : undefined, // undefined stock means "no limit/unknown"
+          barcode: p.barcode,
+          discount_price: p.discount_price,
+          promotion_description: p.promotion_description,
+        };
+      });
     },
     enabled: !!store?.id && !!selectedShop,
-    staleTime: 1000 * 60 * 5, // Cache products for 5 minutes
+    staleTime: 0, // Always fetch fresh data on mount/focus to ensure price updates are immediate
     gcTime: 1000 * 60 * 10,   // Keep in garbage collection for 10 minutes
   });
 

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { TenantPageWrapper } from '@/components/tenant/TenantPageWrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Package, Tag, Plus, Search, MoreVertical, Pencil, Trash2, AlertTriangle } from 'lucide-react';
+import { Package, Tag, Plus, Search, MoreVertical, Pencil, Trash2, AlertTriangle, Upload, Download } from 'lucide-react';
 import { AddProductDialog } from '@/components/products/AddProductDialog';
 import { EditProductDialog } from '@/components/products/EditProductDialog';
 import { SetDiscountDialog } from '@/components/products/SetDiscountDialog';
@@ -12,6 +13,7 @@ import { SetPromotionDialog } from '@/components/products/SetPromotionDialog';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { useBusinessProducts, useDeleteProduct } from '@/hooks/useBusinessProducts';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +49,7 @@ interface Product {
 
 export default function TenantProducts() {
   const { store } = useStoreContext();
+  const queryClient = useQueryClient();
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,6 +61,7 @@ export default function TenantProducts() {
   
   const { data: products = [], isLoading, refetch } = useBusinessProducts(store?.id);
   const deleteProduct = useDeleteProduct();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredProducts = products.filter(
     (product) =>
@@ -67,6 +71,101 @@ export default function TenantProducts() {
   );
 
   const categories = [...new Set(filteredProducts.map((p) => p.category))];
+
+  const handleExport = async () => {
+    try {
+      if (!store?.id) return;
+      toast.info('Starting export...');
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('business_id', store.id);
+      
+      if (error) throw error;
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `products_export_${store.id}_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Export completed');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export products');
+    }
+  };
+
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !store?.id) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importedData = JSON.parse(content);
+        
+        if (!Array.isArray(importedData)) {
+          throw new Error('Invalid file format: Expected an array');
+        }
+
+        // Sanitize and prepare products
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const existingNames = new Set(products.map(p => p.name.toLowerCase().trim()));
+        let skippedCount = 0;
+
+        const validProducts = [];
+        
+        for (const item of (importedData as any[])) {
+          if (!item.name) continue;
+          
+          const normalizedName = item.name.toLowerCase().trim();
+          
+          if (existingNames.has(normalizedName)) {
+            skippedCount++;
+            continue;
+          }
+          
+          // Add to set to prevent duplicates within the same import file
+          existingNames.add(normalizedName);
+          
+          const { id, created_at, updated_at, business_id, ...rest } = item;
+          validProducts.push({
+            ...rest,
+            business_id: store.id,
+          });
+        }
+
+        if (validProducts.length === 0) {
+          toast.info(`No new products to import. ${skippedCount} duplicates skipped.`);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          return;
+        }
+
+        const { error } = await supabase
+          .from('products')
+          .insert(validProducts);
+
+        if (error) throw error;
+
+        toast.success(`Successfully imported ${validProducts.length} products. ${skippedCount} duplicates skipped.`);
+        refetch(); // Refresh list
+      } catch (error: any) {
+        console.error('Import error:', error);
+        toast.error(`Failed to import products: ${error.message}`);
+      }
+      
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const handleDeleteProduct = async () => {
     if (!deleteProductId) return;
@@ -90,10 +189,27 @@ export default function TenantProducts() {
       title="Products"
       description="Manage your product catalog"
       actions={
-        <Button onClick={() => setAddDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Product
-        </Button>
+        <div className="flex gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImport}
+            className="hidden"
+            accept=".json"
+          />
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </Button>
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="mr-2 h-4 w-4" />
+            Import
+          </Button>
+          <Button onClick={() => setAddDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Product
+          </Button>
+        </div>
       }
     >
       {/* Stats Cards */}
@@ -290,53 +406,67 @@ export default function TenantProducts() {
       {/* Add Product Dialog */}
       {store && (
         <AddProductDialog
-          open={addDialogOpen}
-          onOpenChange={setAddDialogOpen}
-          businessId={store.id}
-          onSuccess={() => refetch()}
-        />
-      )}
-      
-      {/* Edit Product Dialog */}
-      {selectedProduct && (
-        <>
-          <EditProductDialog
-            open={editDialogOpen}
-            onOpenChange={(open) => {
-              setEditDialogOpen(open);
-              if (!open && !discountDialogOpen && !promotionDialogOpen) setSelectedProduct(null);
-            }}
-            product={selectedProduct}
+            open={addDialogOpen}
+            onOpenChange={setAddDialogOpen}
+            businessId={store.id}
             onSuccess={() => {
-              refetch();
-              setSelectedProduct(null);
+              setTimeout(() => {
+                refetch();
+                queryClient.invalidateQueries({ queryKey: ['tenant-pos-products'] });
+              }, 500);
             }}
           />
-          <SetDiscountDialog
-            open={discountDialogOpen}
-            onOpenChange={(open) => {
-              setDiscountDialogOpen(open);
-              if (!open && !editDialogOpen && !promotionDialogOpen) setSelectedProduct(null);
-            }}
-            product={selectedProduct}
-            onSuccess={() => {
-              refetch();
-              setSelectedProduct(null);
-            }}
-          />
-          <SetPromotionDialog
-            open={promotionDialogOpen}
-            onOpenChange={(open) => {
-              setPromotionDialogOpen(open);
-              if (!open && !editDialogOpen && !discountDialogOpen) setSelectedProduct(null);
-            }}
-            product={selectedProduct}
-            onSuccess={() => {
-              refetch();
-              setSelectedProduct(null);
-            }}
-          />
-        </>
+        )}
+        
+        {/* Edit Product Dialog */}
+        {selectedProduct && (
+          <>
+            <EditProductDialog
+              open={editDialogOpen}
+              onOpenChange={(open) => {
+                setEditDialogOpen(open);
+                if (!open && !discountDialogOpen && !promotionDialogOpen) setSelectedProduct(null);
+              }}
+              product={selectedProduct}
+              onSuccess={() => {
+                setTimeout(() => {
+                  refetch();
+                  queryClient.invalidateQueries({ queryKey: ['tenant-pos-products'] });
+                  setSelectedProduct(null);
+                }, 500);
+              }}
+            />
+            <SetDiscountDialog
+              open={discountDialogOpen}
+              onOpenChange={(open) => {
+                setDiscountDialogOpen(open);
+                if (!open && !editDialogOpen && !promotionDialogOpen) setSelectedProduct(null);
+              }}
+              product={selectedProduct}
+              onSuccess={() => {
+                setTimeout(() => {
+                  refetch();
+                  queryClient.invalidateQueries({ queryKey: ['tenant-pos-products'] });
+                  setSelectedProduct(null);
+                }, 500);
+              }}
+            />
+            <SetPromotionDialog
+              open={promotionDialogOpen}
+              onOpenChange={(open) => {
+                setPromotionDialogOpen(open);
+                if (!open && !editDialogOpen && !discountDialogOpen) setSelectedProduct(null);
+              }}
+              product={selectedProduct}
+              onSuccess={() => {
+                setTimeout(() => {
+                  refetch();
+                  queryClient.invalidateQueries({ queryKey: ['tenant-pos-products'] });
+                  setSelectedProduct(null);
+                }, 500);
+              }}
+            />
+          </>
       )}
 
       {/* Delete Confirmation */}

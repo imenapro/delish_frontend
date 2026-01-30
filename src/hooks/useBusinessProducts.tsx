@@ -28,7 +28,7 @@ export function useDeleteProduct() {
     mutationFn: async (productId: string) => {
       const { error } = await supabase
         .from('products')
-        .update({ is_active: false })
+        .delete()
         .eq('id', productId);
 
       if (error) throw error;
