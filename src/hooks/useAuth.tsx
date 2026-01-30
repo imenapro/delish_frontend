@@ -18,7 +18,7 @@ interface AuthContextType {
   mustChangePassword: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, name: string, phone: string, shopId: string) => Promise<{ error: AuthError | null }>;
-  signOut: () => Promise<void>;
+  signOut: (redirectPath?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,14 +34,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchRolesAbortController = useRef<AbortController | null>(null);
   const passwordChangeCompletedAt = useRef<number | null>(null);
 
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(async (redirectPath?: string) => {
     await supabase.auth.signOut();
     setRoles([]);
     lastFetchedUserId.current = null;
     if (fetchRolesAbortController.current) {
       fetchRolesAbortController.current.abort();
     }
-    navigate('/auth');
+    navigate(redirectPath || '/auth');
   }, [navigate]);
 
   const fetchUserRoles = useCallback(async (userId: string) => {

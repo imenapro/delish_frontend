@@ -28,6 +28,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateShiftReportPDF, generateShiftReportBase64 } from '@/utils/pdfGenerator';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { useAuth } from '@/hooks/useAuth';
+import { useParams } from 'react-router-dom';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface CloseShiftDialogProps {
@@ -69,6 +70,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const queryClient = useQueryClient();
   const { store } = useStoreContext();
   const { signOut, roles } = useAuth();
+  const { storeSlug } = useParams();
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [closingCash, setClosingCash] = useState('');
   const [description, setDescription] = useState('');
@@ -357,7 +359,8 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
       // Log out the user after closing the shift only if they are not a manager/admin
       const isManagerial = roles.some(r => ['super_admin', 'store_owner', 'admin', 'branch_manager', 'manager'].includes(r.role));
       if (!isManagerial) {
-        await signOut();
+        const redirectPath = storeSlug ? `/${storeSlug}/login` : '/login';
+        await signOut(redirectPath);
       }
     },
     onError: (error: Error) => {

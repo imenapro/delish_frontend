@@ -932,9 +932,9 @@ export default function TenantPOS() {
       )}
 
       {/* Main POS Interface */}
-      <div className={`grid lg:grid-cols-3 gap-6 ${isFullScreen ? 'h-full' : 'h-[calc(100vh-22rem)] min-h-[600px]'}`}>
+      <div className={`grid lg:grid-cols-3 gap-6 ${isFullScreen ? 'h-full' : 'h-auto lg:h-[calc(100vh-22rem)] lg:min-h-[600px]'}`}>
         {/* Product Grid - 2 columns */}
-        <div className="lg:col-span-2 h-full overflow-hidden flex flex-col">
+        <div className="lg:col-span-2 h-[600px] lg:h-full overflow-hidden flex flex-col">
           <Card className="h-full flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle>Products</CardTitle>
@@ -952,7 +952,7 @@ export default function TenantPOS() {
         </div>
 
         {/* Cart - 1 column */}
-        <div className="lg:col-span-1 h-full">
+        <div className="lg:col-span-1 h-[500px] lg:h-full">
           <POSCart
               items={cart}
               onUpdateQuantity={updateQuantity}
