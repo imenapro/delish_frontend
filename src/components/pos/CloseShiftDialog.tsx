@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateShiftReportPDF, generateShiftReportBase64 } from '@/utils/pdfGenerator';
 import { useStoreContext } from '@/contexts/StoreContext';
+import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface CloseShiftDialogProps {
@@ -67,6 +68,7 @@ interface OrderItem {
 export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }: CloseShiftDialogProps) {
   const queryClient = useQueryClient();
   const { store } = useStoreContext();
+  const { signOut } = useAuth();
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [closingCash, setClosingCash] = useState('');
   const [description, setDescription] = useState('');
@@ -315,13 +317,16 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
           // Don't throw, allow shift close to proceed
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['active-pos-session'] });
       queryClient.invalidateQueries({ queryKey: ['pos-sessions'] });
       toast.success('Shift closed successfully. Reports are being sent.');
       onShiftClosed();
       onOpenChange(false);
       setIsSending(false);
+      
+      // Log out the user after closing the shift
+      await signOut();
     },
     onError: (error: Error) => {
         toast.error(error.message || 'Failed to close shift');

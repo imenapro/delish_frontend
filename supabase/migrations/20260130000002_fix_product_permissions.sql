@@ -2,6 +2,10 @@
 DROP POLICY IF EXISTS "Enable update for business owners" ON "public"."products";
 DROP POLICY IF EXISTS "Enable delete for business owners" ON "public"."products";
 
+-- Drop new policies if they exist (to allow re-running migration)
+DROP POLICY IF EXISTS "Enable update for business admins and owners" ON "public"."products";
+DROP POLICY IF EXISTS "Enable delete for business admins and owners" ON "public"."products";
+
 -- Create new inclusive policies that allow both Owners and Admins to Update/Delete
 CREATE POLICY "Enable update for business admins and owners" ON "public"."products"
 FOR UPDATE USING (

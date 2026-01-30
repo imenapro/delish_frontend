@@ -128,7 +128,7 @@ Login: ${loginUrl}`;
           data: {
             name: formData.name,
             phone: formData.phone,
-            shop_id: formData.shopId || null,
+            shop_id: (!formData.shopId || formData.shopId === 'all') ? null : formData.shopId,
           },
         },
       });
@@ -159,7 +159,7 @@ Login: ${loginUrl}`;
         user_id: authData.user.id,
         role: formData.role as any, // Allow dynamic roles
         business_id: store.id,
-        shop_id: formData.shopId || null,
+        shop_id: (!formData.shopId || formData.shopId === 'all') ? null : formData.shopId,
       });
 
       if (roleError) {
@@ -425,8 +425,8 @@ Login: ${loginUrl}`;
             <div className="space-y-2">
               <Label htmlFor="shop">Assign to Shop (optional)</Label>
               <Select
-                value={formData.shopId}
-                onValueChange={(value) => setFormData({ ...formData, shopId: value })}
+                value={formData.shopId || "all"}
+                onValueChange={(value) => setFormData({ ...formData, shopId: value === 'all' ? '' : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a shop (optional)" />
@@ -448,7 +448,7 @@ Login: ${loginUrl}`;
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isLoading || !formData.name || !formData.email || !formData.role || !formData.phone}>
+          <Button onClick={handleSubmit} disabled={isLoading || !formData.name.trim() || !formData.email.trim() || !formData.role || !formData.phone.trim()}>
             {isLoading ? 'Inviting...' : 'Send Invite'}
           </Button>
         </DialogFooter>

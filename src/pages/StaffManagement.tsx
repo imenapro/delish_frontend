@@ -509,7 +509,7 @@ export default function StaffManagement() {
                       <SelectValue placeholder="Select new shop" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">No Shop (Headquarters)</SelectItem>
+                      <SelectItem value="none">All Shops</SelectItem>
                       {shops?.map((shop) => (
                         <SelectItem key={shop.id} value={shop.id}>
                           {shop.name}
@@ -568,7 +568,7 @@ export default function StaffManagement() {
                       <SelectValue placeholder="Select new shop" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">No Shop (Headquarters)</SelectItem>
+                      <SelectItem value="none">All Shops</SelectItem>
                       {shops?.map((shop) => (
                         <SelectItem key={shop.id} value={shop.id}>
                           {shop.name}

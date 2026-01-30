@@ -198,12 +198,12 @@ export function StaffTable({
         const shopNames = Array.from(
           new Set(row.roles.map((r) => r.shop?.name).filter(Boolean))
         );
-        return shopNames.length > 0 ? shopNames.join(', ') : 'Headquarters';
+        return shopNames.length > 0 ? shopNames.join(', ') : 'All Shops';
       },
       filterFn: (row, id, value) => {
         if (!value || value === 'all') return true;
-        if (value === 'Headquarters') {
-           return row.getValue(id) === 'Headquarters';
+        if (value === 'All Shops') {
+           return row.getValue(id) === 'All Shops';
         }
         return row.original.roles.some(r => r.shop?.name === value);
       },
@@ -215,11 +215,6 @@ export function StaffTable({
         return (
           <div className="flex items-center gap-2">
             <span>{shopName}</span>
-            {shopName === 'Headquarters' && hasHqAccess && (
-              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200">
-                All Shops
-              </Badge>
-            )}
           </div>
         );
       },
@@ -394,8 +389,8 @@ export function StaffTable({
   const uniqueRoles = Array.from(new Set(data.flatMap(d => d.roles.map(r => r.role))));
   const uniqueShops = Array.from(new Set(data.flatMap(d => d.roles.map(r => r.shop?.name).filter(Boolean))));
   if (data.some(d => d.roles.some(r => !r.shop_id))) {
-      if (!uniqueShops.includes('Headquarters')) {
-          uniqueShops.unshift('Headquarters');
+      if (!uniqueShops.includes('All Shops')) {
+          uniqueShops.unshift('All Shops');
       }
   }
 
@@ -455,7 +450,7 @@ export function StaffTable({
                 <SelectValue placeholder="Shop" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Shops</SelectItem>
+                <SelectItem value="all">View All</SelectItem>
                 {uniqueShops.map((shop) => (
                   <SelectItem key={shop} value={shop}>
                     {shop}

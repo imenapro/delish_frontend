@@ -228,9 +228,9 @@ export default function TenantStaff() {
       const oldShopNames = selectedStaff.roles
         .filter(r => r.shop?.name) // Filter roles with shop name
         .map(r => r.shop?.name)
-        .join(', ') || 'Headquarters';
+        .join(', ') || 'All Shops';
         
-      const newShopName = shops?.find(s => s.id === transferTargetShopId)?.name || 'Headquarters';
+      const newShopName = shops?.find(s => s.id === transferTargetShopId)?.name || 'All Shops';
 
       await logAudit('TRANSFER_STAFF', `Transferred ${selectedStaff.name} from [${oldShopNames}] to [${newShopName}]`);
     },
@@ -298,7 +298,7 @@ export default function TenantStaff() {
 
       if (error) throw error;
       
-      const newShopName = shops?.find(s => s.id === transferTargetShopId)?.name || 'Headquarters';
+      const newShopName = shops?.find(s => s.id === transferTargetShopId)?.name || 'All Shops';
       await logAudit('BATCH_TRANSFER_STAFF', `Transferred ${selectedBatchIds.length} staff members to [${newShopName}]`);
     },
     onSuccess: () => {

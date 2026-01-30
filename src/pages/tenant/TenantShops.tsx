@@ -152,7 +152,7 @@ export default function TenantShops() {
             <div className="text-2xl font-bold truncate">
               {shops[0]?.name || 'None'}
             </div>
-            <p className="text-xs text-muted-foreground">Headquarters</p>
+            <p className="text-xs text-muted-foreground">Main Branch</p>
           </CardContent>
         </Card>
       </div>
