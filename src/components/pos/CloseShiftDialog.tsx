@@ -78,10 +78,6 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const [isSending, setIsSending] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
 
-  const expectedCash = session.opening_cash + session.total_sales;
-  const closingCashNum = parseFloat(closingCash) || 0;
-  const difference = closingCashNum - expectedCash;
-
   // Fetch Shift Orders with Details
   const { data: shiftOrders } = useQuery({
     queryKey: ['shift-orders', session.id],
@@ -98,11 +94,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
             product:products (name)
           )
         `)
-        // Use time-based filtering to ensure we catch all orders for this session
-        // This is more robust than pos_session_id which might be missing on older orders
-        .eq('shop_id_origin', session.shop_id)
-        .eq('seller_id', session.user_id)
-        .gte('created_at', session.opened_at)
+        .eq('pos_session_id', session.id)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -110,6 +102,43 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
     },
     enabled: open,
   });
+
+  // Fetch Shift Refunds to adjust Expected Cash
+  const { data: shiftRefunds } = useQuery({
+    queryKey: ['shift-refunds', session.id],
+    queryFn: async () => {
+        const { data, error } = await supabase
+            .from('refunds')
+            .select(`
+                total_amount,
+                created_at,
+                order:orders!inner (
+                    payment_method
+                )
+            `)
+            .eq('staff_id', session.user_id)
+            .gte('created_at', session.opened_at);
+            
+        if (error) throw error;
+        return data;
+    },
+    enabled: open
+  });
+
+  const totalCashRefunds = shiftRefunds?.reduce((acc, refund) => {
+    // Check if the original order was paid in cash
+    // The query uses !inner join, so order should exist.
+    // We assume the refund method matches the payment method (Cash for Cash).
+    const paymentMethod = (refund.order as any)?.payment_method;
+    if (paymentMethod === 'cash') {
+        return acc + refund.total_amount;
+    }
+    return acc;
+  }, 0) || 0;
+
+  const expectedCash = session.opening_cash + session.total_sales - totalCashRefunds;
+  const closingCashNum = parseFloat(closingCash) || 0;
+  const difference = closingCashNum - expectedCash;
 
   // Fetch Branch Manager Email and Current User Email
   const { data: emails } = useQuery({

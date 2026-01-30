@@ -162,7 +162,7 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
           </div>
 
           {/* 5. Disclaimer */}
-          <div className="text-[10px] italic border-t border-b border-dotted border-gray-400 py-1 w-full mt-1 text-center">
+          <div className="text-[10px] italic border-t border-b border-black border-dotted py-1 w-full mt-1 text-center">
             Opened products cannot be refunded
           </div>
         </div>
@@ -205,7 +205,7 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
           </thead>
           <tbody>
             {items.map((item, index) => (
-              <tr key={index} className="border-b border-dotted border-gray-400">
+              <tr key={index} className="border-b border-dotted border-black">
                 <td className="py-1 pr-1">{item.name}</td>
                 <td className="text-center py-1">{item.quantity}</td>
                 <td className="text-right py-1">{formatCurrency(Number(item.price), currency)}</td>
@@ -223,7 +223,7 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
           </div>
           
           {taxBreakdown?.map((tax, i) => (
-             <div key={i} className={`flex justify-between text-[11px] ${tax.amount < 0 ? 'text-red-600' : ''}`}>
+             <div key={i} className="flex justify-between text-[11px] text-black">
                <span>
                  {tax.name} ({tax.rate}%)
                  {tax.type === 'compound' ? ' (Compound)' : ''}
@@ -240,7 +240,7 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
           
           {/* 4. Payment Information Section */}
           {payment && (
-            <div className="border-t border-dotted border-gray-400 mt-2 pt-2">
+            <div className="border-t border-dotted border-black mt-2 pt-2">
               <div className="flex justify-between text-[11px]">
                 <span>Amount Paid:</span>
                 <span>{formatCurrency(payment.amountPaid, currency)}</span>
@@ -275,7 +275,7 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
           <div className="w-[60%] text-[10px] pr-2">
             <p className="font-bold mb-1">Thank you!</p>
             <p className="mb-1">Please visit us again.</p>
-            <p className="text-[8px] text-gray-500 mt-2">Powered by BakeSync</p>
+            <p className="text-[8px] text-black mt-2">Powered by BakeSync</p>
           </div>
           
           <div className="absolute bottom-[10mm] right-[10mm] bg-white">
