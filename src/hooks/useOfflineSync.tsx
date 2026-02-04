@@ -18,6 +18,7 @@ interface OrderData {
   total: number;
   payment_method: string;
   customer_phone?: string;
+  session_id?: string;
 }
 
 interface QueuedOrder {
@@ -45,45 +46,100 @@ export function useOfflineSync() {
     
     for (const queuedOrder of queued) {
       try {
-        // Generate order code
-        const { data: codeData } = await supabase.rpc('generate_order_code');
-        
-        // Create order
-        const { data: order, error: orderError } = await supabase
-          .from('orders')
-          .insert({
-            customer_id: queuedOrder.orderData.customer_id,
-            seller_id: queuedOrder.orderData.seller_id,
-            shop_id_origin: queuedOrder.orderData.shop_id,
-            shop_id_fulfill: queuedOrder.orderData.shop_id,
-            total_amount: queuedOrder.orderData.total,
-            payment_method: queuedOrder.orderData.payment_method,
-            customer_phone: queuedOrder.orderData.customer_phone || undefined,
-            status: 'confirmed',
-            order_code: codeData || 'ORD-' + Date.now(),
-          })
-          .select()
-          .single();
-
-        if (orderError) throw orderError;
-
-        // Create order items
-        const items = queuedOrder.orderData.items.map((item) => ({
-          order_id: order.id,
+        // Prepare items for RPC
+        const rpcItems = queuedOrder.orderData.items.map(item => ({
           product_id: item.product_id,
           quantity: item.quantity,
-          price: item.price,
-          subtotal: item.subtotal,
+          unit_price: item.price,
+          name: item.name
         }));
 
-        const { error: itemsError } = await supabase
-          .from('order_items')
-          .insert(items);
+        // Calculate tax (approximate if not stored) or use 0
+        // Ideally OrderData should store tax, but if not, we rely on backend or 0
+        const taxAmount = 0; // TODO: Store tax in OrderData
 
-        if (itemsError) throw itemsError;
+        if (queuedOrder.orderData.session_id) {
+          // Use RPC if session_id is available
+          const { data: result, error } = await supabase.rpc('process_pos_sale', {
+            p_shop_id: queuedOrder.orderData.shop_id,
+            p_user_id: queuedOrder.orderData.seller_id,
+            p_session_id: queuedOrder.orderData.session_id,
+            p_total_amount: queuedOrder.orderData.total,
+            p_payment_method: queuedOrder.orderData.payment_method,
+            p_items: rpcItems,
+            p_customer_phone: queuedOrder.orderData.customer_phone || null,
+            p_extras: {
+              notes: 'Synced from offline',
+              customer_name: 'Walk-in Customer'
+            },
+            p_tax_amount: taxAmount
+          });
 
-        successful.push(queuedOrder.id);
-        toast.success(`Order synced: ${order.order_code}`);
+          if (error) throw error;
+          
+          // PATCH: Manually update session total for non-cash payments because current RPC logic skips them
+          if (queuedOrder.orderData.payment_method !== 'cash') {
+            const { data: currentSession } = await supabase
+              .from('pos_sessions')
+              .select('total_sales')
+              .eq('id', queuedOrder.orderData.session_id)
+              .single();
+              
+            if (currentSession) {
+              await supabase
+                .from('pos_sessions')
+                .update({ 
+                  total_sales: (currentSession.total_sales || 0) + queuedOrder.orderData.total
+                })
+                .eq('id', queuedOrder.orderData.session_id);
+            }
+          }
+          
+          successful.push(queuedOrder.id);
+          toast.success(`Order synced: ${result.order_code}`);
+
+        } else {
+          // Fallback to direct insert if no session_id (Legacy)
+          // Generate order code
+          const { data: codeData } = await supabase.rpc('generate_order_code');
+          
+          // Create order
+          const { data: order, error: orderError } = await supabase
+            .from('orders')
+            .insert({
+              customer_id: queuedOrder.orderData.customer_id,
+              seller_id: queuedOrder.orderData.seller_id,
+              shop_id_origin: queuedOrder.orderData.shop_id,
+              shop_id_fulfill: queuedOrder.orderData.shop_id,
+              total_amount: queuedOrder.orderData.total,
+              payment_method: queuedOrder.orderData.payment_method,
+              customer_phone: queuedOrder.orderData.customer_phone || undefined,
+              status: 'confirmed',
+              order_code: codeData || 'ORD-' + Date.now(),
+            })
+            .select()
+            .single();
+
+          if (orderError) throw orderError;
+
+          // Create order items
+          const items = queuedOrder.orderData.items.map((item) => ({
+            order_id: order.id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            price: item.price,
+            subtotal: item.subtotal,
+          }));
+
+          const { error: itemsError } = await supabase
+            .from('order_items')
+            .insert(items);
+
+          if (itemsError) throw itemsError;
+
+          successful.push(queuedOrder.id);
+          toast.success(`Order synced: ${order.order_code}`);
+        }
       } catch (error: unknown) {
         console.error('Failed to sync order:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';

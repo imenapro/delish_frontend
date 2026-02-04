@@ -102,6 +102,27 @@ export default function POS() {
       }
     },
   });
+  const { data: activeSession } = useQuery({
+    queryKey: ['active-pos-session', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('pos_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'open')
+        .order('opened_at', { ascending: false })
+        .limit(1);
+            
+      if (error) {
+        console.error('Error fetching session:', error);
+        return null;
+      }
+      return data?.[0] || null;
+    },
+    enabled: !!user?.id,
+  });
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedShop, setSelectedShop] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'wallet'>('cash');
@@ -195,10 +216,71 @@ export default function POS() {
           total: orderData.total,
           payment_method: orderData.payment_method,
           customer_phone: orderData.customer_phone,
+          session_id: activeSession?.id
         });
         return { id: queuedId, order_code: queuedId, queued: true } as Order;
       }
 
+      const subtotal = calculateSubtotal(orderData.items);
+      const taxBreakdown = calculateTaxBreakdown(orderData.items);
+      const taxTotal = taxBreakdown.reduce((s, t) => s + t.amount, 0);
+
+      // Use RPC if active session exists (Standard Path)
+      if (activeSession?.id) {
+          // Prepare items for RPC
+          const rpcItems = orderData.items.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            unit_price: item.price,
+            name: item.name
+          }));
+
+          const { data: result, error } = await supabase.rpc('process_pos_sale', {
+            p_shop_id: orderData.shop_id,
+            p_user_id: user?.id,
+            p_session_id: activeSession.id,
+            p_total_amount: orderData.total,
+            p_payment_method: orderData.payment_method,
+            p_items: rpcItems,
+            p_customer_phone: orderData.customer_phone || null,
+            p_extras: {
+                notes: 'POS Order',
+                customer_name: 'Walk-in Customer'
+            },
+            p_tax_amount: taxTotal
+          });
+
+          if (error) throw error;
+
+          // PATCH: Manually update session total for non-cash payments because current RPC logic skips them
+          // This is a temporary client-side fix until the RPC function is updated in the database
+          if (orderData.payment_method !== 'cash') {
+            const { data: currentSession } = await supabase
+              .from('pos_sessions')
+              .select('total_sales')
+              .eq('id', activeSession.id)
+              .single();
+              
+            if (currentSession) {
+              await supabase
+                .from('pos_sessions')
+                .update({ 
+                  total_sales: (currentSession.total_sales || 0) + orderData.total
+                })
+                .eq('id', activeSession.id);
+            }
+          }
+
+          return {
+            id: result.order_id,
+            order_code: result.order_code,
+            total_amount: orderData.total,
+            payment_method: orderData.payment_method,
+            created_at: result.created_at || new Date().toISOString(),
+          } as Order;
+      }
+
+      // Fallback: Direct Insert (Legacy/No Session)
       // Generate order code
       const { data: codeData } = await supabase.rpc('generate_order_code');
       
@@ -208,10 +290,6 @@ export default function POS() {
       });
 
       if (invNumError) throw invNumError;
-
-      const subtotal = calculateSubtotal(orderData.items);
-      const taxBreakdown = calculateTaxBreakdown(orderData.items);
-      const taxTotal = taxBreakdown.reduce((s, t) => s + t.amount, 0);
 
       // Create Invoice explicitly (Decoupled from Order)
       const { error: invoiceError } = await supabase
@@ -289,6 +367,7 @@ export default function POS() {
       setCustomerPhone('');
       setAmountTendered('');
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['active-pos-session'] });
     },
     onError: (error: Error) => {
       toast.error('Failed to create order: ' + error.message);

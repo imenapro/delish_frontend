@@ -84,6 +84,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const { data: shiftOrders } = useQuery({
     queryKey: ['shift-orders', session.id],
     queryFn: async () => {
+      // Use time-based query to match the report generation logic and catch all orders
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -138,7 +139,21 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
     return acc;
   }, 0) || 0;
 
-  const expectedCash = session.opening_cash + session.total_sales - totalCashRefunds;
+  // Calculate Total Cash Sales from shift orders (excluding other payment methods)
+  // We cannot rely on session.total_sales as it now includes all payment methods (Cash, Card, etc.)
+  const totalCashSales = shiftOrders?.reduce((acc, order) => {
+      if (order.payment_method === 'cash') {
+          return acc + Number(order.total_amount);
+      }
+      return acc;
+  }, 0) || 0;
+
+  // Calculate Total Sales from all orders to ensure consistency
+  // This overrides the potentially stale/incorrect value in pos_sessions table
+  const calculatedTotalSales = shiftOrders?.reduce((acc, order) => acc + Number(order.total_amount), 0) || 0;
+  const calculatedTotalOrders = shiftOrders?.length || 0;
+
+  const expectedCash = session.opening_cash + totalCashSales - totalCashRefunds;
   const closingCashNum = parseFloat(closingCash) || 0;
   const difference = closingCashNum - expectedCash;
 
@@ -241,6 +256,8 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
           expected_cash: expectedCash,
           notes: description,
           status: 'closed',
+          total_sales: calculatedTotalSales,
+          total_orders: calculatedTotalOrders
         })
         .eq('id', session.id);
 

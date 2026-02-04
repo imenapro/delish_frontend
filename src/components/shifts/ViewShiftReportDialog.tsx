@@ -61,6 +61,10 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
     queryKey: ['shift-orders', session?.id],
     queryFn: async () => {
       if (!session) return [];
+      
+      // We use a time-based query to ensure we catch all orders within the shift window,
+      // regardless of whether pos_session_id was correctly stamped (legacy support/redundancy).
+      // This matches the logic used in the PDF report generation.
       const { data, error } = await supabase
         .from('orders')
         .select(`
