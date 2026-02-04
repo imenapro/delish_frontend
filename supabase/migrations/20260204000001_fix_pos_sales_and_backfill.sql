@@ -1,6 +1,20 @@
 -- Fix process_pos_sale to include all payment methods in total_sales
 -- Also backfill historical total_sales data
 
+-- 0. Drop all existing variations of process_pos_sale to avoid ambiguous function calls
+DO $$ 
+DECLARE 
+    func_signature text;
+BEGIN 
+    FOR func_signature IN 
+        SELECT oid::regprocedure 
+        FROM pg_proc 
+        WHERE proname = 'process_pos_sale' 
+    LOOP 
+        EXECUTE 'DROP FUNCTION ' || func_signature; 
+    END LOOP; 
+END $$;
+
 -- 1. Redefine the function with the fix
 CREATE OR REPLACE FUNCTION process_pos_sale(
   p_shop_id UUID,

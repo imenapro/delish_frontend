@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { supabase } from '@/integrations/supabase/client';
+import { useStoreContext } from '@/contexts/StoreContext';
 import { toast } from 'sonner';
 import { Package, Plus, Trash2, Eye } from 'lucide-react';
 import {
@@ -30,19 +31,22 @@ export function ProductManagementDialog() {
   const [activeTab, setActiveTab] = useState('view');
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { store } = useStoreContext();
 
   const { data: products } = useQuery({
-    queryKey: ['products-all'],
+    queryKey: ['products-all', store?.id],
     queryFn: async () => {
+      if (!store?.id) return [];
       const { data, error } = await supabase
         .from('products')
         .select('*')
+        .eq('business_id', store.id)
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
       return data;
     },
-    enabled: isOpen,
+    enabled: isOpen && !!store?.id,
   });
 
   const [formData, setFormData] = useState({
@@ -56,6 +60,8 @@ export function ProductManagementDialog() {
 
   const addProductMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      if (!store?.id) throw new Error('Business ID not found');
+
       const { error } = await supabase.from('products').insert({
         name: data.name,
         category: data.category,
@@ -64,6 +70,7 @@ export function ProductManagementDialog() {
         barcode: data.barcode || null,
         image_url: data.image_url || null,
         is_active: true,
+        business_id: store.id,
       });
       if (error) throw error;
     },

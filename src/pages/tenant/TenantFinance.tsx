@@ -23,6 +23,21 @@ interface Expense {
   status: string;
 }
 
+interface SalesAnalytics {
+  global: {
+    daily: number;
+    weekly: number;
+    monthly: number;
+  };
+  shops: {
+    shop_id: string;
+    shop_name: string;
+    daily: number;
+    weekly: number;
+    monthly: number;
+  }[];
+}
+
 export default function TenantFinance() {
   const { store } = useStoreContext();
   const [period, setPeriod] = useState('this_month');
@@ -64,7 +79,18 @@ export default function TenantFinance() {
 
   const shopIds = shops.map(s => s.id);
 
-  // Fetch revenue from orders
+  const { data: analyticsData, isLoading: analyticsLoading } = useQuery({
+    queryKey: ['sales-analytics', store?.id],
+    queryFn: async () => {
+      if (!store?.id) return null;
+      const { data, error } = await supabase
+        .rpc('get_sales_analytics', { p_business_id: store.id });
+      if (error) throw error;
+      return data as unknown as SalesAnalytics;
+    },
+    enabled: !!store?.id,
+  });
+
   const { data: revenueData, isLoading: revenueLoading } = useQuery({
     queryKey: ['tenant-finance-revenue', store?.id, period, shopIds],
     queryFn: async () => {
@@ -145,6 +171,81 @@ export default function TenantFinance() {
         </Select>
       }
     >
+      {/* Global Sales Pulse */}
+      <div className="mb-8">
+        <h2 className="text-lg font-semibold mb-4">Global Sales Pulse</h2>
+        <div className="grid gap-6 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Daily Sales</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {analyticsLoading ? '...' : formatCurrency(analyticsData?.global?.daily || 0, currency)}
+              </div>
+              <p className="text-xs text-muted-foreground">Today</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Weekly Sales</CardTitle>
+              <TrendingUp className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {analyticsLoading ? '...' : formatCurrency(analyticsData?.global?.weekly || 0, currency)}
+              </div>
+              <p className="text-xs text-muted-foreground">This Week</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Monthly Sales</CardTitle>
+              <TrendingUp className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {analyticsLoading ? '...' : formatCurrency(analyticsData?.global?.monthly || 0, currency)}
+              </div>
+              <p className="text-xs text-muted-foreground">This Month</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Shop Performance */}
+      <div className="mb-8">
+        <h2 className="text-lg font-semibold mb-4">Shop Performance</h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {analyticsData?.shops?.map((shop) => (
+            <Card key={shop.shop_id}>
+              <CardHeader>
+                <CardTitle className="text-base">{shop.shop_name}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center border-b pb-2">
+                    <span className="text-sm text-muted-foreground">Daily</span>
+                    <span className="font-bold">{formatCurrency(shop.daily, currency)}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b pb-2">
+                    <span className="text-sm text-muted-foreground">Weekly</span>
+                    <span className="font-bold">{formatCurrency(shop.weekly, currency)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Monthly</span>
+                    <span className="font-bold">{formatCurrency(shop.monthly, currency)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold mb-4">Financial Overview (Selected Period)</h2>
       {/* Summary Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
         <Card>
@@ -213,6 +314,7 @@ export default function TenantFinance() {
             </p>
           </CardContent>
         </Card>
+      </div>
       </div>
 
       {/* Tabs for detailed view */}
