@@ -22,19 +22,18 @@ export default function Products() {
   const { data: products, isLoading } = useQuery({
     queryKey: ['products', store?.id],
     queryFn: async () => {
+      if (!store?.id) return [];
       const { data, error } = await supabase
         .from('products')
         .select('*')
+        .eq('business_id', store.id)
         .eq('is_active', true)
         .order('category, name');
-      
-      // Note: Store filtering will be implemented after database migration
-      // when store_id is added to products table
       
       if (error) throw error;
       return data;
     },
-    enabled: !storeSlug || !!store,
+    enabled: (!storeSlug || !!store) && !!store?.id,
   });
 
   const getProductIcon = (category: string) => {
