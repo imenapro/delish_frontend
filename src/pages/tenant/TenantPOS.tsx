@@ -177,7 +177,7 @@ export default function TenantPOS() {
   });
 
   const isAdminLike = roles.some(r =>
-    ['super_admin', 'admin', 'store_owner', 'branch_manager'].includes(r.role) &&
+    ['super_admin', 'admin', 'store_owner', 'branch_manager', 'accountant', 'manager'].includes(r.role) &&
     (r.business_id ? r.business_id === store?.id : true)
   );
 

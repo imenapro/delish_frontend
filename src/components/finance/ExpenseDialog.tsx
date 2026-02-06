@@ -28,15 +28,22 @@ export function ExpenseDialog() {
   });
 
   const { data: shops } = useQuery({
-    queryKey: ['shops'],
+    queryKey: ['shops', store?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('shops')
         .select('*')
         .eq('is_active', true);
+      
+      if (store?.id) {
+        query = query.eq('business_id', store.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
+    enabled: !!store?.id
   });
 
   const createExpenseMutation = useMutation({
@@ -58,6 +65,7 @@ export function ExpenseDialog() {
         description: "Expense has been recorded successfully.",
       });
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-finance-expenses'] });
       setOpen(false);
       setFormData({ shop_id: '', category: '', amount: '', description: '', expense_date: new Date().toISOString().split('T')[0] });
     },
