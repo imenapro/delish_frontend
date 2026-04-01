@@ -1,0 +1,309 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Layout } from "@/components/Layout";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "@/hooks/use-toast";
+import { Utensils, History, TrendingDown } from "lucide-react";
+import { format } from "date-fns";
+
+export const ProductionStockContent = () => {
+  const queryClient = useQueryClient();
+  const [isConsumeDialogOpen, setIsConsumeDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [consumeQuantity, setConsumeQuantity] = useState("");
+  const [consumeNotes, setConsumeNotes] = useState("");
+
+  const { data: productionStock, isLoading } = useQuery({
+    queryKey: ["production-stock"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("production_stock")
+        .select("*, factory_stock(item_name, category, unit)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const { data: usageMovements } = useQuery({
+    queryKey: ["usage-movements"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stock_movements")
+        .select("*, factory_stock(item_name, unit)")
+        .eq("movement_type", "usage")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const consumeMutation = useMutation({
+    mutationFn: async ({ productionStockId, factoryItemId, quantity, notes }: { 
+      productionStockId: string; 
+      factoryItemId: string;
+      quantity: number; 
+      notes: string 
+    }) => {
+      const { data: user } = await supabase.auth.getUser();
+
+      const { data: currentStock } = await supabase
+        .from("production_stock")
+        .select("quantity")
+        .eq("id", productionStockId)
+        .single();
+
+      if (!currentStock || currentStock.quantity < quantity) {
+        throw new Error("Insufficient stock in production");
+      }
+
+      const { error: updateError } = await supabase
+        .from("production_stock")
+        .update({ quantity: currentStock.quantity - quantity })
+        .eq("id", productionStockId);
+
+      if (updateError) throw updateError;
+
+      await supabase.from("stock_movements").insert({
+        factory_item_id: factoryItemId,
+        movement_type: "usage",
+        quantity: quantity,
+        from_stock: "production",
+        notes: notes || "Production consumption",
+        created_by: user.user?.id
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["production-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["usage-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
+      toast({ title: "Consumption recorded successfully" });
+      setIsConsumeDialogOpen(false);
+      setConsumeQuantity("");
+      setConsumeNotes("");
+      setSelectedItem(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error recording consumption", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const totalItems = productionStock?.length || 0;
+  const totalUsageToday = usageMovements?.filter(
+    (m) => format(new Date(m.created_at), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
+  ).length || 0;
+
+  return (
+    <div className="p-6 space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Production Stock</h1>
+            <p className="text-muted-foreground">Usage & Consumption Tracking</p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Items in Production</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{totalItems}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Usage Today</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{totalUsageToday}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Movements</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{usageMovements?.length || 0}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Utensils className="w-5 h-5" />
+                Production Inventory
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <p className="text-center py-4 text-muted-foreground">Loading...</p>
+              ) : productionStock?.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">
+                    No items in production stock. Transfer materials from Factory Stock to get started.
+                  </p>
+                  <Button variant="outline" onClick={() => window.location.href = "/factory-stock"}>
+                    Go to Factory Stock
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Available Quantity</TableHead>
+                      <TableHead>Unit</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {productionStock?.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">
+                          {(item.factory_stock as any)?.item_name}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">
+                            {(item.factory_stock as any)?.category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className={item.quantity <= 0 ? "text-destructive font-bold" : ""}>
+                            {item.quantity}
+                          </span>
+                        </TableCell>
+                        <TableCell>{(item.factory_stock as any)?.unit}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedItem(item);
+                              setIsConsumeDialogOpen(true);
+                            }}
+                            disabled={item.quantity <= 0}
+                          >
+                            <TrendingDown className="w-4 h-4 mr-1" />
+                            Use
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="w-5 h-5" />
+                Consumption History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {usageMovements?.length === 0 ? (
+                <p className="text-center py-4 text-muted-foreground">No consumption recorded yet.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Quantity Used</TableHead>
+                      <TableHead>Unit</TableHead>
+                      <TableHead>Notes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {usageMovements?.map((movement) => (
+                      <TableRow key={movement.id}>
+                        <TableCell>
+                          {format(new Date(movement.created_at), "MMM dd, yyyy HH:mm")}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {(movement.factory_stock as any)?.item_name}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="destructive">-{movement.quantity}</Badge>
+                        </TableCell>
+                        <TableCell>{(movement.factory_stock as any)?.unit}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {movement.notes || "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Dialog open={isConsumeDialogOpen} onOpenChange={setIsConsumeDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  Record Usage - {(selectedItem?.factory_stock as any)?.item_name}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Available: {selectedItem?.quantity} {(selectedItem?.factory_stock as any)?.unit}
+                </p>
+                <div>
+                  <Label>Quantity Used ({(selectedItem?.factory_stock as any)?.unit})</Label>
+                  <Input
+                    type="number"
+                    value={consumeQuantity}
+                    onChange={(e) => setConsumeQuantity(e.target.value)}
+                    placeholder="Enter quantity consumed"
+                    max={selectedItem?.quantity}
+                  />
+                </div>
+                <div>
+                  <Label>Notes (optional)</Label>
+                  <Input
+                    value={consumeNotes}
+                    onChange={(e) => setConsumeNotes(e.target.value)}
+                    placeholder="e.g., Used for morning batch"
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => consumeMutation.mutate({
+                    productionStockId: selectedItem?.id,
+                    factoryItemId: selectedItem?.factory_item_id,
+                    quantity: parseFloat(consumeQuantity),
+                    notes: consumeNotes
+                  })}
+                  disabled={!consumeQuantity || parseFloat(consumeQuantity) <= 0 || parseFloat(consumeQuantity) > selectedItem?.quantity}
+                >
+                  Record Consumption
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+    </div>
+  );
+};
+
+const ProductionStock = () => (
+  <ProtectedRoute requiredPermission="production_stock.access">
+    <Layout>
+      <ProductionStockContent />
+    </Layout>
+  </ProtectedRoute>
+);
+
+export default ProductionStock;

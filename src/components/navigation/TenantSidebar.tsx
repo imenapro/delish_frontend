@@ -25,6 +25,9 @@ import {
   MessageSquare, 
   Wallet,
   LogOut,
+  Factory,
+  Utensils,
+  FileBarChart,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -64,6 +67,9 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
     LogOut,
     ClipboardList,
     Receipt,
+    Factory,
+    Utensils,
+    FileBarChart,
   };
 
   const navigationItems = menus.map(menu => ({

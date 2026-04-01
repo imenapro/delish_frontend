@@ -21,6 +21,13 @@ import { FaviconManager } from "@/components/FaviconManager";
 import { TenantRoutes } from "./TenantRoutes";
 import { isCustomDomain } from "./utils/domainMapping";
 
+import Warehouse from "./pages/Warehouse";
+import ProductionStock from "./pages/ProductionStock";
+import StockReports from "./pages/StockReports";
+import Suppliers from "./pages/Suppliers";
+import Recipes from "./pages/Recipes";
+import FinishedProducts from "./pages/FinishedProducts";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -92,6 +99,14 @@ const App = () => {
                   <Route path="*" element={<NotFound />} />
                 </>
               )}
+
+                <Route path="/warehouse" element={<Warehouse />} />
+                <Route path="/production-stock" element={<ProductionStock />} />
+                <Route path="/stock-reports" element={<StockReports />} />
+                <Route path="/suppliers" element={<Suppliers />} />
+                <Route path="/recipes" element={<Recipes />} />
+                <Route path="/finished-products" element={<FinishedProducts />} />
+
             </Routes>
           </StoreProvider>
         </AuthProvider>

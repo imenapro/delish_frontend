@@ -2,6 +2,12 @@ import React from "react";
 import { Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import TenantDashboard from "./pages/TenantDashboard";
+import { WarehouseContent } from "./pages/Warehouse";
+import { StockReportsContent } from "./pages/StockReports";
+import { RecipesContent } from "./pages/Recipes";
+import { ProductionStockContent } from "./pages/ProductionStock";
+import { FinishedProductsContent } from "./pages/FinishedProducts";
+import { SuppliersContent } from "./pages/Suppliers";
 import {
   TenantPOS,
   TenantShops,
@@ -61,5 +67,53 @@ export const TenantRoutes = (
     <Route path="admin" element={<TenantAdmin />} />
     <Route path="chat" element={<TenantChat />} />
     <Route path="wallet" element={<TenantWallet />} />
+    <Route
+      path="warehouse"
+      element={
+        <ProtectedRoute requiredPermission="warehouse.access">
+          <WarehouseContent />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="suppliers"
+      element={
+        <ProtectedRoute requiredPermission="suppliers.access">
+          <SuppliersContent />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="recipes"
+      element={
+        <ProtectedRoute requiredPermission="recipes.access">
+          <RecipesContent />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="production-stock"
+      element={
+        <ProtectedRoute requiredPermission="production_stock.access">
+          <ProductionStockContent />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="finished-products"
+      element={
+        <ProtectedRoute requiredPermission="finished_products.access">
+          <FinishedProductsContent />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="stock-reports"
+      element={
+        <ProtectedRoute requiredPermission="stock_reports.access">
+          <StockReportsContent />
+        </ProtectedRoute>
+      }
+    />
   </>
 );

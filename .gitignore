@@ -24,7 +24,8 @@ dist-ssr
 *.sw?
 
 # All ignored file that am not sure will be needed in the future
-.env.example
+.env
+.env.*
 backup.sql
 *.csv
 scripts/

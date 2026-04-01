@@ -14,6 +14,10 @@ import {
   LogOut,
   ChefHat,
   Shield,
+  Factory,
+  Utensils,
+  Users,
+  FileBarChart,
   CreditCard,
   DollarSign,
   Calendar,
@@ -51,6 +55,14 @@ export function Layout({ children }: LayoutProps) {
     { name: 'Delivery', href: '/delivery', icon: Truck, show: hasRole('delivery') || isAdmin || hasRole('super_admin') },
     { name: 'Chat', href: '/chat', icon: MessageSquare, show: true },
     { name: 'Wallet', href: '/wallet', icon: Wallet, show: true },
+
+    { name: 'Warehouse', href: '/warehouse', icon: Factory, show: hasRole('manager') || hasRole('branch_manager') || isAdmin || hasRole('super_admin')},
+    { name: 'Recipes (BOM)', href: '/recipes', icon: Utensils, show: hasRole('manager') || isAdmin },
+    { name: 'Production', href: '/production-stock', icon: ChefHat, show: hasRole('manager') || isAdmin },
+    { name: 'Finished Products', href: '/finished-products', icon: Package, show: hasRole('manager') || isAdmin },
+    { name: 'Suppliers', href: '/suppliers', icon: Users, show: hasRole('manager') || isAdmin },
+    { name: 'Stock Reports', href: '/stock-reports', icon: FileBarChart, show: hasRole('manager') || isAdmin },
+
   ];
 
   const getInitials = () => {
@@ -116,7 +128,9 @@ export function Layout({ children }: LayoutProps) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={signOut}
+              onClick={() => {
+                void signOut();
+              }}
               title="Sign out"
             >
               <LogOut className="h-5 w-5" />
