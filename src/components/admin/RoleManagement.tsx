@@ -209,6 +209,7 @@ export function RoleManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['roles'] });
       queryClient.invalidateQueries({ queryKey: ['role_permissions'] });
+      queryClient.invalidateQueries({ queryKey: ['menus'] });
       setIsEditDialogOpen(false);
       toast.success('Role updated successfully');
     },

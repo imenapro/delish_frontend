@@ -110,6 +110,7 @@ export function MenuManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menus_admin'] });
+      queryClient.invalidateQueries({ queryKey: ['menus'] });
       setIsDialogOpen(false);
       resetForm();
       toast.success(selectedMenu ? 'Menu updated' : 'Menu created');
@@ -126,6 +127,7 @@ export function MenuManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menus_admin'] });
+      queryClient.invalidateQueries({ queryKey: ['menus'] });
       toast.success('Menu deleted');
     },
     onError: (error) => {
@@ -191,30 +193,71 @@ export function MenuManagement() {
         </Button>
       </div>
 
-      <div className="rounded-md border overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Label</TableHead>
-              <TableHead>Path</TableHead>
-              <TableHead>Icon</TableHead>
-              <TableHead>Parent</TableHead>
-              <TableHead>Permission</TableHead>
-              <TableHead>Sort</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+      <div className="hidden md:block rounded-md border">
+        <div className="max-h-[60vh] overflow-auto scroll-smooth">
+          <Table>
+            <TableHeader className="sticky top-0 bg-card z-10">
+              <TableRow>
+                <TableHead>Label</TableHead>
+                <TableHead>Path</TableHead>
+                <TableHead>Icon</TableHead>
+                <TableHead>Parent</TableHead>
+                <TableHead>Permission</TableHead>
+                <TableHead>Sort</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
               {menus.map((menu) => (
                 <TableRow key={menu.id}>
-                <TableCell className="font-medium">{menu.label}</TableCell>
-                <TableCell>{menu.path}</TableCell>
-                <TableCell>{menu.icon}</TableCell>
-                <TableCell>{getParentLabel(menu.parent_id)}</TableCell>
-                <TableCell>{getPermissionCode(menu.permission_required_id)}</TableCell>
-                <TableCell>{menu.sort_order}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
+                  <TableCell className="font-medium">{menu.label}</TableCell>
+                  <TableCell className="max-w-[240px] truncate">{menu.path}</TableCell>
+                  <TableCell>{menu.icon}</TableCell>
+                  <TableCell>{getParentLabel(menu.parent_id)}</TableCell>
+                  <TableCell>{getPermissionCode(menu.permission_required_id)}</TableCell>
+                  <TableCell>{menu.sort_order}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(menu)}
+                        aria-label={`Edit menu item ${menu.label}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          if (confirm('Are you sure you want to delete this menu item?')) {
+                            deleteMenuMutation.mutate(menu.id);
+                          }
+                        }}
+                        aria-label={`Delete menu item ${menu.label}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <div className="md:hidden space-y-3">
+        <div className="max-h-[60vh] overflow-auto scroll-smooth pr-1">
+          <div className="space-y-3">
+            {menus.map((menu) => (
+              <div key={menu.id} className="rounded-md border bg-card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{menu.label}</div>
+                    <div className="text-xs text-muted-foreground truncate">{menu.path}</div>
+                  </div>
+                  <div className="flex gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -236,21 +279,39 @@ export function MenuManagement() {
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
-                </TableCell>
-              </TableRow>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <div className="text-muted-foreground">Icon</div>
+                    <div className="truncate">{menu.icon || '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Sort</div>
+                    <div>{menu.sort_order}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-muted-foreground">Permission</div>
+                    <div className="truncate">{getPermissionCode(menu.permission_required_id)}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-muted-foreground">Parent</div>
+                    <div className="truncate">{getParentLabel(menu.parent_id)}</div>
+                  </div>
+                </div>
+              </div>
             ))}
-          </TableBody>
-        </Table>
+          </div>
+        </div>
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent aria-label={selectedMenu ? 'Edit menu item' : 'Add menu item'}>
+        <DialogContent aria-label={selectedMenu ? 'Edit menu item' : 'Add menu item'} className="max-h-[85vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>{selectedMenu ? 'Edit Menu' : 'Add Menu'}</DialogTitle>
             <DialogDescription>Configure navigation menu item.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <label>Label</label>
                 <Input value={label} onChange={(e) => setLabel(e.target.value)} />
@@ -261,7 +322,7 @@ export function MenuManagement() {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                <div className="grid gap-2">
                 <label>Icon (Lucide Name)</label>
                 <Input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="e.g. Home" />

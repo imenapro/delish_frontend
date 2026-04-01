@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,45 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useStoreContext } from "@/contexts/StoreContext";
+import { formatCurrency } from "@/utils/currency";
 import { Plus, Package, AlertTriangle, TrendingUp, Check, X, Truck } from "lucide-react";
+
+type SupplierRow = {
+  id: string;
+  name: string;
+  is_active?: boolean | null;
+};
+
+type FactoryStockRow = {
+  id: string;
+  item_name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  supplier?: string | null;
+  supplier_id?: string | null;
+  purchase_price?: number | null;
+  min_stock_level?: number | null;
+};
+
+type MaterialRequestStatus = "pending" | "approved" | "rejected" | string;
+
+type MaterialRequestRow = {
+  id: string;
+  warehouse_item_id: string | null;
+  quantity_requested: number;
+  status: MaterialRequestStatus;
+  created_at: string | null;
+  rejected_reason?: string | null;
+  factory_stock?: Pick<FactoryStockRow, "id" | "item_name" | "unit" | "quantity"> | null;
+};
 
 export const WarehouseContent = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { store } = useStoreContext();
+  const currency = useMemo(() => (store?.currency || "RWF").trim().toUpperCase(), [store?.currency]);
   const [isAddStockOpen, setIsAddStockOpen] = useState(false);
   const [newStock, setNewStock] = useState({
     item_name: "",
@@ -31,44 +65,133 @@ export const WarehouseContent = () => {
     min_stock_level: 0,
   });
 
+  const getErrorMessage = (err: unknown): string => {
+    if (err instanceof Error) return err.message;
+    if (err && typeof err === "object" && "message" in err) {
+      const msg = (err as { message?: unknown }).message;
+      if (typeof msg === "string") return msg;
+    }
+    return "Unknown error";
+  };
+
   // Fetch warehouse stock
   const { data: warehouseStock = [], isLoading: stockLoading } = useQuery({
     queryKey: ["warehouse-stock"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("factory_stock")
-        .select("*, suppliers(name)")
-        .order("item_name");
-      if (error) throw error;
-      return data;
+      if (!store?.id) return [] as FactoryStockRow[];
+      try {
+        const filtered = await supabase
+          .from("factory_stock")
+          .select("*")
+          .eq("business_id", store.id)
+          .order("item_name");
+
+        if (!filtered.error) return (filtered.data ?? []) as FactoryStockRow[];
+
+        const fallback = await supabase
+          .from("factory_stock")
+          .select("*")
+          .order("item_name");
+        if (fallback.error) throw fallback.error;
+        return (fallback.data ?? []) as FactoryStockRow[];
+      } catch (err) {
+        toast({ title: "Failed to load warehouse stock", description: getErrorMessage(err), variant: "destructive" });
+        return [] as FactoryStockRow[];
+      }
     },
+    retry: false,
+    enabled: !!store?.id,
   });
 
   // Fetch suppliers for dropdown
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      return data;
+      if (!store?.id) return [] as SupplierRow[];
+      try {
+        const filtered = await supabase
+          .from("suppliers")
+          .select("*")
+          .eq("business_id", store.id)
+          .eq("is_active", true)
+          .order("name");
+
+        if (!filtered.error) return (filtered.data ?? []) as SupplierRow[];
+
+        const fallback = await supabase
+          .from("suppliers")
+          .select("*")
+          .eq("is_active", true)
+          .order("name");
+        if (fallback.error) throw fallback.error;
+        return (fallback.data ?? []) as SupplierRow[];
+      } catch (err) {
+        toast({ title: "Failed to load suppliers", description: getErrorMessage(err), variant: "destructive" });
+        return [] as SupplierRow[];
+      }
     },
+    retry: false,
+    enabled: !!store?.id,
   });
 
   // Fetch pending material requests
   const { data: materialRequests = [], isLoading: requestsLoading } = useQuery({
     queryKey: ["material-requests"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("material_requests")
-        .select("*, factory_stock(item_name, unit, quantity)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
+      if (!store?.id) return [] as MaterialRequestRow[];
+      try {
+        const filtered = await supabase
+          .from("material_requests")
+          .select("*")
+          .eq("business_id", store.id)
+          .order("created_at", { ascending: false });
+
+        const base = filtered.error
+          ? await supabase.from("material_requests").select("*").order("created_at", { ascending: false })
+          : filtered;
+
+        if (base.error) throw base.error;
+
+        const requests = (base.data ?? []) as MaterialRequestRow[];
+        const warehouseItemIds = Array.from(
+          new Set(
+            requests
+              .map((r) => r.warehouse_item_id)
+              .filter((id): id is string => typeof id === "string" && id.length > 0)
+          )
+        );
+
+        if (warehouseItemIds.length === 0) {
+          return requests;
+        }
+
+        const filteredStock = await supabase
+          .from("factory_stock")
+          .select("id, item_name, unit, quantity")
+          .eq("business_id", store.id)
+          .in("id", warehouseItemIds);
+
+        const stockBase = filteredStock.error
+          ? await supabase.from("factory_stock").select("id, item_name, unit, quantity").in("id", warehouseItemIds)
+          : filteredStock;
+
+        if (stockBase.error) throw stockBase.error;
+
+        const stockById = new Map(
+          ((stockBase.data ?? []) as Array<Pick<FactoryStockRow, "id" | "item_name" | "unit" | "quantity">>).map((s) => [s.id, s])
+        );
+
+        return requests.map((r) => ({
+          ...r,
+          factory_stock: r.warehouse_item_id ? (stockById.get(r.warehouse_item_id) ?? null) : null,
+        }));
+      } catch (err) {
+        toast({ title: "Failed to load material requests", description: getErrorMessage(err), variant: "destructive" });
+        return [] as MaterialRequestRow[];
+      }
     },
+    retry: false,
+    enabled: !!store?.id,
   });
 
   // Add new stock mutation
@@ -102,7 +225,7 @@ export const WarehouseContent = () => {
       toast({ title: "Stock added successfully" });
     },
     onError: (error) => {
-      toast({ title: "Error adding stock", description: error.message, variant: "destructive" });
+      toast({ title: "Error adding stock", description: getErrorMessage(error), variant: "destructive" });
     },
   });
 
@@ -122,9 +245,9 @@ export const WarehouseContent = () => {
 
       // If approved, deduct from warehouse stock
       if (status === "approved") {
-        const request = materialRequests.find(r => r.id === requestId);
+        const request = materialRequests.find((r) => r.id === requestId);
         if (request) {
-          const currentStock = warehouseStock.find(s => s.id === request.warehouse_item_id);
+          const currentStock = warehouseStock.find((s) => s.id === request.warehouse_item_id);
           if (currentStock) {
             const newQuantity = currentStock.quantity - request.quantity_requested;
             const { error: stockError } = await supabase
@@ -142,7 +265,7 @@ export const WarehouseContent = () => {
       toast({ title: "Request updated successfully" });
     },
     onError: (error) => {
-      toast({ title: "Error updating request", description: error.message, variant: "destructive" });
+      toast({ title: "Error updating request", description: getErrorMessage(error), variant: "destructive" });
     },
   });
 
@@ -166,7 +289,7 @@ export const WarehouseContent = () => {
   };
 
   const handleSupplierChange = (supplierId: string) => {
-    const supplier = suppliers.find(s => s.id === supplierId);
+    const supplier = suppliers.find((s) => s.id === supplierId);
     setNewStock({
       ...newStock,
       supplier_id: supplierId,
@@ -312,7 +435,7 @@ export const WarehouseContent = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${totalStockValue.toFixed(2)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(totalStockValue, currency)}</div>
             </CardContent>
           </Card>
           <Card>
@@ -379,8 +502,8 @@ export const WarehouseContent = () => {
                           <TableCell>{item.quantity}</TableCell>
                           <TableCell>{item.unit}</TableCell>
                           <TableCell>{item.supplier || "-"}</TableCell>
-                          <TableCell>${item.purchase_price?.toFixed(2) || "0.00"}</TableCell>
-                          <TableCell>${(item.quantity * (item.purchase_price || 0)).toFixed(2)}</TableCell>
+                          <TableCell>{formatCurrency(item.purchase_price || 0, currency)}</TableCell>
+                          <TableCell>{formatCurrency(item.quantity * (item.purchase_price || 0), currency)}</TableCell>
                           <TableCell>
                             {item.min_stock_level && item.quantity <= item.min_stock_level ? (
                               <Badge variant="destructive">Low Stock</Badge>
@@ -426,10 +549,10 @@ export const WarehouseContent = () => {
                             {request.factory_stock?.item_name || "Unknown"}
                           </TableCell>
                           <TableCell>
-                            {request.quantity_requested} {request.factory_stock?.unit}
+                            {request.quantity_requested} {request.factory_stock?.unit || "-"}
                           </TableCell>
                           <TableCell>
-                            {request.factory_stock?.quantity} {request.factory_stock?.unit}
+                            {request.factory_stock?.quantity ?? "-"} {request.factory_stock?.unit || ""}
                             {request.factory_stock && request.quantity_requested > request.factory_stock.quantity && (
                               <Badge variant="destructive" className="ml-2">Insufficient</Badge>
                             )}
@@ -448,7 +571,7 @@ export const WarehouseContent = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {new Date(request.created_at).toLocaleDateString()}
+                            {request.created_at ? new Date(request.created_at).toLocaleDateString() : "-"}
                           </TableCell>
                           <TableCell>
                             {request.status === "pending" && (
