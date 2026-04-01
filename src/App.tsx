@@ -17,6 +17,7 @@ import TenantAuth from "./pages/TenantAuth";
 import NotFound from "./pages/NotFound";
 import PublicInvoice from "./pages/PublicInvoice";
 import { TenantLayout } from "./components/TenantLayout";
+import { FaviconManager } from "@/components/FaviconManager";
 import { TenantRoutes } from "./TenantRoutes";
 import { isCustomDomain } from "./utils/domainMapping";
 
@@ -41,6 +42,7 @@ const App = () => {
       <BrowserRouter>
         <AuthProvider>
           <StoreProvider>
+            <FaviconManager />
             <Routes>
               {/* Public Invoice Route - Accessible on all domains */}
               <Route path="/i/:shortId" element={<PublicInvoice />} />
