@@ -17,7 +17,7 @@ END $$;
 
 -- 2. Redefine helper functions safely
 
--- is_business_owner: Checks against businesses table owner_id
+-- is_business_owner: Checks user_roles for store_owner or Owner role with matching business_id
 CREATE OR REPLACE FUNCTION public.is_business_owner(_user_id UUID, _business_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -61,7 +61,7 @@ BEGIN
     SELECT 1 FROM public.user_roles
     WHERE user_id = _user_id
     AND business_id = _business_id
-    AND role::text IN ('branch_manager', 'store_owner', 'admin')
+    AND role::text IN ('branch_manager', 'store_owner', 'Owner', 'admin')
   );
 END;
 $$;

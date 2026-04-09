@@ -34,6 +34,7 @@ USING (
   OR has_role(auth.uid(), 'super_admin'::app_role)
   OR has_role(auth.uid(), 'admin'::app_role)
   OR has_role(auth.uid(), 'store_owner'::app_role)
+  OR has_role(auth.uid(), 'Owner'::app_role)
   OR has_role(auth.uid(), 'branch_manager'::app_role)
   OR has_business_access(auth.uid(), business_id)
 );

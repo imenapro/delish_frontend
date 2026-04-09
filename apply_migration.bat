@@ -1,6 +1,5 @@
 @echo off
 echo Linking Supabase Project...
-cd bake-sync\bake-sync
 call npx supabase link --project-ref hjaiwwoxuympbvjmakpa
 if %errorlevel% neq 0 (
     echo.

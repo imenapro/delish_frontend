@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Phone, Clock, Edit, MoreHorizontal, Users, Package, Trash2 } from 'lucide-react';
+import { MapPin, Phone, Clock, Edit, MoreHorizontal, Users, Package, Trash2, Star } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface Shop {
@@ -11,6 +11,7 @@ interface Shop {
   phone?: string;
   open_hours?: string;
   is_active: boolean;
+  is_primary?: boolean;
   logo_url?: string;
   staff_count?: number;
   product_count?: number;
@@ -21,9 +22,10 @@ interface ShopCardProps {
   onEdit?: (shop: Shop) => void;
   onViewDetails?: (shop: Shop) => void;
    onDelete?: (shop: Shop) => void;
+   onSetPrimary?: (shop: Shop) => void;
 }
 
-export function ShopCard({ shop, onEdit, onViewDetails, onDelete }: ShopCardProps) {
+export function ShopCard({ shop, onEdit, onViewDetails, onDelete, onSetPrimary }: ShopCardProps) {
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
@@ -38,10 +40,20 @@ export function ShopCard({ shop, onEdit, onViewDetails, onDelete }: ShopCardProp
             )}
           </div>
           <div>
-            <CardTitle className="text-lg">{shop.name}</CardTitle>
-            <Badge variant={shop.is_active ? 'secondary' : 'destructive'} className="mt-1">
-              {shop.is_active ? 'Active' : 'Inactive'}
-            </Badge>
+            <CardTitle className="text-lg flex items-center gap-2">
+              {shop.name}
+              {shop.is_primary && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
+            </CardTitle>
+            <div className="flex gap-2 mt-1">
+              <Badge variant={shop.is_active ? 'secondary' : 'destructive'}>
+                {shop.is_active ? 'Active' : 'Inactive'}
+              </Badge>
+              {shop.is_primary && (
+                <Badge variant="default" className="bg-yellow-500 text-yellow-900">
+                  Primary
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
         <DropdownMenu>
@@ -60,6 +72,12 @@ export function ShopCard({ shop, onEdit, onViewDetails, onDelete }: ShopCardProp
             {onViewDetails && (
               <DropdownMenuItem onClick={() => onViewDetails(shop)}>
                 View Details
+              </DropdownMenuItem>
+            )}
+            {onSetPrimary && !shop.is_primary && (
+              <DropdownMenuItem onClick={() => onSetPrimary(shop)}>
+                <Star className="mr-2 h-4 w-4" />
+                Set as Primary
               </DropdownMenuItem>
             )}
             {onDelete && (

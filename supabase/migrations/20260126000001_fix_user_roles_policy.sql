@@ -32,5 +32,6 @@ ON public.user_roles
 FOR ALL
 USING (
   business_id IS NOT NULL AND
-  public.check_user_role_for_business(auth.uid(), 'store_owner', business_id)
+  (public.check_user_role_for_business(auth.uid(), 'store_owner', business_id)
+   OR public.check_user_role_for_business(auth.uid(), 'Owner', business_id))
 );

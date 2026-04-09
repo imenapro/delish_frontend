@@ -39,7 +39,7 @@ BEGIN
     SELECT 1 FROM public.user_roles
     WHERE user_id = _user_id
     AND business_id = _business_id
-    AND role::text IN ('branch_manager', 'store_owner', 'admin')
+    AND role::text IN ('branch_manager', 'store_owner', 'Owner', 'admin')
   );
 END;
 $$;

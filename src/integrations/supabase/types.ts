@@ -1423,6 +1423,7 @@ export type Database = {
           grace_period_days: number | null
           id: string
           is_active: boolean | null
+          is_primary: boolean | null
           locale: string | null
           logo_url: string | null
           name: string
@@ -1450,6 +1451,7 @@ export type Database = {
           grace_period_days?: number | null
           id?: string
           is_active?: boolean | null
+          is_primary?: boolean | null
           locale?: string | null
           logo_url?: string | null
           name: string
@@ -1477,6 +1479,7 @@ export type Database = {
           grace_period_days?: number | null
           id?: string
           is_active?: boolean | null
+          is_primary?: boolean | null
           locale?: string | null
           logo_url?: string | null
           name?: string

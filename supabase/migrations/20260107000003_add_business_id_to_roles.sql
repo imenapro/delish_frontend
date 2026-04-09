@@ -33,7 +33,7 @@ USING (
             SELECT 1 FROM public.user_roles
             WHERE user_id = auth.uid()
             AND business_id = roles.business_id
-            AND role IN ('admin', 'super_admin', 'store_owner')
+            AND role IN ('admin', 'super_admin', 'store_owner', 'Owner')
         )
         OR
         EXISTS (
@@ -49,7 +49,7 @@ WITH CHECK (
             SELECT 1 FROM public.user_roles
             WHERE user_id = auth.uid()
             AND business_id = roles.business_id
-            AND role IN ('admin', 'super_admin', 'store_owner')
+            AND role IN ('admin', 'super_admin', 'store_owner', 'Owner')
         )
         OR
         EXISTS (

@@ -33,6 +33,7 @@ USING (
     SELECT 1 FROM public.user_roles ur
     WHERE ur.user_id = auth.uid()
     AND ur.role::text = 'store_owner' -- Explicit cast to text prevents type mismatch errors
+    OR ur.role::text = 'Owner' -- Also check Owner role
     AND ur.business_id = public.shops.business_id
   )
   OR
@@ -110,7 +111,7 @@ USING (
     SELECT 1 FROM public.user_roles ur
     WHERE ur.user_id = auth.uid()
     AND ur.business_id = public.products.business_id
-    AND ur.role::text IN ('store_owner', 'admin', 'branch_manager')
+    AND ur.role::text IN ('store_owner', 'Owner', 'admin', 'branch_manager')
   )
   OR
   -- Staff with assigned shop that belongs to the product's business

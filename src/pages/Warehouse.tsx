@@ -36,16 +36,28 @@ type FactoryStockRow = {
   min_stock_level?: number | null;
 };
 
-type MaterialRequestStatus = "pending" | "approved" | "rejected" | string;
-
-type MaterialRequestRow = {
+type WarehouseRequestRow = {
   id: string;
-  warehouse_item_id: string | null;
-  quantity_requested: number;
-  status: MaterialRequestStatus;
-  created_at: string | null;
-  rejected_reason?: string | null;
-  factory_stock?: Pick<FactoryStockRow, "id" | "item_name" | "unit" | "quantity"> | null;
+  business_id: string;
+  shop_id?: string | null;
+  requested_by: string;
+  requested_at: string;
+  item_name: string;
+  quantity: number;
+  unit: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approved_by?: string | null;
+  approved_at?: string | null;
+  rejected_by?: string | null;
+  rejected_at?: string | null;
+  expense_id?: string | null;
+  complaint?: string | null;
+  complaint_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 export const WarehouseContent = () => {
@@ -63,6 +75,15 @@ export const WarehouseContent = () => {
     supplier_id: "",
     purchase_price: 0,
     min_stock_level: 0,
+  });
+
+  const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<WarehouseRequestRow | null>(null);
+  const [newRequest, setNewRequest] = useState({
+    item_name: "",
+    quantity: 0,
+    unit: "pieces",
+    reason: "",
   });
 
   const getErrorMessage = (err: unknown): string => {
@@ -134,60 +155,24 @@ export const WarehouseContent = () => {
     enabled: !!store?.id,
   });
 
-  // Fetch pending material requests
-  const { data: materialRequests = [], isLoading: requestsLoading } = useQuery({
-    queryKey: ["material-requests"],
+  // Fetch warehouse requests
+  const { data: warehouseRequests = [], isLoading: requestsLoading } = useQuery({
+    queryKey: ["warehouse-requests"],
     queryFn: async () => {
-      if (!store?.id) return [] as MaterialRequestRow[];
+      if (!store?.id) return [] as WarehouseRequestRow[];
       try {
-        const filtered = await supabase
-          .from("material_requests")
+        const { data, error } = await supabase
+          .from("warehouse_requests")
           .select("*")
           .eq("business_id", store.id)
-          .order("created_at", { ascending: false });
+          .is("deleted_at", null)
+          .order("requested_at", { ascending: false });
 
-        const base = filtered.error
-          ? await supabase.from("material_requests").select("*").order("created_at", { ascending: false })
-          : filtered;
-
-        if (base.error) throw base.error;
-
-        const requests = (base.data ?? []) as MaterialRequestRow[];
-        const warehouseItemIds = Array.from(
-          new Set(
-            requests
-              .map((r) => r.warehouse_item_id)
-              .filter((id): id is string => typeof id === "string" && id.length > 0)
-          )
-        );
-
-        if (warehouseItemIds.length === 0) {
-          return requests;
-        }
-
-        const filteredStock = await supabase
-          .from("factory_stock")
-          .select("id, item_name, unit, quantity")
-          .eq("business_id", store.id)
-          .in("id", warehouseItemIds);
-
-        const stockBase = filteredStock.error
-          ? await supabase.from("factory_stock").select("id, item_name, unit, quantity").in("id", warehouseItemIds)
-          : filteredStock;
-
-        if (stockBase.error) throw stockBase.error;
-
-        const stockById = new Map(
-          ((stockBase.data ?? []) as Array<Pick<FactoryStockRow, "id" | "item_name" | "unit" | "quantity">>).map((s) => [s.id, s])
-        );
-
-        return requests.map((r) => ({
-          ...r,
-          factory_stock: r.warehouse_item_id ? (stockById.get(r.warehouse_item_id) ?? null) : null,
-        }));
+        if (error) throw error;
+        return (data ?? []) as WarehouseRequestRow[];
       } catch (err) {
-        toast({ title: "Failed to load material requests", description: getErrorMessage(err), variant: "destructive" });
-        return [] as MaterialRequestRow[];
+        toast({ title: "Failed to load warehouse requests", description: getErrorMessage(err), variant: "destructive" });
+        return [] as WarehouseRequestRow[];
       }
     },
     retry: false,
@@ -197,7 +182,12 @@ export const WarehouseContent = () => {
   // Add new stock mutation
   const addStockMutation = useMutation({
     mutationFn: async (stockData: typeof newStock) => {
-      const { error } = await supabase.from("factory_stock").insert({
+      if (!store?.id) {
+        throw new Error("No active business selected");
+      }
+
+      const payloadWithBusinessId: Record<string, unknown> = {
+        business_id: store.id,
         item_name: stockData.item_name,
         category: stockData.category,
         quantity: stockData.quantity,
@@ -206,8 +196,33 @@ export const WarehouseContent = () => {
         supplier_id: stockData.supplier_id || null,
         purchase_price: stockData.purchase_price,
         min_stock_level: stockData.min_stock_level,
-      });
-      if (error) throw error;
+      };
+
+      const first = await supabase.from("factory_stock").insert(payloadWithBusinessId);
+      if (!first.error) return;
+
+      const msg = getErrorMessage(first.error);
+      const errCode =
+        first.error && typeof first.error === "object" && "code" in first.error ? (first.error as { code?: unknown }).code : undefined;
+      const columnMissing =
+        errCode === "PGRST204" ||
+        (typeof msg === "string" && msg.toLowerCase().includes("business_id") && msg.toLowerCase().includes("could not find")) ||
+        (typeof msg === "string" && msg.toLowerCase().includes('column "business_id"') && msg.toLowerCase().includes("does not exist"));
+      if (!columnMissing) throw first.error;
+
+      const payloadWithoutBusinessId: Record<string, unknown> = {
+        item_name: stockData.item_name,
+        category: stockData.category,
+        quantity: stockData.quantity,
+        unit: stockData.unit,
+        supplier: stockData.supplier,
+        supplier_id: stockData.supplier_id || null,
+        purchase_price: stockData.purchase_price,
+        min_stock_level: stockData.min_stock_level,
+      };
+
+      const second = await supabase.from("factory_stock").insert(payloadWithoutBusinessId);
+      if (second.error) throw second.error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
@@ -229,43 +244,110 @@ export const WarehouseContent = () => {
     },
   });
 
-  // Handle material request (approve/reject)
+  // Handle warehouse request (approve/reject)
   const handleRequestMutation = useMutation({
     mutationFn: async ({ requestId, status, rejectedReason }: { requestId: string; status: string; rejectedReason?: string }) => {
       const updateData: Record<string, unknown> = { status };
-      if (rejectedReason) {
+      if (status === 'rejected' && rejectedReason) {
         updateData.rejected_reason = rejectedReason;
       }
-      
+
       const { error } = await supabase
-        .from("material_requests")
+        .from("warehouse_requests")
         .update(updateData)
         .eq("id", requestId);
       if (error) throw error;
-
-      // If approved, deduct from warehouse stock
-      if (status === "approved") {
-        const request = materialRequests.find((r) => r.id === requestId);
-        if (request) {
-          const currentStock = warehouseStock.find((s) => s.id === request.warehouse_item_id);
-          if (currentStock) {
-            const newQuantity = currentStock.quantity - request.quantity_requested;
-            const { error: stockError } = await supabase
-              .from("factory_stock")
-              .update({ quantity: newQuantity })
-              .eq("id", request.warehouse_item_id);
-            if (stockError) throw stockError;
-          }
-        }
-      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["material-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-requests"] });
       queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
       toast({ title: "Request updated successfully" });
     },
     onError: (error) => {
       toast({ title: "Error updating request", description: getErrorMessage(error), variant: "destructive" });
+    },
+  });
+
+  // Create warehouse request mutation
+  const createRequestMutation = useMutation({
+    mutationFn: async (requestData: typeof newRequest) => {
+      if (!store?.id) {
+        throw new Error("No active business selected");
+      }
+
+      const { error } = await supabase
+        .from("warehouse_requests")
+        .insert({
+          business_id: store.id,
+          requested_by: (await supabase.auth.getUser()).data.user?.id,
+          item_name: requestData.item_name,
+          quantity: requestData.quantity,
+          unit: requestData.unit,
+          reason: requestData.reason,
+          status: 'pending'
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["warehouse-requests"] });
+      setIsRequestDialogOpen(false);
+      setNewRequest({
+        item_name: "",
+        quantity: 0,
+        unit: "pieces",
+        reason: "",
+      });
+      toast({ title: "Request created successfully" });
+    },
+    onError: (error) => {
+      toast({ title: "Error creating request", description: getErrorMessage(error), variant: "destructive" });
+    },
+  });
+
+  // Update warehouse request mutation
+  const updateRequestMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<typeof newRequest> }) => {
+      const { error } = await supabase
+        .from("warehouse_requests")
+        .update(data)
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["warehouse-requests"] });
+      setIsRequestDialogOpen(false);
+      setEditingRequest(null);
+      setNewRequest({
+        item_name: "",
+        quantity: 0,
+        unit: "pieces",
+        reason: "",
+      });
+      toast({ title: "Request updated successfully" });
+    },
+    onError: (error) => {
+      toast({ title: "Error updating request", description: getErrorMessage(error), variant: "destructive" });
+    },
+  });
+
+  // Add complaint to rejected request
+  const addComplaintMutation = useMutation({
+    mutationFn: async ({ id, complaint }: { id: string; complaint: string }) => {
+      const { error } = await supabase
+        .from("warehouse_requests")
+        .update({ complaint })
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["warehouse-requests"] });
+      toast({ title: "Complaint submitted successfully" });
+    },
+    onError: (error) => {
+      toast({ title: "Error submitting complaint", description: getErrorMessage(error), variant: "destructive" });
     },
   });
 
@@ -278,14 +360,44 @@ export const WarehouseContent = () => {
     0
   );
 
-  const pendingRequests = materialRequests.filter(r => r.status === "pending");
+  const pendingRequests = warehouseRequests.filter(r => r.status === "pending");
 
-  const handleAddStock = () => {
-    if (!newStock.item_name || !newStock.category) {
+  const handleCreateRequest = () => {
+    if (!newRequest.item_name || !newRequest.reason || newRequest.quantity <= 0) {
       toast({ title: "Please fill all required fields", variant: "destructive" });
       return;
     }
-    addStockMutation.mutate(newStock);
+    createRequestMutation.mutate(newRequest);
+  };
+
+  const handleEditRequest = (request: WarehouseRequestRow) => {
+    setEditingRequest(request);
+    setNewRequest({
+      item_name: request.item_name,
+      quantity: request.quantity,
+      unit: request.unit,
+      reason: request.reason,
+    });
+    setIsRequestDialogOpen(true);
+  };
+
+  const handleUpdateRequest = () => {
+    if (!editingRequest || !newRequest.item_name || !newRequest.reason || newRequest.quantity <= 0) {
+      toast({ title: "Please fill all required fields", variant: "destructive" });
+      return;
+    }
+    updateRequestMutation.mutate({
+      id: editingRequest.id,
+      data: newRequest
+    });
+  };
+
+  const handleAddComplaint = (requestId: string, complaint: string) => {
+    if (!complaint.trim()) {
+      toast({ title: "Please enter a complaint", variant: "destructive" });
+      return;
+    }
+    addComplaintMutation.mutate({ id: requestId, complaint });
   };
 
   const handleSupplierChange = (supplierId: string) => {
@@ -295,6 +407,14 @@ export const WarehouseContent = () => {
       supplier_id: supplierId,
       supplier: supplier?.name || "",
     });
+  };
+
+  const handleAddStock = () => {
+    if (!newStock.item_name || !newStock.category || newStock.quantity <= 0) {
+      toast({ title: "Please fill all required fields", variant: "destructive" });
+      return;
+    }
+    addStockMutation.mutate(newStock);
   };
 
   return (
@@ -521,100 +641,207 @@ export const WarehouseContent = () => {
           </TabsContent>
 
           <TabsContent value="requests">
-            <Card>
-              <CardHeader>
-                <CardTitle>Material Requests from Production</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {requestsLoading ? (
-                  <p>Loading...</p>
-                ) : materialRequests.length === 0 ? (
-                  <p className="text-muted-foreground">No material requests</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Quantity Requested</TableHead>
-                        <TableHead>Available Stock</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {materialRequests.map((request) => (
-                        <TableRow key={request.id}>
-                          <TableCell className="font-medium">
-                            {request.factory_stock?.item_name || "Unknown"}
-                          </TableCell>
-                          <TableCell>
-                            {request.quantity_requested} {request.factory_stock?.unit || "-"}
-                          </TableCell>
-                          <TableCell>
-                            {request.factory_stock?.quantity ?? "-"} {request.factory_stock?.unit || ""}
-                            {request.factory_stock && request.quantity_requested > request.factory_stock.quantity && (
-                              <Badge variant="destructive" className="ml-2">Insufficient</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                request.status === "approved"
-                                  ? "default"
-                                  : request.status === "rejected"
-                                  ? "destructive"
-                                  : "secondary"
-                              }
-                            >
-                              {request.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {request.created_at ? new Date(request.created_at).toLocaleDateString() : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {request.status === "pending" && (
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    handleRequestMutation.mutate({
-                                      requestId: request.id,
-                                      status: "approved",
-                                    })
-                                  }
-                                  disabled={
-                                    request.factory_stock &&
-                                    request.quantity_requested > request.factory_stock.quantity
-                                  }
-                                >
-                                  <Check className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    handleRequestMutation.mutate({
-                                      requestId: request.id,
-                                      status: "rejected",
-                                      rejectedReason: "Insufficient stock",
-                                    })
-                                  }
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-medium">Warehouse Requests</h3>
+                  <p className="text-sm text-muted-foreground">Request items and materials from finance</p>
+                </div>
+                <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      New Request
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>
+                        {editingRequest ? "Edit Request" : "New Warehouse Request"}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Item Name *</Label>
+                        <Input
+                          value={newRequest.item_name}
+                          onChange={(e) => setNewRequest({ ...newRequest, item_name: e.target.value })}
+                          placeholder="e.g., Flour, Sugar, Packaging Boxes"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Quantity *</Label>
+                        <Input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={newRequest.quantity}
+                          onChange={(e) => setNewRequest({ ...newRequest, quantity: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Unit</Label>
+                        <Select
+                          value={newRequest.unit}
+                          onValueChange={(value) => setNewRequest({ ...newRequest, unit: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pieces">Pieces</SelectItem>
+                            <SelectItem value="kg">Kilograms</SelectItem>
+                            <SelectItem value="liters">Liters</SelectItem>
+                            <SelectItem value="meters">Meters</SelectItem>
+                            <SelectItem value="boxes">Boxes</SelectItem>
+                            <SelectItem value="bags">Bags</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-2 space-y-2">
+                        <Label>Reason for Request *</Label>
+                        <Textarea
+                          value={newRequest.reason}
+                          onChange={(e) => setNewRequest({ ...newRequest, reason: e.target.value })}
+                          placeholder="Explain why you need this item..."
+                          rows={3}
+                        />
+                      </div>
+                      <div className="col-span-2 flex justify-end gap-2 mt-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setIsRequestDialogOpen(false);
+                            setEditingRequest(null);
+                            setNewRequest({
+                              item_name: "",
+                              quantity: 0,
+                              unit: "pieces",
+                              reason: "",
+                            });
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={editingRequest ? handleUpdateRequest : handleCreateRequest}
+                          disabled={createRequestMutation.isPending || updateRequestMutation.isPending}
+                        >
+                          {createRequestMutation.isPending || updateRequestMutation.isPending
+                            ? "Saving..."
+                            : editingRequest
+                            ? "Update Request"
+                            : "Create Request"}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              <Card>
+                <CardContent className="p-0">
+                  {requestsLoading ? (
+                    <p className="p-6">Loading requests...</p>
+                  ) : warehouseRequests.length === 0 ? (
+                    <p className="p-6 text-muted-foreground">No warehouse requests yet</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Item</TableHead>
+                          <TableHead>Quantity</TableHead>
+                          <TableHead>Reason</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Requested</TableHead>
+                          <TableHead>Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+                      </TableHeader>
+                      <TableBody>
+                        {warehouseRequests.map((request) => (
+                          <TableRow key={request.id}>
+                            <TableCell className="font-medium">{request.item_name}</TableCell>
+                            <TableCell>{request.quantity} {request.unit}</TableCell>
+                            <TableCell className="max-w-xs truncate" title={request.reason}>
+                              {request.reason}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  request.status === "approved"
+                                    ? "default"
+                                    : request.status === "rejected"
+                                    ? "destructive"
+                                    : "secondary"
+                                }
+                              >
+                                {request.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {new Date(request.requested_at).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                {request.status === "pending" && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleEditRequest(request)}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        handleRequestMutation.mutate({
+                                          requestId: request.id,
+                                          status: "approved",
+                                        })
+                                      }
+                                    >
+                                      <Check className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        handleRequestMutation.mutate({
+                                          requestId: request.id,
+                                          status: "rejected",
+                                        })
+                                      }
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                                {request.status === "rejected" && !request.complaint && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      const complaint = prompt("Enter your complaint about this rejection:");
+                                      if (complaint) {
+                                        handleAddComplaint(request.id, complaint);
+                                      }
+                                    }}
+                                  >
+                                    Add Complaint
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="low-stock">

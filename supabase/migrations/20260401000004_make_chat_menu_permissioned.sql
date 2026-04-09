@@ -9,6 +9,6 @@ INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM public.roles r
 JOIN public.permissions p ON p.code = 'chat.view'
-WHERE r.name IN ('admin', 'store_owner', 'branch_manager', 'seller', 'super_admin')
+WHERE r.name IN ('admin', 'store_owner', 'Owner', 'branch_manager', 'seller', 'super_admin')
 ON CONFLICT DO NOTHING;
 

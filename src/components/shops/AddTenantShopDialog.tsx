@@ -39,19 +39,39 @@ export function AddTenantShopDialog({ open, onOpenChange, onSuccess }: AddTenant
     setIsLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
-      const { error } = await supabase.from('shops').insert({
-        name: formData.name,
-        address: formData.address,
-        phone: formData.phone || null,
-        open_hours: formData.openHours || null,
-        business_id: store.id,
-        owner_id: user?.id,
-        is_active: true,
-        status: 'active',
-      });
 
-      if (error) throw error;
+      const payload = {
+        p_business_id: store.id,
+        p_name: formData.name,
+        p_address: formData.address,
+        p_phone: formData.phone || null,
+        p_open_hours: formData.openHours || null,
+        p_owner_id: user?.id || null,
+        p_is_active: true,
+        p_status: 'active',
+      };
+
+      const rpc = await supabase.rpc('create_shop', payload);
+      if (rpc.error) {
+        const err = rpc.error as unknown as { code?: string; message?: string };
+        const fnMissing =
+          err?.code === 'PGRST202' ||
+          (typeof err?.message === 'string' && err.message.toLowerCase().includes('could not find the function'));
+
+        if (!fnMissing) throw rpc.error;
+
+        const { error } = await supabase.from('shops').insert({
+          name: formData.name,
+          address: formData.address,
+          phone: formData.phone || null,
+          open_hours: formData.openHours || null,
+          business_id: store.id,
+          owner_id: user?.id,
+          is_active: true,
+          status: 'active',
+        });
+        if (error) throw error;
+      }
 
       toast.success('Shop created successfully!');
       setFormData({ name: '', address: '', phone: '', openHours: '' });

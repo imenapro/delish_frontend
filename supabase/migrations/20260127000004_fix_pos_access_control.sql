@@ -19,7 +19,7 @@ USING (
     SELECT 1 FROM public.user_roles ur
     WHERE ur.user_id = auth.uid()
     AND ur.business_id = shops.business_id
-    AND ur.role IN ('admin', 'store_owner', 'branch_manager', 'accountant')
+    AND ur.role IN ('admin', 'store_owner', 'Owner', 'branch_manager', 'accountant')
   )
   OR
   -- 3. Assigned Staff (Shop-specific access)

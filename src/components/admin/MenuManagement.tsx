@@ -82,16 +82,22 @@ export function MenuManagement() {
     },
   });
 
+  const publicMenus = menus.filter(m => !m.permission_required_id);
+
   // Mutations
   const upsertMenuMutation = useMutation({
     mutationFn: async () => {
+      if (!permissionId || permissionId === 'none') {
+        throw new Error('A permission is required for every menu item before it can be saved.');
+      }
+
       const payload = {
         label,
         path,
         icon: icon || null,
         parent_id: parentId === 'none' ? null : parentId,
         sort_order: sortOrder,
-        permission_required_id: permissionId === 'none' ? null : permissionId,
+        permission_required_id: permissionId,
         is_active: true
       };
 
@@ -192,6 +198,15 @@ export function MenuManagement() {
           Add Menu Item
         </Button>
       </div>
+      {publicMenus.length > 0 && (
+        <div className="rounded-md border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
+          <p className="font-semibold">Public menu items detected</p>
+          <p>
+            {publicMenus.length} menu item(s) currently have no required permission and are visible to all users.
+            Assign a permission to make these menus role-specific.
+          </p>
+        </div>
+      )}
 
       <div className="hidden md:block rounded-md border">
         <div className="max-h-[60vh] overflow-auto scroll-smooth">
@@ -363,11 +378,21 @@ export function MenuManagement() {
                   ))}
                 </SelectContent>
               </Select>
+              {permissionId === 'none' && (
+                <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900">
+                  A permission is required before saving. Menu items without permissions are intentionally blocked to prevent accidental public exposure.
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => upsertMenuMutation.mutate()}>Save</Button>
+            <Button
+              disabled={!permissionId || permissionId === 'none'}
+              onClick={() => upsertMenuMutation.mutate()}
+            >
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

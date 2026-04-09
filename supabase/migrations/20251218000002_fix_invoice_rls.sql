@@ -11,6 +11,6 @@ CREATE POLICY "Users can view invoices" ON public.invoices
         EXISTS (
             SELECT 1 FROM user_roles 
             WHERE user_id = auth.uid() 
-            AND role IN ('super_admin', 'store_owner', 'admin', 'manager', 'branch_manager', 'accountant')
+            AND role IN ('super_admin', 'store_owner', 'Owner', 'admin', 'manager', 'branch_manager', 'accountant')
         )
     );

@@ -33,7 +33,7 @@ USING (
         JOIN public.shops s ON s.id = invoices.shop_id
         WHERE ur.user_id = auth.uid()
         AND ur.business_id = s.business_id
-        AND ur.role IN ('admin', 'store_owner', 'branch_manager', 'accountant')
+        AND ur.role IN ('admin', 'store_owner', 'Owner', 'branch_manager', 'accountant')
     )
     OR
     -- Shop Staff

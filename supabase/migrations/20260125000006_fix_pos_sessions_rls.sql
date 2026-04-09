@@ -34,6 +34,7 @@ USING (
   OR public.has_role(auth.uid(), 'super_admin'::public.app_role)
   OR public.has_role(auth.uid(), 'admin'::public.app_role)
   OR public.has_role(auth.uid(), 'store_owner'::public.app_role)
+  OR public.has_role(auth.uid(), 'Owner'::public.app_role)
   OR public.has_role(auth.uid(), 'branch_manager'::public.app_role)
 );
 
@@ -46,6 +47,7 @@ USING (
   OR public.has_role(auth.uid(), 'super_admin'::public.app_role)
   OR public.has_role(auth.uid(), 'admin'::public.app_role)
   OR public.has_role(auth.uid(), 'store_owner'::public.app_role)
+  OR public.has_role(auth.uid(), 'Owner'::public.app_role)
   OR public.has_role(auth.uid(), 'branch_manager'::public.app_role)
 );
 

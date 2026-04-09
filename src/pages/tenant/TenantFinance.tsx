@@ -26,6 +26,9 @@ interface Expense {
 }
 
 import { ExpenseDialog } from '@/components/finance/ExpenseDialog';
+import { ExpensesManager } from '@/components/finance/ExpensesManager';
+import { FinancialAccountsManager } from '@/components/finance/FinancialAccountsManager';
+import { ExpenseBudgetsManager } from '@/components/finance/ExpenseBudgetsManager';
 import { TenantPaymentMethods } from '@/components/finance/payment-methods/TenantPaymentMethods';
 import { ViewInvoiceDialog } from '@/components/invoices/ViewInvoiceDialog';
 import { InvoiceData } from '@/components/invoices/types';
@@ -69,7 +72,8 @@ export default function TenantFinance() {
       const { data, error } = await supabase
         .from('shops')
         .select('id, name')
-        .eq('business_id', store.id);
+        .eq('business_id', store.id)
+        .eq('is_active', true);
       if (error) throw error;
       return data || [];
     },
@@ -291,7 +295,9 @@ export default function TenantFinance() {
       const { data, error } = await supabase
         .from('expenses')
         .select('*')
-        .in('shop_id', shopIds)
+        .eq('business_id', store.id)
+        .is('deleted_at', null)
+        .or(`shop_id.in.(${shopIds.join(',')}),shop_id.is.null`)
         .gte('expense_date', dateRange.start.toISOString().split('T')[0])
         .lte('expense_date', dateRange.end.toISOString().split('T')[0])
         .order('expense_date', { ascending: false });
@@ -348,7 +354,7 @@ export default function TenantFinance() {
   });
 
   // Calculate net profit
-  const netProfit = (revenueData?.net || 0) - (expenseData?.total || 0);
+  const netProfit = (revenueData?.net || 0) - (expenseData?.approved || 0);
 
   const handleViewInvoice = (order: any) => {
     const invoice: InvoiceData = {
@@ -479,6 +485,8 @@ export default function TenantFinance() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
+            <TabsTrigger value="accounts">Accounts</TabsTrigger>
+            <TabsTrigger value="budgets">Budgets</TabsTrigger>
           <TabsTrigger value="payment-methods">Payment Methods</TabsTrigger>
           <TabsTrigger value="audit-logs">Audit Logs</TabsTrigger>
         </TabsList>
@@ -608,8 +616,8 @@ export default function TenantFinance() {
                   <span className="font-semibold">{formatCurrency(revenueData?.net || 0, currency)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-muted-foreground">Less: Expenses</span>
-                  <span className="font-semibold text-red-600">-{formatCurrency(expenseData?.total || 0, currency)}</span>
+                  <span className="text-muted-foreground">Less: Expenses (Approved)</span>
+                  <span className="font-semibold text-red-600">-{formatCurrency(expenseData?.approved || 0, currency)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 text-lg">
                   <span className="font-semibold">Net Profit</span>
@@ -623,37 +631,20 @@ export default function TenantFinance() {
         </TabsContent>
 
         <TabsContent value="expenses">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Expenses</CardTitle>
-              <CardDescription>Expense records for the selected period</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {expenseData?.items && expenseData.items.length > 0 ? (
-                <div className="space-y-4">
-                  {expenseData.items.map((expense: Expense) => (
-                    <div key={expense.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <p className="font-medium">{expense.description}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {expense.category} • {format(new Date(expense.expense_date), 'MMM dd, yyyy')}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold">{formatCurrency(Number(expense.amount), currency)}</p>
-                        <Badge className={getStatusColor(expense.status)}>{expense.status}</Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <Receipt className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No expenses recorded for this period</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ExpensesManager
+            title="Expenses"
+            description="All expense records for the selected period"
+            shopIds={shopIds}
+            dateRange={dateRange}
+          />
+        </TabsContent>
+
+        <TabsContent value="accounts" className="space-y-6">
+          <FinancialAccountsManager />
+        </TabsContent>
+
+        <TabsContent value="budgets" className="space-y-6">
+          <ExpenseBudgetsManager />
         </TabsContent>
         <TabsContent value="payment-methods">
           <Card>

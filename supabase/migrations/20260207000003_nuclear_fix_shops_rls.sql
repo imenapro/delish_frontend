@@ -29,7 +29,7 @@ USING (
   (EXISTS (
     SELECT 1 FROM public.user_roles ur
     WHERE ur.user_id = auth.uid()
-    AND ur.role::text IN ('admin', 'store_owner', 'branch_manager')
+    AND ur.role::text IN ('admin', 'store_owner', 'Owner', 'branch_manager')
   ))
   OR 
   -- 3. Explicitly assigned shops (User has specific shop_id)

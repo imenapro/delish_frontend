@@ -1,8 +1,9 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { TenantSidebar } from '@/components/navigation/TenantSidebar';
 import { 
   LayoutDashboard, 
   Store, 
@@ -34,7 +35,8 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { user, roles, signOut } = useAuth();
   const location = useLocation();
-  const { getTenantRoute } = useStoreContext();
+  const { store, getTenantRoute } = useStoreContext();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const hasRole = (role: string) => roles.some(r => r.role === role);
   const isAdmin = hasRole('admin');
@@ -86,57 +88,105 @@ export function Layout({ children }: LayoutProps) {
     return roleNames[role] || role;
   };
 
+  const getPrimaryRole = () => {
+    const roleNames: Record<string, string> = {
+      'store_owner': 'Owner',
+      'admin': 'Admin',
+      'branch_manager': 'Manager',
+      'seller': 'Seller',
+      'store_keeper': 'Store Keeper',
+      'accountant': 'Accountant',
+      'delivery': 'Delivery',
+      'manpower': 'Worker',
+      'customer': 'Customer',
+      'super_admin': 'Super Admin',
+    };
+
+    const orderedRoles = [
+      'super_admin',
+      'store_owner',
+      'admin',
+      'branch_manager',
+      'manager',
+      'accountant',
+      'seller',
+      'store_keeper',
+      'delivery',
+      'manpower',
+      'customer',
+    ];
+
+    const highestRole = orderedRoles
+      .map(roleKey => roles.find(r => r.role === roleKey))
+      .find(Boolean);
+
+    if (highestRole) {
+      return roleNames[highestRole.role] || highestRole.role;
+    }
+
+    return 'User';
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-card">
-        <div className="flex h-16 items-center border-b border-border px-6">
-          <h1 className="text-xl font-bold text-primary">BakeSync</h1>
-        </div>
-        <nav className="space-y-1 p-4">
-          {navigation.map((item) => {
-            if (!item.show) return null;
-            const tenantHref = getTenantRoute(item.href);
-            const isActive = location.pathname === tenantHref;
-            return (
-              <Link key={item.name} to={tenantHref}>
-                <Button
-                  variant={isActive ? 'secondary' : 'ghost'}
-                  className="w-full justify-start"
-                >
-                  <item.icon className="mr-3 h-5 w-5" />
-                  {item.name}
-                </Button>
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="absolute bottom-0 w-64 border-t border-border bg-card p-4">
-          <div className="flex items-center gap-3">
-            <Avatar>
-              <AvatarFallback className="bg-primary text-primary-foreground">
-                {getInitials()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 overflow-hidden">
-              <p className="truncate text-sm font-medium">{user?.email}</p>
-              <p className="text-xs text-muted-foreground">
-                {getRoleDisplayName(roles[0]?.role)}
-              </p>
+      <aside className="relative">
+        {store ? (
+          <TenantSidebar
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(prev => !prev)}
+          />
+        ) : (
+          <div className="w-64 border-r border-border bg-card">
+            <div className="flex h-16 items-center border-b border-border px-6">
+              <h1 className="text-xl font-bold text-primary">BakeSync</h1>
             </div>
-            <NotificationBell />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                void signOut();
-              }}
-              title="Sign out"
-            >
-              <LogOut className="h-5 w-5" />
-            </Button>
+            <nav className="space-y-1 p-4">
+              {navigation.map((item) => {
+                if (!item.show) return null;
+                const tenantHref = getTenantRoute(item.href);
+                const isActive = location.pathname === tenantHref;
+                return (
+                  <Link key={item.name} to={tenantHref}>
+                    <Button
+                      variant={isActive ? 'secondary' : 'ghost'}
+                      className="w-full justify-start"
+                    >
+                      <item.icon className="mr-3 h-5 w-5" />
+                      {item.name}
+                    </Button>
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="absolute bottom-0 w-64 border-t border-border bg-card p-4">
+              <div className="flex items-center gap-3">
+                <Avatar>
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {getInitials()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 overflow-hidden">
+                  <p className="truncate text-sm font-medium">{user?.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {getPrimaryRole()}
+                  </p>
+                </div>
+                <NotificationBell />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    void signOut();
+                  }}
+                  title="Sign out"
+                >
+                  <LogOut className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </aside>
 
       {/* Main Content */}

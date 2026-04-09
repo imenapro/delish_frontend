@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useStoreContext } from '@/contexts/StoreContext';
 import { Store, MapPin, Phone, Clock } from 'lucide-react';
 
 interface Shop {
@@ -26,6 +27,7 @@ interface EditTenantShopDialogProps {
 }
 
 export function EditTenantShopDialog({ open, onOpenChange, shop, onSuccess }: EditTenantShopDialogProps) {
+  const { store } = useStoreContext();
   const [isLoading, setIsLoading] = useState(false);
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
@@ -45,6 +47,10 @@ export function EditTenantShopDialog({ open, onOpenChange, shop, onSuccess }: Ed
 
   const handleSubmit = async () => {
     if (!shop) return;
+    if (!store?.id) {
+      toast.error('No active business selected');
+      return;
+    }
     if (!name || !address) {
       toast.error('Please fill in required fields');
       return;
@@ -61,9 +67,32 @@ export function EditTenantShopDialog({ open, onOpenChange, shop, onSuccess }: Ed
           open_hours: openHours || null,
           is_active: active,
         })
-        .eq('id', shop.id);
+        .eq('id', shop.id)
+        .eq('business_id', store.id);
 
       if (error) throw error;
+
+      if (!active) {
+        const { data: stillActive, error: verifyError } = await supabase
+          .from('shops')
+          .select('id')
+          .eq('id', shop.id)
+          .eq('business_id', store.id)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (verifyError) throw verifyError;
+        if (stillActive) throw new Error('Shop could not be updated (permission denied or already removed)');
+      } else {
+        const { data: updated, error: verifyError } = await supabase
+          .from('shops')
+          .select('name, address, phone, open_hours, is_active')
+          .eq('id', shop.id)
+          .eq('business_id', store.id)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (verifyError) throw verifyError;
+        if (!updated) throw new Error('Shop could not be updated (permission denied or already removed)');
+      }
 
       toast.success('Shop updated successfully!');
       onOpenChange(false);

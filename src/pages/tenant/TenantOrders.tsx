@@ -30,7 +30,8 @@ export default function TenantOrders() {
       const { data, error } = await supabase
         .from('shops')
         .select('id, name')
-        .eq('business_id', store.id);
+        .eq('business_id', store.id)
+        .eq('is_active', true);
       if (error) throw error;
       return data || [];
     },

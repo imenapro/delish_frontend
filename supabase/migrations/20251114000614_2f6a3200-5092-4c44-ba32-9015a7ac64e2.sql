@@ -51,7 +51,14 @@ AS $$
     FROM public.user_roles
     WHERE user_id = _user_id
       AND business_id = _business_id
-  ) OR has_role(_user_id, 'super_admin'::app_role);
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.user_businesses
+    WHERE user_id = _user_id
+      AND business_id = _business_id
+  )
+  OR has_role(_user_id, 'super_admin'::app_role);
 $$;
 
 -- Get user's business IDs
@@ -64,6 +71,11 @@ SET search_path = public
 AS $$
   SELECT DISTINCT business_id
   FROM public.user_roles
+  WHERE user_id = _user_id
+    AND business_id IS NOT NULL
+  UNION
+  SELECT DISTINCT business_id
+  FROM public.user_businesses
   WHERE user_id = _user_id
     AND business_id IS NOT NULL;
 $$;
@@ -81,7 +93,7 @@ AS $$
     FROM public.user_roles
     WHERE user_id = _user_id
       AND business_id = _business_id
-      AND role = 'store_owner'::app_role
+      AND role IN ('store_owner', 'Owner')
   );
 $$;
 

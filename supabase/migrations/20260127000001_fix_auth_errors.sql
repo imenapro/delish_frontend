@@ -6,6 +6,7 @@
 -- Ensure app_role has all required values
 ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'super_admin';
 ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'store_owner';
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'Owner';
 ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'branch_manager';
 ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'store_keeper';
 ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'manpower';

@@ -17,6 +17,7 @@ USING (
   OR has_role(auth.uid(), 'super_admin'::app_role)
   OR has_role(auth.uid(), 'admin'::app_role)
   OR has_role(auth.uid(), 'store_owner'::app_role)
+  OR has_role(auth.uid(), 'Owner'::app_role)
   OR can_access_shop(auth.uid(), shop_id_origin)
   OR can_access_shop(auth.uid(), shop_id_fulfill)
 );

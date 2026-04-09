@@ -226,7 +226,7 @@ export function RoleManagement() {
   };
 
   return (
-    <section className="space-y-6" aria-label="Access control management">
+    <section className="space-y-60" aria-label="Access control management">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1.5">
           <h2 className="text-2xl font-bold tracking-tight">Access Control</h2>
@@ -392,7 +392,8 @@ export function RoleManagement() {
         }}
       >
         <DialogContent
-          className="max-w-5xl h-[90vh] flex flex-col p-0 gap-0"
+          className="w-full max-w-[92rem] sm:max-w-6xl md:max-w-7xl h-[98vh] flex flex-col p-0 gap-0 overflow-hidden"
+          // className="h-[98vh] max-h-[98vh] flex flex-col overflow-hidden"
           aria-label={selectedRole ? `Edit permissions for role ${selectedRole.name}` : 'Edit role permissions'}
         >
           <DialogHeader className="px-6 py-4 border-b flex-none">
@@ -402,9 +403,9 @@ export function RoleManagement() {
             </DialogDescription>
           </DialogHeader>
           
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden min-h-0">
             <div className="px-6 py-2 border-b bg-muted/40 flex-none">
-              <TabsList className="grid w-full grid-cols-2 max-w-[420px]" aria-label="Role editing steps">
+              <TabsList className="grid w-full grid-cols-2 gap-2 max-w-full" aria-label="Role editing steps">
                 <TabsTrigger
                   value="edit"
                   className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
@@ -420,7 +421,7 @@ export function RoleManagement() {
               </TabsList>
             </div>
 
-            <TabsContent value="edit" className="flex-1 flex flex-col mt-0 p-0">
+            <TabsContent value="edit" className="flex flex-col flex-1 min-h-0 overflow-hidden">
                <div className="px-6 py-4 space-y-4 flex-none">
                   <Alert>
                     <Info className="h-4 w-4" />
@@ -441,28 +442,23 @@ export function RoleManagement() {
                   </div>
                </div>
                
-               <div className="relative px-6 pb-4 flex-1 min-h-0 overflow-hidden">
-                 <ScrollArea className="h-full rounded-md border">
-                   <div className="p-4">
-                     <PermissionMatrix 
-                       groupedPermissions={groupedPermissions}
-                       selectedPermissions={selectedPermissions}
-                       onToggle={(id) => {
-                         setSelectedPermissions(prev => 
-                           prev.includes(id) 
-                             ? prev.filter(p => p !== id)
-                             : [...prev, id]
-                         );
-                       }}
-                       initialPermissions={rolePermissions}
-                       setPermissions={setSelectedPermissions}
-                     />
-                   </div>
-                 </ScrollArea>
-                 <div className="pointer-events-none absolute inset-x-6 bottom-4 h-6 bg-gradient-to-t from-background to-transparent rounded-b-md" />
+               <div className="flex-1 overflow-auto px-6 pb-4 min-h-0">
+                 <PermissionMatrix 
+                   groupedPermissions={groupedPermissions}
+                   selectedPermissions={selectedPermissions}
+                   onToggle={(id) => {
+                     setSelectedPermissions(prev => 
+                       prev.includes(id) 
+                         ? prev.filter(p => p !== id)
+                         : [...prev, id]
+                     );
+                   }}
+                   initialPermissions={rolePermissions}
+                   setPermissions={setSelectedPermissions}
+                 />
                </div>
                
-               <div className="p-6 border-t mt-auto flex justify-between items-center bg-background flex-none">
+               <div className="border-t p-6 bg-background flex justify-between items-center flex-none">
                   <div className="text-sm text-muted-foreground">
                     {selectedPermissions.length} permissions selected
                   </div>
@@ -474,37 +470,38 @@ export function RoleManagement() {
                       Review Changes <ChevronRight className="ml-2 h-4 w-4" />
                     </Button>
                   </div>
-               </div>
+               </div> 
             </TabsContent>
 
-            <TabsContent value="review" className="flex-1 flex flex-col mt-0 p-0">
-               <div className="relative px-6 py-4 flex-1 min-h-0 overflow-hidden">
-                 <ScrollArea className="h-full rounded-md border">
-                   <div className="p-4 space-y-6">
-                     <div className="flex items-center gap-2 mb-6">
-                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                         <Check className="h-6 w-6 text-primary" />
-                       </div>
-                       <div>
-                         <h3 className="font-medium text-lg">Ready to update role</h3>
-                         <p className="text-muted-foreground">Please review the assigned permissions below.</p>
-                       </div>
+           <TabsContent 
+  key="review"
+  value="review" 
+  className="flex flex-col flex-1 min-h-0 overflow-hidden data-[state=inactive]:hidden"
+>
+              <div className="flex-1 min-h-0 overflow-auto px-6 py-4 pb-4 flex flex-col justify-start items-stretch">
+                <div className="space-y-6 flex flex-col justify-start">
+                   <div className="flex items-center gap-2 mb-6">
+                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                       <Check className="h-6 w-6 text-primary" />
                      </div>
-                     
-                     <PermissionMatrix 
-                       groupedPermissions={groupedPermissions}
-                       selectedPermissions={selectedPermissions}
-                       onToggle={() => {}}
-                       initialPermissions={[]} // No sync needed
-                       setPermissions={() => {}}
-                       readOnly={true}
-                     />
+                     <div>
+                       <h3 className="font-medium text-lg">Ready to update role</h3>
+                       <p className="text-muted-foreground">Please review the assigned permissions below.</p>
+                     </div>
                    </div>
-                 </ScrollArea>
-                 <div className="pointer-events-none absolute inset-x-6 bottom-4 h-6 bg-gradient-to-t from-background to-transparent rounded-b-md" />
+                   
+                   <PermissionMatrix 
+                     groupedPermissions={groupedPermissions}
+                     selectedPermissions={selectedPermissions}
+                     onToggle={() => {}}
+                     initialPermissions={[]} // No sync needed
+                     setPermissions={() => {}}
+                     readOnly={true}
+                   />
+                 </div>
                </div>
                
-               <div className="p-6 border-t mt-auto flex justify-between items-center bg-background flex-none">
+               <div className="border-t p-6 bg-background flex justify-between items-center flex-none">
                   <Button variant="ghost" onClick={() => setActiveTab("edit")}>
                     Back to Edit
                   </Button>
@@ -578,15 +575,15 @@ function PermissionMatrix({
   ];
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="flex flex-col gap-4">
       {/* Desktop View */}
-      <div className="hidden md:block rounded-md border bg-card">
-        <Table>
+      <div className="hidden md:block rounded-md border bg-card overflow-auto">
+        <Table className="min-w-[900px]">
           <TableHeader className="sticky top-0 bg-card z-10 shadow-sm">
             <TableRow className="bg-muted/50 hover:bg-muted/50">
-              <TableHead className="w-[180px]">Module</TableHead>
+              <TableHead className="min-w-[220px]">Module</TableHead>
               {columns.map(col => (
-                <TableHead key={col.key} className="text-center w-[100px]">{col.label}</TableHead>
+                <TableHead key={col.key} className="text-center min-w-[140px]">{col.label}</TableHead>
               ))}
             </TableRow>
           </TableHeader>

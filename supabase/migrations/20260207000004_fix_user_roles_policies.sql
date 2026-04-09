@@ -77,7 +77,7 @@ USING (
       SELECT 1 FROM public.user_roles ur
       WHERE ur.user_id = auth.uid()
       AND ur.business_id = user_roles.business_id
-      AND ur.role::text IN ('branch_manager', 'store_owner', 'admin')
+      AND ur.role::text IN ('branch_manager', 'store_owner', 'Owner', 'admin')
     )
   ))
 );

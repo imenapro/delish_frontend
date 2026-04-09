@@ -85,7 +85,7 @@ USING (
   EXISTS (
     SELECT 1 FROM public.user_roles ur
     WHERE ur.user_id = auth.uid()
-    AND ur.role::text IN ('store_owner', 'accountant', 'manager', 'branch_manager')
+    AND ur.role::text IN ('store_owner', 'Owner', 'accountant', 'manager', 'branch_manager')
     AND (ur.business_id = public.shops.business_id OR ur.business_id IS NULL)
   )
   OR
@@ -122,7 +122,7 @@ USING (
     SELECT 1 FROM public.user_roles ur
     WHERE ur.user_id = auth.uid()
     AND ur.business_id = public.products.business_id
-    AND ur.role::text IN ('store_owner', 'admin', 'branch_manager', 'accountant', 'manager')
+    AND ur.role::text IN ('store_owner', 'Owner', 'admin', 'branch_manager', 'accountant', 'manager')
   )
   OR
   -- Seller (Assigned or Global)
@@ -166,7 +166,7 @@ USING (
     JOIN public.user_roles ur ON s.business_id = ur.business_id
     WHERE s.id = public.orders.shop_id_origin
     AND ur.user_id = auth.uid()
-    AND ur.role::text IN ('store_owner', 'admin', 'accountant', 'manager', 'branch_manager')
+    AND ur.role::text IN ('store_owner', 'Owner', 'admin', 'accountant', 'manager', 'branch_manager')
   )
   OR
   -- Seller Access

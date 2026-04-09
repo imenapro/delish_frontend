@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { useStoreContext } from '@/contexts/StoreContext';
 import {
   AlertDialog,
@@ -24,6 +25,7 @@ import { Store, MapPin, Plus, Building2 } from 'lucide-react';
 
 export default function TenantShops() {
   const { store } = useStoreContext();
+  const { roles } = useAuth();
   const queryClient = useQueryClient();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -36,6 +38,7 @@ export default function TenantShops() {
     address: string | null;
     phone: string | null;
     is_active: boolean;
+    is_primary: boolean;
     created_at: string;
     updated_at: string;
     staff_count: number;
@@ -43,6 +46,7 @@ export default function TenantShops() {
   }
 
   const [selectedShop, setSelectedShop] = useState<ShopWithCounts | null>(null);
+  const canCreateShop = roles.some((role) => ['super_admin', 'store_owner', 'admin', 'manager', 'branch_manager'].includes(role.role));
 
   // Fetch shops for this business
   const { data: shops = [], isLoading: shopsLoading } = useQuery({
@@ -54,6 +58,8 @@ export default function TenantShops() {
         .from('shops')
         .select('*')
         .eq('business_id', store.id)
+        .eq('is_active', true)
+        .order('is_primary', { ascending: false })
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -87,19 +93,65 @@ export default function TenantShops() {
   const totalShops = shops.length;
   const activeShops = shops.filter(s => s.is_active).length;
 
+  const handleSetPrimary = async (shop: ShopWithCounts) => {
+    if (!store?.id) {
+      toast.error('No active business selected');
+      return;
+    }
+
+    try {
+      // First, unset all other primary shops for this business
+      await supabase
+        .from('shops')
+        .update({ is_primary: false })
+        .eq('business_id', store.id);
+
+      // Then set this shop as primary
+      const { error } = await supabase
+        .from('shops')
+        .update({ is_primary: true })
+        .eq('id', shop.id)
+        .eq('business_id', store.id);
+
+      if (error) throw error;
+
+      toast.success(`${shop.name} is now the primary shop`);
+      queryClient.invalidateQueries({ queryKey: ['tenant-shops-full', store?.id] });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to set primary shop';
+      toast.error(message);
+    }
+  };
+
   const handleConfirmDeleteShop = async () => {
     if (!shopToDelete) return;
+    if (!store?.id) {
+      toast.error('No active business selected');
+      return;
+    }
 
     try {
       const { error } = await supabase
         .from('shops')
-        .delete()
-        .eq('id', shopToDelete.id);
+        .update({ is_active: false })
+        .eq('id', shopToDelete.id)
+        .eq('business_id', store.id);
 
       if (error) throw error;
 
+      const { data: stillActive, error: verifyError } = await supabase
+        .from('shops')
+        .select('id')
+        .eq('id', shopToDelete.id)
+        .eq('business_id', store.id)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (verifyError) throw verifyError;
+      if (stillActive) throw new Error('Shop could not be deleted (permission denied or already deleted)');
+
       toast.success('Shop deleted successfully');
       setShopToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ['tenant-shops-full', store?.id] });
       queryClient.invalidateQueries({ queryKey: ['tenant-shops-full'] });
       queryClient.invalidateQueries({ queryKey: ['userShops'] });
     } catch (error) {
@@ -113,10 +165,12 @@ export default function TenantShops() {
       title="Shops"
       description="Manage your store locations"
       actions={
-        <Button onClick={() => setAddDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Shop
-        </Button>
+        canCreateShop ? (
+          <Button onClick={() => setAddDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Shop
+          </Button>
+        ) : null
       }
     >
       {/* Stats Cards */}
@@ -150,7 +204,7 @@ export default function TenantShops() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold truncate">
-              {shops[0]?.name || 'None'}
+              {shops.find(s => s.is_primary)?.name || 'None'}
             </div>
             <p className="text-xs text-muted-foreground">Main Branch</p>
           </CardContent>
@@ -175,10 +229,12 @@ export default function TenantShops() {
               <Store className="h-16 w-16 text-muted-foreground mb-4" />
               <h3 className="font-semibold text-lg">No Shops Yet</h3>
               <p className="text-muted-foreground mb-4">Add your first shop location to get started</p>
-              <Button onClick={() => setAddDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Your First Shop
-              </Button>
+              {canCreateShop && (
+                <Button onClick={() => setAddDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Your First Shop
+                </Button>
+              )}
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -191,6 +247,7 @@ export default function TenantShops() {
                     setEditDialogOpen(true);
                   }}
                   onDelete={(s) => setShopToDelete(s)}
+                  onSetPrimary={handleSetPrimary}
                 />
               ))}
             </div>

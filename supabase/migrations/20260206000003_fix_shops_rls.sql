@@ -21,7 +21,7 @@ USING (
   EXISTS (
     SELECT 1 FROM public.user_roles ur
     WHERE ur.user_id = auth.uid()
-    AND ur.role::text = 'store_owner'
+    AND ur.role::text IN ('store_owner', 'Owner')
     AND ur.business_id = public.shops.business_id
   )
   OR
@@ -51,6 +51,7 @@ USING (
   OR
   -- Store Owner (Global check was okay, but let's be safe and keep it permissive for now to ensure visibility)
   has_role(auth.uid(), 'store_owner')
+  OR has_role(auth.uid(), 'Owner')
   OR
   -- Check explicit access via helper
   can_access_shop(auth.uid(), shop_id_origin)

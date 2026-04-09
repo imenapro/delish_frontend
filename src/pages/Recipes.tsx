@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Layout } from "@/components/Layout";
@@ -13,10 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
+import { useStoreContext } from "@/contexts/StoreContext";
+import { formatCurrency } from "@/utils/currency";
 import { Plus, BookOpen, Trash2, Edit, DollarSign, Package } from "lucide-react";
 
 export const RecipesContent = () => {
   const queryClient = useQueryClient();
+  const { store } = useStoreContext();
+  const currency = useMemo(() => (store?.currency || "RWF").trim().toUpperCase(), [store?.currency]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
@@ -38,53 +42,106 @@ export const RecipesContent = () => {
   const { data: recipes, isLoading } = useQuery({
     queryKey: ["recipes"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      if (!store?.id) return [];
+
+      const baseSelect = `
+        *,
+        products(id, name),
+        recipe_ingredients(
+          id,
+          warehouse_item_id,
+          quantity_per_unit,
+          unit,
+          cost_per_ingredient,
+          factory_stock(id, item_name, purchase_price, unit)
+        )
+      `;
+
+      const filtered = await supabase
         .from("recipes")
-        .select(`
-          *,
-          products(id, name),
-          recipe_ingredients(
-            id,
-            warehouse_item_id,
-            quantity_per_unit,
-            unit,
-            cost_per_ingredient,
-            factory_stock(id, item_name, purchase_price, unit)
-          )
-        `)
+        .select(baseSelect)
+        .eq("business_id", store.id)
         .eq("is_active", true)
         .order("name");
-      if (error) throw error;
-      return data;
+
+      if (!filtered.error) return filtered.data ?? [];
+
+      const errCode =
+        filtered.error && typeof filtered.error === "object" && "code" in filtered.error
+          ? (filtered.error as { code?: unknown }).code
+          : undefined;
+
+      if (errCode !== "PGRST204") throw filtered.error;
+
+      const fallback = await supabase
+        .from("recipes")
+        .select(baseSelect)
+        .eq("is_active", true)
+        .order("name");
+      if (fallback.error) throw fallback.error;
+      return fallback.data ?? [];
     }
-  });
+  , enabled: !!store?.id });
 
   // Fetch warehouse items for ingredient selection
   const { data: warehouseItems } = useQuery({
     queryKey: ["warehouse-items"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      if (!store?.id) return [];
+
+      const filtered = await supabase
+        .from("factory_stock")
+        .select("id, item_name, unit, purchase_price, quantity")
+        .eq("business_id", store.id)
+        .order("item_name");
+
+      if (!filtered.error) return filtered.data ?? [];
+
+      const errCode =
+        filtered.error && typeof filtered.error === "object" && "code" in filtered.error
+          ? (filtered.error as { code?: unknown }).code
+          : undefined;
+      if (errCode !== "PGRST204") throw filtered.error;
+
+      const fallback = await supabase
         .from("factory_stock")
         .select("id, item_name, unit, purchase_price, quantity")
         .order("item_name");
-      if (error) throw error;
-      return data;
+      if (fallback.error) throw fallback.error;
+      return fallback.data ?? [];
     }
-  });
+  , enabled: !!store?.id });
 
   // Fetch products for linking
   const { data: products } = useQuery({
     queryKey: ["products-list"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      if (!store?.id) return [];
+
+      const filtered = await supabase
+        .from("products")
+        .select("id, name")
+        .eq("business_id", store.id)
+        .eq("is_active", true)
+        .order("name");
+
+      if (!filtered.error) return filtered.data ?? [];
+
+      const errCode =
+        filtered.error && typeof filtered.error === "object" && "code" in filtered.error
+          ? (filtered.error as { code?: unknown }).code
+          : undefined;
+      if (errCode !== "PGRST204") throw filtered.error;
+
+      const fallback = await supabase
         .from("products")
         .select("id, name")
         .eq("is_active", true)
         .order("name");
-      if (error) throw error;
-      return data;
+      if (fallback.error) throw fallback.error;
+      return fallback.data ?? [];
     }
-  });
+  , enabled: !!store?.id });
 
   // Calculate recipe cost
   const calculateRecipeCost = (ingredientsList: typeof ingredients) => {
@@ -99,15 +156,42 @@ export const RecipesContent = () => {
   // Add recipe mutation
   const addRecipeMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      if (!store?.id) {
+        throw new Error("No active business selected");
+      }
       const { data: user } = await supabase.auth.getUser();
       const totalCost = calculateRecipeCost(ingredients);
       const outputQty = parseFloat(data.output_quantity) || 1;
       const costPerUnit = totalCost / outputQty;
 
       // Create recipe
-      const { data: newRecipe, error: recipeError } = await supabase
-        .from("recipes")
-        .insert({
+      const payloadWithBusinessId: Record<string, unknown> = {
+        business_id: store.id,
+        name: data.name,
+        description: data.description,
+        output_quantity: outputQty,
+        output_unit: data.output_unit,
+        product_id: data.product_id || null,
+        total_cost: totalCost,
+        cost_per_unit: costPerUnit,
+        created_by: user.user?.id,
+      };
+
+      const first = await supabase.from("recipes").insert(payloadWithBusinessId).select().single();
+
+      const errCode =
+        first.error && typeof first.error === "object" && "code" in first.error ? (first.error as { code?: unknown }).code : undefined;
+
+      const businessColumnMissing =
+        errCode === "PGRST204" ||
+        (first.error?.message?.toLowerCase?.().includes?.("business_id") && first.error?.message?.toLowerCase?.().includes?.("schema cache"));
+
+      const newRecipe = first.data;
+
+      if (first.error && !businessColumnMissing) throw first.error;
+
+      if (!newRecipe && businessColumnMissing) {
+        const payloadWithoutBusinessId: Record<string, unknown> = {
           name: data.name,
           description: data.description,
           output_quantity: outputQty,
@@ -115,29 +199,51 @@ export const RecipesContent = () => {
           product_id: data.product_id || null,
           total_cost: totalCost,
           cost_per_unit: costPerUnit,
-          created_by: user.user?.id
-        })
-        .select()
-        .single();
+          created_by: user.user?.id,
+        };
 
-      if (recipeError) throw recipeError;
+        const second = await supabase.from("recipes").insert(payloadWithoutBusinessId).select().single();
+        if (second.error) throw second.error;
+        if (!second.data) throw new Error("Failed to create recipe");
+        // eslint-disable-next-line @typescript-eslint/no-shadow
+        const newRecipe = second.data;
 
       // Add ingredients
+        if (ingredients.length > 0) {
+          const ingredientData = ingredients.map((ing) => {
+            const item = warehouseItems?.find((w: any) => w.id === ing.warehouse_item_id);
+            return {
+              recipe_id: newRecipe.id,
+              warehouse_item_id: ing.warehouse_item_id,
+              quantity_per_unit: parseFloat(ing.quantity_per_unit),
+              unit: ing.unit || item?.unit || "pcs",
+              cost_per_ingredient: (item?.purchase_price || 0) * parseFloat(ing.quantity_per_unit),
+            };
+          });
+
+          const { error: ingredientsError } = await supabase.from("recipe_ingredients").insert(ingredientData);
+
+          if (ingredientsError) throw ingredientsError;
+        }
+
+        return newRecipe;
+      }
+
+      if (!newRecipe) throw new Error("Failed to create recipe");
+
       if (ingredients.length > 0) {
-        const ingredientData = ingredients.map(ing => {
-          const item = warehouseItems?.find(w => w.id === ing.warehouse_item_id);
+        const ingredientData = ingredients.map((ing) => {
+          const item = warehouseItems?.find((w: any) => w.id === ing.warehouse_item_id);
           return {
             recipe_id: newRecipe.id,
             warehouse_item_id: ing.warehouse_item_id,
             quantity_per_unit: parseFloat(ing.quantity_per_unit),
             unit: ing.unit || item?.unit || "pcs",
-            cost_per_ingredient: (item?.purchase_price || 0) * parseFloat(ing.quantity_per_unit)
+            cost_per_ingredient: (item?.purchase_price || 0) * parseFloat(ing.quantity_per_unit),
           };
         });
 
-        const { error: ingredientsError } = await supabase
-          .from("recipe_ingredients")
-          .insert(ingredientData);
+        const { error: ingredientsError } = await supabase.from("recipe_ingredients").insert(ingredientData);
 
         if (ingredientsError) throw ingredientsError;
       }
@@ -158,11 +264,20 @@ export const RecipesContent = () => {
   // Delete recipe mutation
   const deleteRecipeMutation = useMutation({
     mutationFn: async (recipeId: string) => {
-      const { error } = await supabase
-        .from("recipes")
-        .update({ is_active: false })
-        .eq("id", recipeId);
-      if (error) throw error;
+      if (!store?.id) throw new Error("No active business selected");
+
+      const filtered = await supabase.from("recipes").update({ is_active: false }).eq("id", recipeId).eq("business_id", store.id);
+      if (!filtered.error) return;
+
+      const errCode =
+        filtered.error && typeof filtered.error === "object" && "code" in filtered.error
+          ? (filtered.error as { code?: unknown }).code
+          : undefined;
+
+      if (errCode !== "PGRST204") throw filtered.error;
+
+      const fallback = await supabase.from("recipes").update({ is_active: false }).eq("id", recipeId);
+      if (fallback.error) throw fallback.error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["recipes"] });
@@ -370,13 +485,16 @@ export const RecipesContent = () => {
                         <div className="flex justify-between items-center">
                           <span className="font-medium">Estimated Total Cost:</span>
                           <span className="text-lg font-bold text-primary">
-                            ${calculateRecipeCost(ingredients).toFixed(2)}
+                            {formatCurrency(calculateRecipeCost(ingredients), currency)}
                           </span>
                         </div>
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                           <span>Cost per unit:</span>
                           <span>
-                            ${(calculateRecipeCost(ingredients) / (parseFloat(formData.output_quantity) || 1)).toFixed(2)}
+                            {formatCurrency(
+                              calculateRecipeCost(ingredients) / (parseFloat(formData.output_quantity) || 1),
+                              currency
+                            )}
                           </span>
                         </div>
                       </div>
@@ -430,7 +548,7 @@ export const RecipesContent = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  ${totalRecipes > 0 ? (totalIngredientsCost / totalRecipes).toFixed(2) : "0.00"}
+                  {formatCurrency(totalRecipes > 0 ? totalIngredientsCost / totalRecipes : 0, currency)}
                 </div>
               </CardContent>
             </Card>
@@ -502,7 +620,7 @@ export const RecipesContent = () => {
                                 <TableCell>{ing.quantity_per_unit}</TableCell>
                                 <TableCell>{ing.unit}</TableCell>
                                 <TableCell className="text-right">
-                                  ${(ing.cost_per_ingredient || 0).toFixed(2)}
+                                  {formatCurrency(ing.cost_per_ingredient || 0, currency)}
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -511,11 +629,13 @@ export const RecipesContent = () => {
                         <div className="flex justify-end gap-4 mt-3 pt-3 border-t">
                           <div className="text-sm">
                             <span className="text-muted-foreground">Total Recipe Cost:</span>
-                            <span className="font-bold ml-2">${(recipe.total_cost || 0).toFixed(2)}</span>
+                            <span className="font-bold ml-2">{formatCurrency(recipe.total_cost || 0, currency)}</span>
                           </div>
                           <div className="text-sm">
                             <span className="text-muted-foreground">Cost per Unit:</span>
-                            <span className="font-bold ml-2 text-primary">${(recipe.cost_per_unit || 0).toFixed(2)}</span>
+                            <span className="font-bold ml-2 text-primary">
+                              {formatCurrency(recipe.cost_per_unit || 0, currency)}
+                            </span>
                           </div>
                         </div>
                       </div>

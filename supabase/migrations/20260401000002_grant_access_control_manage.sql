@@ -3,6 +3,6 @@ SELECT r.id, p.id
 FROM public.roles r
 JOIN public.permissions p
   ON p.code IN ('roles.manage', 'menus.manage')
-WHERE r.name IN ('admin', 'store_owner', 'super_admin')
+WHERE r.name IN ('admin', 'store_owner', 'Owner', 'super_admin')
 ON CONFLICT DO NOTHING;
 

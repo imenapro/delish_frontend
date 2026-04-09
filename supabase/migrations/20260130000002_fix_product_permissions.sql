@@ -16,7 +16,7 @@ FOR UPDATE USING (
     SELECT user_roles.user_id 
     FROM user_roles 
     WHERE user_roles.business_id = products.business_id 
-    AND user_roles.role IN ('admin', 'store_owner')
+    AND user_roles.role IN ('admin', 'store_owner', 'Owner')
   )
 ) WITH CHECK (
   auth.uid() IN (
@@ -26,7 +26,7 @@ FOR UPDATE USING (
     SELECT user_roles.user_id 
     FROM user_roles 
     WHERE user_roles.business_id = products.business_id 
-    AND user_roles.role IN ('admin', 'store_owner')
+    AND user_roles.role IN ('admin', 'store_owner', 'Owner')
   )
 );
 
@@ -39,6 +39,6 @@ FOR DELETE USING (
     SELECT user_roles.user_id 
     FROM user_roles 
     WHERE user_roles.business_id = products.business_id 
-    AND user_roles.role IN ('admin', 'store_owner')
+    AND user_roles.role IN ('admin', 'store_owner', 'Owner')
   )
 );

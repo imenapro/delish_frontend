@@ -160,10 +160,8 @@ BEGIN
     FROM public.menus m
     LEFT JOIN public.permissions p ON m.permission_required_id = p.id
     WHERE m.is_active = true
-    AND (
-      m.permission_required_id IS NULL 
-      OR public.has_permission(_user_id, p.code)
-    )
+    AND m.permission_required_id IS NOT NULL
+    AND public.has_permission(_user_id, p.code)
   )
   SELECT 
     am.id,

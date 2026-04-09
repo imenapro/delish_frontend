@@ -31,7 +31,7 @@ USING (
         JOIN public.user_roles ur ON s.business_id = ur.business_id
         WHERE s.id = parked_orders.shop_id
         AND ur.user_id = auth.uid()
-        AND ur.role IN ('super_admin', 'admin', 'store_owner')
+        AND ur.role IN ('super_admin', 'admin', 'store_owner', 'Owner')
     )
 );
 
@@ -48,7 +48,7 @@ WITH CHECK (
         JOIN public.user_roles ur ON s.business_id = ur.business_id
         WHERE s.id = parked_orders.shop_id
         AND ur.user_id = auth.uid()
-        AND ur.role IN ('super_admin', 'admin', 'store_owner')
+        AND ur.role IN ('super_admin', 'admin', 'store_owner', 'Owner')
     )
 );
 
@@ -65,7 +65,7 @@ USING (
         JOIN public.user_roles ur ON s.business_id = ur.business_id
         WHERE s.id = parked_orders.shop_id
         AND ur.user_id = auth.uid()
-        AND ur.role IN ('super_admin', 'admin', 'store_owner')
+        AND ur.role IN ('super_admin', 'admin', 'store_owner', 'Owner')
     )
 );
 
@@ -82,7 +82,7 @@ USING (
         JOIN public.user_roles ur ON s.business_id = ur.business_id
         WHERE s.id = parked_orders.shop_id
         AND ur.user_id = auth.uid()
-        AND ur.role IN ('super_admin', 'admin', 'store_owner')
+        AND ur.role IN ('super_admin', 'admin', 'store_owner', 'Owner')
     )
 );
 

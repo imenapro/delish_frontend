@@ -103,7 +103,20 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
       'manpower': 'Worker',
       'customer': 'Customer',
     };
-    return roleNames[roles[0].role] || roles[0].role;
+
+    // Get the primary role (first in sorted array)
+    const primaryRole = roles[0].role;
+
+    // If it's a system role, use the mapped name
+    if (roleNames[primaryRole]) {
+      return roleNames[primaryRole];
+    }
+
+    // For custom roles, try to format it nicely (capitalize first letter of each word)
+    return primaryRole
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
   const NavItem = ({ item }: { item: typeof navigationItems[0] }) => {

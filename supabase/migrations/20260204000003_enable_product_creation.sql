@@ -79,17 +79,17 @@ WITH CHECK (
     SELECT 1 FROM public.user_roles ur
     WHERE ur.user_id = auth.uid() 
     AND ur.business_id = products.business_id
-    AND ur.role::text IN ('store_owner', 'admin')
+    AND ur.role::text IN ('store_owner', 'Owner', 'admin')
   ))
   OR
-  -- 3. New RBAC system (user_role_assignments)
+  -- 3. New RBAC system (user_role_assignments) - INSERT
   (EXISTS (
     SELECT 1 FROM public.user_role_assignments ura
     JOIN public.roles r ON ura.role_id = r.id
     WHERE ura.user_id = auth.uid()
     AND (
       r.name = 'super_admin'
-      OR (r.name IN ('store_owner', 'admin') AND (r.business_id IS NULL OR r.business_id = products.business_id))
+      OR (r.name IN ('store_owner', 'Owner', 'admin') AND (r.business_id IS NULL OR r.business_id = products.business_id))
     )
   ))
 );
@@ -111,7 +111,7 @@ USING (
     SELECT 1 FROM public.user_roles ur
     WHERE ur.user_id = auth.uid() 
     AND ur.business_id = products.business_id
-    AND ur.role::text IN ('store_owner', 'admin')
+    AND ur.role::text IN ('store_owner', 'Owner', 'admin')
   ))
   OR
   -- 3. New RBAC system (user_role_assignments)
@@ -121,7 +121,7 @@ USING (
     WHERE ura.user_id = auth.uid()
     AND (
       r.name = 'super_admin'
-      OR (r.name IN ('store_owner', 'admin') AND (r.business_id IS NULL OR r.business_id = products.business_id))
+      OR (r.name IN ('store_owner', 'Owner', 'admin') AND (r.business_id IS NULL OR r.business_id = products.business_id))
     )
   ))
 );
@@ -143,7 +143,7 @@ USING (
     SELECT 1 FROM public.user_roles ur
     WHERE ur.user_id = auth.uid() 
     AND ur.business_id = products.business_id
-    AND ur.role::text IN ('store_owner', 'admin')
+    AND ur.role::text IN ('store_owner', 'Owner', 'admin')
   ))
   OR
   -- 3. New RBAC system (user_role_assignments)
@@ -153,7 +153,7 @@ USING (
     WHERE ura.user_id = auth.uid()
     AND (
       r.name = 'super_admin'
-      OR (r.name IN ('store_owner', 'admin') AND (r.business_id IS NULL OR r.business_id = products.business_id))
+      OR (r.name IN ('store_owner', 'Owner', 'admin') AND (r.business_id IS NULL OR r.business_id = products.business_id))
     )
   ))
 );
