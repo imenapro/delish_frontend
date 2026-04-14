@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Upload, Package } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
@@ -16,7 +17,9 @@ interface Product {
   name: string;
   description?: string | null;
   category: string;
+  unit?: string;
   price: number;
+  is_active?: boolean;
   discount_price?: number | null;
   promotion_description?: string | null;
   barcode?: string | null;
@@ -43,12 +46,31 @@ const PRODUCT_CATEGORIES = [
   'Other',
 ];
 
+const PRODUCT_UNITS = [
+  'piece',
+  'kg',
+  'grams',
+  'box',
+  'pack',
+  'bottle',
+  'can',
+  'liter',
+  'ml',
+  'dozen',
+  'bundle',
+  'roll',
+  'sheet',
+  'other'
+];
+
 export function EditProductDialog({ open, onOpenChange, product, onSuccess }: EditProductDialogProps) {
   const { store } = useStoreContext();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
+  const [unit, setUnit] = useState('piece');
   const [price, setPrice] = useState('');
+  const [isActive, setIsActive] = useState(true);
   const [barcode, setBarcode] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -60,7 +82,9 @@ export function EditProductDialog({ open, onOpenChange, product, onSuccess }: Ed
       setName(product.name || '');
       setDescription(product.description || '');
       setCategory(product.category || '');
+      setUnit(product.unit || 'piece');
       setPrice(String(product.price ?? ''));
+      setIsActive(product.is_active ?? true);
       setBarcode(product.barcode || '');
       setImagePreview(product.image_url || '');
       setImageFile(null);
@@ -111,7 +135,9 @@ export function EditProductDialog({ open, onOpenChange, product, onSuccess }: Ed
           name,
           description: description || null,
           category,
+          unit,
           price: parseFloat(price),
+          is_active: isActive,
           barcode: barcode || null,
           image_url: imageUrl,
         })
@@ -169,17 +195,42 @@ export function EditProductDialog({ open, onOpenChange, product, onSuccess }: Ed
               </Select>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="unit">Unit *</Label>
+              <Select value={unit} onValueChange={setUnit}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_UNITS.map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2 col-span-full">
-              <Label htmlFor="price">Base Price ({store?.currency || DEFAULT_SYSTEM_CURRENCY}) *</Label>
+              <Label htmlFor="price">Base Price per {unit} ({store?.currency || DEFAULT_SYSTEM_CURRENCY}) *</Label>
               <Input
                 id="price"
                 type="number"
-                step="1"
+                step="0.01"
                 min="0"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                placeholder="0"
+                placeholder="0.00"
                 className="w-32"
+              />
+            </div>
+
+            <div className="flex items-center justify-between col-span-full">
+              <Label htmlFor="is-active">Active Status</Label>
+              <Switch
+                id="is-active"
+                checked={isActive}
+                onCheckedChange={setIsActive}
               />
             </div>
 

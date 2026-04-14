@@ -1,9 +1,14 @@
 import { TenantPageWrapper } from '@/components/tenant/TenantPageWrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, BarChart3, PieChart, Download } from 'lucide-react';
+import { FileText, BarChart3, PieChart, Download, Clipboard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 
 export default function TenantReports() {
+  const navigate = useNavigate();
+  const { storeSlug } = useParams();
+
   return (
     <TenantPageWrapper
       title="Reports"
@@ -49,6 +54,20 @@ export default function TenantReports() {
           </CardContent>
         </Card>
 
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate(`/${storeSlug}/reports/audit`)}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Audit Reports</CardTitle>
+            <Clipboard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Detailed</div>
+            <p className="text-xs text-muted-foreground text-blue-600">Click to view →</p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Custom Reports</CardTitle>
@@ -73,7 +92,12 @@ export default function TenantReports() {
               <h3 className="font-semibold text-lg">Analytics & Reports</h3>
               <p className="text-muted-foreground">Generate detailed business reports and analytics</p>
             </div>
-            <Button variant="outline">Generate Report</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => navigate(`/${storeSlug}/reports/audit`)}
+            >
+              View Audit Reports
+            </Button>
           </div>
         </CardContent>
       </Card>

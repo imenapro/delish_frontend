@@ -84,24 +84,62 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const { data: shiftOrders } = useQuery({
     queryKey: ['shift-orders', session.id],
     queryFn: async () => {
-      // Use time-based query to match the report generation logic and catch all orders
-      const { data, error } = await supabase
+      // Fetch orders for this session
+      const { data: orders, error: ordersError } = await supabase
         .from('orders')
-        .select(`
-          *,
-          order_items (
-            id,
-            quantity,
-            unit_price,
-            subtotal,
-            product:products (name)
-          )
-        `)
+        .select('*')
         .eq('pos_session_id', session.id)
+        .eq('source', 'pos')
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
-      return data;
+      if (ordersError) throw ordersError;
+      if (!orders || orders.length === 0) return [];
+
+      // Fetch all order items for these orders
+      const orderIds = orders.map(o => o.id);
+      const { data: items, error: itemsError } = await supabase
+        .from('order_items')
+        .select(`
+          id,
+          order_id,
+          quantity,
+          unit_price,
+          subtotal,
+          product:products (id, name)
+        `)
+        .in('order_id', orderIds);
+      
+      if (itemsError) throw itemsError;
+      
+      // Group items by order_id
+      const itemsByOrder: { [key: string]: any[] } = {};
+      items?.forEach(item => {
+        if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
+        itemsByOrder[item.order_id].push(item);
+      });
+      
+      // Attach items to orders, with fallback to items_snapshot for online/legacy orders
+      return orders.map(order => {
+        const sourceItems = Array.isArray(order.items_snapshot) ? order.items_snapshot : Array.isArray(order.items) ? order.items : [];
+        const snapshotItems = sourceItems.map((item: any, idx: number) => ({
+          id: item.id || `${order.id}-${idx}`,
+          quantity: item.quantity,
+          unit_price: item.unit_price ?? item.price ?? 0,
+          subtotal: item.subtotal ?? ((item.quantity || 0) * (item.unit_price ?? item.price ?? 0)),
+          product: item.product ? { name: item.product.name } : item.product_name ? { name: item.product_name } : item.name ? { name: item.name } : undefined,
+          name: item.name,
+          product_name: item.product_name,
+        }));
+
+        const orderItems = (itemsByOrder[order.id] && itemsByOrder[order.id].length > 0)
+          ? itemsByOrder[order.id]
+          : snapshotItems;
+
+        return {
+          ...order,
+          order_items: orderItems,
+        };
+      });
     },
     enabled: open,
   });
@@ -112,13 +150,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
     queryFn: async () => {
         const { data, error } = await supabase
             .from('refunds')
-            .select(`
-                total_amount,
-                created_at,
-                order:orders!inner (
-                    payment_method
-                )
-            `)
+            .select('total_amount,created_at,order:orders!inner(payment_method)')
             .eq('staff_id', session.user_id)
             .gte('created_at', session.opened_at);
             
@@ -128,57 +160,82 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
     enabled: open
   });
 
-  const totalCashRefunds = shiftRefunds?.reduce((acc, refund) => {
-    // Check if the original order was paid in cash
-    // The query uses !inner join, so order should exist.
-    // We assume the refund method matches the payment method (Cash for Cash).
+  const totalMoneyRefunds = shiftRefunds?.reduce((acc, refund) => {
+    // Check if the original order was paid in cash or mobile money.
     const paymentMethod = (refund.order as any)?.payment_method;
-    if (paymentMethod === 'cash') {
+    if (paymentMethod === 'cash' || paymentMethod === 'mobile_money') {
         return acc + refund.total_amount;
     }
     return acc;
   }, 0) || 0;
 
-  // Calculate Total Cash Sales from shift orders (excluding other payment methods)
-  // We cannot rely on session.total_sales as it now includes all payment methods (Cash, Card, etc.)
   const totalCashSales = shiftOrders?.reduce((acc, order) => {
-      if (order.payment_method === 'cash') {
-          return acc + Number(order.total_amount);
-      }
+      if (order.payment_method === 'cash') return acc + Number(order.total_amount);
       return acc;
   }, 0) || 0;
+
+  const totalMobileMoneySales = shiftOrders?.reduce((acc, order) => {
+      if (order.payment_method === 'mobile_money') return acc + Number(order.total_amount);
+      return acc;
+  }, 0) || 0;
+
+  const totalCardSales = shiftOrders?.reduce((acc, order) => {
+      if (order.payment_method === 'card') return acc + Number(order.total_amount);
+      return acc;
+  }, 0) || 0;
+
+  const totalWalletSales = shiftOrders?.reduce((acc, order) => {
+      if (order.payment_method === 'wallet') return acc + Number(order.total_amount);
+      return acc;
+  }, 0) || 0;
+
+  const totalCashAndMobileMoneySales = totalCashSales + totalMobileMoneySales;
+  const totalCardAndWalletSales = totalCardSales + totalWalletSales;
 
   // Calculate Total Sales from all orders to ensure consistency
   // This overrides the potentially stale/incorrect value in pos_sessions table
   const calculatedTotalSales = shiftOrders?.reduce((acc, order) => acc + Number(order.total_amount), 0) || 0;
   const calculatedTotalOrders = shiftOrders?.length || 0;
 
-  const expectedCash = session.opening_cash + totalCashSales - totalCashRefunds;
+  const expectedCashOnly = session.opening_cash + totalCashSales - totalMoneyRefunds;
+  const expectedCashWithMobile = session.opening_cash + totalCashAndMobileMoneySales - totalMoneyRefunds;
   const closingCashNum = parseFloat(closingCash) || 0;
-  const difference = closingCashNum - expectedCash;
+  const difference = closingCashNum - expectedCashWithMobile;
 
-  // Fetch Branch Manager Email and Current User Email
+  // Fetch Branch Manager, Finance Staff, and Current User Email
   const { data: emails } = useQuery({
     queryKey: ['shift-emails', session.shop_id],
     queryFn: async () => {
         // Get current user
         const { data: { user } } = await supabase.auth.getUser();
         
-        // Get branch managers for this shop
-        const { data: managers } = await supabase
+        // Get branch managers and finance staff for this shop
+        const { data: staffRoles } = await supabase
             .from('user_roles')
-            .select('user_id, role')
+            .select('user_id, role, users!inner(email)')
             .eq('shop_id', session.shop_id)
-            .eq('role', 'branch_manager');
+            .in('role', ['branch_manager', 'accountant', 'finance_staff']);
+            
+        const managerEmails = staffRoles?.map((sr: any) => sr.users?.email).filter(Boolean) || [];
             
         return {
             currentUserEmail: user?.email,
             ownerEmail: session.shop?.owner_email,
-            managerEmails: ['manager@example.com']
+            managerEmails
         };
     },
     enabled: open
   });
+
+  // Auto-populate manager and finance emails on dialog open
+  useEffect(() => {
+    if (open && emails?.managerEmails?.length > 0) {
+      const newEmails = emails.managerEmails.filter((email: string) => !additionalRecipients.includes(email) && email !== emails.currentUserEmail && email !== emails.ownerEmail);
+      if (newEmails.length > 0) {
+        setAdditionalRecipients(prev => [...new Set([...prev, ...newEmails])]);
+      }
+    }
+  }, [open, emails]);
 
   // Fetch Current Inventory Snapshot
   const { data: inventory } = useQuery({
@@ -204,6 +261,92 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
     enabled: open,
   });
 
+  // Fetch Inventory Reconciliation Data
+  const { data: inventoryReconciliation } = useQuery({
+    queryKey: ['inventory-reconciliation', session.id],
+    queryFn: async () => {
+      // Fetch opening inventory snapshot (at shift start, if available)
+      const { data: openingSnapshots } = await supabase
+        .from('pos_session_inventory_snapshots')
+        .select('*')
+        .eq('session_id', session.id)
+        .order('created_at', { ascending: true })
+        .limit(1);
+
+      // Fetch closing inventory from shop_inventory (current state)
+      const { data: currentInventory } = await supabase
+        .from('shop_inventory')
+        .select('product_id, stock, product:products(name, category, unit_price)')
+        .eq('shop_id', session.shop_id);
+
+      // Get quantities sold per product in this shift
+      const { data: shiftOrderItems } = await supabase
+        .from('order_items')
+        .select('product_id, quantity, unit_price, product:products(name, category)')
+        .in('order_id', shiftOrders?.map(o => o.id) || []);
+
+      // Build reconciliation data
+      const productMap = new Map();
+
+      // Initialize with current inventory
+      currentInventory?.forEach(inv => {
+        productMap.set(inv.product_id, {
+          product_name: inv.product?.name || 'Unknown',
+          category: inv.product?.category,
+          unit_price: inv.product?.unit_price || 0,
+          opening_stock: 0,
+          added_stock: 0,
+          closing_stock: inv.stock || 0,
+          sold_quantity: 0,
+          total_revenue: 0,
+        });
+      });
+
+      // If we have opening snapshots, override opening stock
+      openingSnapshots?.forEach(snap => {
+        const key = snap.product_id;
+        if (productMap.has(key)) {
+          const item = productMap.get(key);
+          item.opening_stock = snap.quantity || 0;
+        } else {
+          productMap.set(key, {
+            product_name: snap.product_name || 'Unknown',
+            category: snap.category,
+            unit_price: 0,
+            opening_stock: snap.quantity || 0,
+            added_stock: 0,
+            closing_stock: 0,
+            sold_quantity: 0,
+            total_revenue: 0,
+          });
+        }
+      });
+
+      // Calculate sold quantities from order items
+      shiftOrderItems?.forEach(item => {
+        const key = item.product_id;
+        if (productMap.has(key)) {
+          const reconcItem = productMap.get(key);
+          reconcItem.sold_quantity += item.quantity || 0;
+          reconcItem.unit_price = item.unit_price || reconcItem.unit_price;
+          reconcItem.total_revenue = reconcItem.sold_quantity * (item.unit_price || 0);
+        }
+      });
+
+      // Calculate added stock: opening + added - sold = closing
+      // So: added = closing - opening + sold
+      productMap.forEach(item => {
+        item.added_stock = Math.max(0, item.closing_stock - item.opening_stock + item.sold_quantity);
+        if (item.total_revenue === 0 && item.sold_quantity > 0 && item.unit_price > 0) {
+          item.total_revenue = item.sold_quantity * item.unit_price;
+        }
+      });
+
+      return Array.from(productMap.values()).filter(item => item.sold_quantity > 0 || item.opening_stock > 0 || item.closing_stock > 0);
+    },
+    enabled: open && shiftOrders && shiftOrders.length > 0,
+  });
+
   const handleAddRecipient = () => {
     if (newRecipient && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newRecipient)) {
       if (!additionalRecipients.includes(newRecipient)) {
@@ -227,9 +370,11 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
         session,
         shiftOrders: shiftOrders || [],
         closingCash: closingCashNum,
-        expectedCash,
+        expectedCash: expectedCashWithMobile,
         description,
-        inventorySnapshot: inventory || undefined
+        currency,
+        inventorySnapshot: inventory || undefined,
+        inventoryReconciliation: inventoryReconciliation || undefined
     });
     setIsGeneratingPdf(false);
   };
@@ -253,7 +398,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
         .update({
           closed_at: closedAtIso,
           closing_cash: closingCashNum,
-          expected_cash: expectedCash,
+          expected_cash: expectedCashWithMobile,
           notes: description,
           status: 'closed',
           total_sales: calculatedTotalSales,
@@ -298,10 +443,11 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                 session: { ...session, closed_at: closedAtIso },
                 shiftOrders: shiftOrders || [],
                 closingCash: closingCashNum,
-                expectedCash,
+                expectedCash: expectedCashWithMobile,
                 description,
                 currency,
-                inventorySnapshot: inventory || undefined
+                inventorySnapshot: inventory || undefined,
+                inventoryReconciliation: inventoryReconciliation || undefined
             });
 
             const emailHtml = `
@@ -316,7 +462,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                     <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #e5e7eb;">
                         <h3 style="margin-top: 0; color: #1f2937;">Financial Summary</h3>
                         <p style="margin: 5px 0;"><strong>Total Sales:</strong> ${formatCurrency(session.total_sales, currency)}</p>
-                        <p style="margin: 5px 0;"><strong>Expected Cash:</strong> ${formatCurrency(expectedCash, currency)}</p>
+                        <p style="margin: 5px 0;"><strong>Expected Cash + Mobile:</strong> ${formatCurrency(expectedCash, currency)}</p>
                         <p style="margin: 5px 0;"><strong>Actual Cash:</strong> ${formatCurrency(closingCashNum, currency)}</p>
                         <p style="margin: 5px 0; color: ${difference !== 0 ? (difference > 0 ? 'green' : 'red') : 'black'}">
                             <strong>Variance:</strong> ${difference > 0 ? '+' : ''}${formatCurrency(difference, currency)}
@@ -426,9 +572,43 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                         </h3>
                         <Card className="bg-muted/30">
                             <CardContent className="p-4 space-y-4">
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">Opening Cash</span>
+                                        <span className="font-semibold">{formatCurrency(session.opening_cash, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">Cash Sales</span>
+                                        <span className="font-semibold">{formatCurrency(totalCashSales, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">Mobile Money Sales</span>
+                                        <span className="font-semibold">{formatCurrency(totalMobileMoneySales, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">Card Sales</span>
+                                        <span className="font-semibold">{formatCurrency(totalCardSales, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">Wallet Sales</span>
+                                        <span className="font-semibold">{formatCurrency(totalWalletSales, currency)}</span>
+                                    </div>
+                                    <div className="border-t pt-2 flex justify-between text-sm font-semibold">
+                                        <span>Total Sales</span>
+                                        <span>{formatCurrency(calculatedTotalSales, currency)}</span>
+                                    </div>
+                                </div>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-sm text-muted-foreground">Expected Cash</span>
-                                    <span className="text-xl font-bold">{formatCurrency(expectedCash, currency)}</span>
+                                    <span className="text-sm text-muted-foreground">Expected Cash Only</span>
+                                    <span className="font-semibold">{formatCurrency(expectedCashOnly, currency)}</span>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground">Opening cash + cash sales</div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-muted-foreground">Expected Cash + Mobile Money</span>
+                                    <span className="text-xl font-bold">{formatCurrency(expectedCashWithMobile, currency)}</span>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground">
+                                    Opening cash + cash sales + mobile money sales.
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="closing-cash">Actual Cash Count *</Label>
@@ -481,7 +661,12 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                             {emails?.ownerEmail && (
                                 <Badge variant="outline">{emails.ownerEmail} (Owner)</Badge>
                             )}
-                            {additionalRecipients.map(email => (
+                            {emails?.managerEmails?.map((email: string) => (
+                                <Badge key={email} variant="outline">
+                                    {email} (Manager/Finance)
+                                </Badge>
+                            ))}
+                            {additionalRecipients.filter((e: string) => !emails?.managerEmails?.includes(e)).map(email => (
                                 <Badge key={email} variant="default" className="gap-1 pl-2">
                                     {email}
                                     <X className="h-3 w-3 cursor-pointer hover:text-red-200" onClick={() => handleRemoveRecipient(email)} />
@@ -545,22 +730,34 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                                     {shiftOrders?.map((order) => (
                                         <AccordionItem key={order.id} value={order.id} className="border-b-0 mb-1">
                                             <AccordionTrigger className="py-2 hover:no-underline hover:bg-muted/50 rounded px-2 text-xs">
-                                                <div className="flex justify-between w-full pr-2">
-                                                    <span className="font-mono">{order.order_code}</span>
-                                                    <span>{formatCurrency(order.total_amount, currency)}</span>
+                                                <div className="flex flex-col gap-1 w-full pr-2">
+                                                    <div className="flex justify-between items-center gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-mono">{order.order_code}</span>
+                                                            {order.source && (
+                                                                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                                                    {order.source}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span>{formatCurrency(order.total_amount, currency)}</span>
+                                                    </div>
+                                                    <div className="text-[11px] text-muted-foreground">
+                                                        {((order.order_items?.length ? order.order_items : order.items_snapshot || order.items || []) as OrderItem[]).map((item: OrderItem) => `${item.quantity}x ${item.product?.name || item.product_name || item.name || 'Item'}`).join(', ') || 'No items recorded'}
+                                                    </div>
                                                 </div>
                                             </AccordionTrigger>
                                             <AccordionContent className="px-2 pb-2">
-                                                <div className="space-y-1 pt-1">
+                                                <div className="space-y-2 pt-1">
                                                     <div className="flex justify-between text-[10px] text-muted-foreground">
                                                         <span>Time: {format(new Date(order.created_at), 'HH:mm:ss')}</span>
                                                         <span>{order.payment_method}</span>
                                                     </div>
                                                     <div className="text-xs space-y-1">
-                                                        {order.order_items?.map((item: OrderItem) => (
+                                                        {((order.order_items?.length ? order.order_items : order.items_snapshot || order.items || []) as OrderItem[]).map((item: OrderItem) => (
                                                             <div key={item.id} className="flex justify-between">
-                                                                <span>{item.quantity}x {item.product?.name}</span>
-                                                                <span>{item.subtotal.toLocaleString()}</span>
+                                                                <span>{item.quantity}x {item.product?.name || item.product_name || item.name || 'Item'}</span>
+                                                                <span>{formatCurrency(item.subtotal, currency)}</span>
                                                             </div>
                                                         ))}
                                                     </div>

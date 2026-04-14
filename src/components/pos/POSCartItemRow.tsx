@@ -9,6 +9,7 @@ interface POSCartItemRowProps {
   name: string;
   price: number;
   quantity: number;
+  unit: string;
   subtotal: number;
   currency: string;
   onUpdateQuantity: (quantity: number) => void;
@@ -20,6 +21,7 @@ export function POSCartItemRow({
   name,
   price,
   quantity,
+  unit,
   subtotal,
   currency,
   onUpdateQuantity,
@@ -28,20 +30,32 @@ export function POSCartItemRow({
   const [inputValue, setInputValue] = useState(quantity.toString());
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const allowsDecimals = ['kg', 'grams', 'liter', 'ml'].includes(unit);
+
   useEffect(() => {
     // Sync local state when prop changes, BUT only if not currently editing (focused)
     // This handles cases where parent updates quantity (e.g. +/- buttons)
     // AND cases where parent rejects an update (e.g. stock limit), resetting our local value
-    if (document.activeElement !== inputRef.current && parseInt(inputValue) !== quantity) {
-        setInputValue(quantity.toString());
+    const currentValue = allowsDecimals ? quantity.toString() : quantity.toString();
+    if (document.activeElement !== inputRef.current && inputValue !== currentValue) {
+        setInputValue(currentValue);
     }
-  }, [quantity, inputValue]);
+  }, [quantity, inputValue, allowsDecimals]);
 
   const commitChange = () => {
-    let newQty = parseInt(inputValue);
-    if (isNaN(newQty) || newQty < 1) {
-      newQty = 1;
-      setInputValue("1");
+    let newQty: number;
+    if (allowsDecimals) {
+      newQty = parseFloat(inputValue);
+      if (isNaN(newQty) || newQty <= 0) {
+        newQty = 0.1;
+        setInputValue("0.1");
+      }
+    } else {
+      newQty = parseInt(inputValue);
+      if (isNaN(newQty) || newQty < 1) {
+        newQty = 1;
+        setInputValue("1");
+      }
     }
     // Notify parent only if changed
     if (newQty !== quantity) {
@@ -58,9 +72,15 @@ export function POSCartItemRow({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    // Allow empty string (for clearing input) or digits
-    if (val === '' || /^\d*$/.test(val)) {
-      setInputValue(val);
+    // Allow empty string (for clearing input) or valid numbers
+    if (allowsDecimals) {
+      if (val === '' || /^\d*\.?\d*$/.test(val)) {
+        setInputValue(val);
+      }
+    } else {
+      if (val === '' || /^\d*$/.test(val)) {
+        setInputValue(val);
+      }
     }
   };
 
@@ -87,7 +107,7 @@ export function POSCartItemRow({
           variant="outline"
           size="icon"
           className="h-8 w-8"
-          onClick={() => onUpdateQuantity(quantity - 1)}
+          onClick={() => onUpdateQuantity(allowsDecimals ? Math.max(0.1, quantity - (unit === 'kg' ? 0.1 : 0.1)) : Math.max(1, quantity - 1))}
         >
           <Minus className="h-3 w-3" />
         </Button>
@@ -105,7 +125,7 @@ export function POSCartItemRow({
           variant="outline"
           size="icon"
           className="h-8 w-8"
-          onClick={() => onUpdateQuantity(quantity + 1)}
+          onClick={() => onUpdateQuantity(allowsDecimals ? quantity + (unit === 'kg' ? 0.1 : 0.1) : quantity + 1)}
         >
           <Plus className="h-3 w-3" />
         </Button>

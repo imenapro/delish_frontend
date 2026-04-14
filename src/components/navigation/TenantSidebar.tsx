@@ -89,11 +89,14 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
     return user.email.charAt(0).toUpperCase();
   };
 
+  const normalizeRole = (role?: string) => role?.trim().toLowerCase();
+
   const getPrimaryRole = () => {
     if (roles.length === 0) return 'User';
     const roleNames: Record<string, string> = {
       'super_admin': 'Super Admin',
       'store_owner': 'Owner',
+      'owner': 'Owner',
       'admin': 'Admin',
       'branch_manager': 'Manager',
       'seller': 'Seller',
@@ -102,17 +105,36 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
       'delivery': 'Delivery',
       'manpower': 'Worker',
       'customer': 'Customer',
+      'logistics': 'Logistics',
+      'finance': 'Finance',
     };
 
-    // Get the primary role (first in sorted array)
-    const primaryRole = roles[0].role;
+    const orderedRoles = [
+      'super_admin',
+      'store_owner',
+      'owner',
+      'admin',
+      'branch_manager',
+      'manager',
+      'finance',
+      'accountant',
+      'seller',
+      'logistics',
+      'store_keeper',
+      'delivery',
+      'manpower',
+      'customer',
+    ];
 
-    // If it's a system role, use the mapped name
-    if (roleNames[primaryRole]) {
-      return roleNames[primaryRole];
+    const highestRole = orderedRoles
+      .map(roleKey => roles.find(r => normalizeRole(r.role) === roleKey))
+      .find(Boolean);
+
+    if (highestRole) {
+      return roleNames[normalizeRole(highestRole.role) || ''] || highestRole.role;
     }
 
-    // For custom roles, try to format it nicely (capitalize first letter of each word)
+    const primaryRole = roles[0].role;
     return primaryRole
       .split('_')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))

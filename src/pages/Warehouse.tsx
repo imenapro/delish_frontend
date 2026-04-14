@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useStoreContext } from "@/contexts/StoreContext";
+import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 import { formatCurrency } from "@/utils/currency";
 import { Plus, Package, AlertTriangle, TrendingUp, Check, X, Truck } from "lucide-react";
 
@@ -52,12 +54,38 @@ type WarehouseRequestRow = {
   rejected_by?: string | null;
   rejected_at?: string | null;
   expense_id?: string | null;
+  expense_amount?: number | null;
   complaint?: string | null;
   complaint_at?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
   deleted_by?: string | null;
+};
+
+type ProductionAllocationRequestRow = {
+  id: string;
+  business_id: string;
+  factory_item_id: string;
+  requested_by: string;
+  requested_at: string;
+  quantity: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'confirmed';
+  approved_by?: string | null;
+  approved_at?: string | null;
+  rejected_by?: string | null;
+  rejected_at?: string | null;
+  confirmed_by?: string | null;
+  confirmed_at?: string | null;
+  confirmation_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  factory_stock?: {
+    item_name: string;
+    category: string;
+    unit: string;
+  };
 };
 
 export const WarehouseContent = () => {
@@ -85,6 +113,9 @@ export const WarehouseContent = () => {
     unit: "pieces",
     reason: "",
   });
+  const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
+  const [approvalRequest, setApprovalRequest] = useState<WarehouseRequestRow | null>(null);
+  const [approvalExpenseAmount, setApprovalExpenseAmount] = useState<number>(0);
 
   const getErrorMessage = (err: unknown): string => {
     if (err instanceof Error) return err.message;
@@ -179,6 +210,30 @@ export const WarehouseContent = () => {
     enabled: !!store?.id,
   });
 
+  // Fetch production allocation requests
+  const { data: productionAllocationRequests = [], isLoading: allocationRequestsLoading } = useQuery({
+    queryKey: ["production-allocation-requests"],
+    queryFn: async () => {
+      if (!store?.id) return [] as ProductionAllocationRequestRow[];
+      try {
+        const { data, error } = await supabase
+          .from("production_allocation_requests")
+          .select("*, factory_stock(item_name, category, unit)")
+          .eq("business_id", store.id)
+          .order("requested_at", { ascending: false });
+
+        if (error) throw error;
+        return (data ?? []) as ProductionAllocationRequestRow[];
+      } catch (err) {
+        // Silently fail if table doesn't exist yet (migration not applied)
+        console.warn("Production allocation requests not available yet");
+        return [] as ProductionAllocationRequestRow[];
+      }
+    },
+    retry: false,
+    enabled: !!store?.id,
+  });
+
   // Add new stock mutation
   const addStockMutation = useMutation({
     mutationFn: async (stockData: typeof newStock) => {
@@ -244,12 +299,37 @@ export const WarehouseContent = () => {
     },
   });
 
+  // Handle production allocation request (approve/reject)
+  const handleAllocationRequestMutation = useMutation({
+    mutationFn: async ({ requestId, status }: { requestId: string; status: 'approved' | 'rejected' }) => {
+      const { error } = await supabase
+        .from("production_allocation_requests")
+        .update({ status })
+        .eq("id", requestId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["production-allocation-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      toast({ title: "Allocation request updated successfully" });
+    },
+    onError: (error) => {
+      toast({ title: "Error updating allocation request", description: getErrorMessage(error), variant: "destructive" });
+    },
+  });
+
   // Handle warehouse request (approve/reject)
   const handleRequestMutation = useMutation({
-    mutationFn: async ({ requestId, status, rejectedReason }: { requestId: string; status: string; rejectedReason?: string }) => {
+    mutationFn: async ({ requestId, status, rejectedReason, expenseAmount }: { requestId: string; status: string; rejectedReason?: string; expenseAmount?: number }) => {
       const updateData: Record<string, unknown> = { status };
       if (status === 'rejected' && rejectedReason) {
         updateData.rejected_reason = rejectedReason;
+      }
+      if (status === 'approved') {
+        if (expenseAmount === undefined || expenseAmount <= 0) {
+          throw new Error('Approval requires a valid expense amount');
+        }
+        updateData.expense_amount = expenseAmount;
       }
 
       const { error } = await supabase
@@ -351,6 +431,9 @@ export const WarehouseContent = () => {
     },
   });
 
+  const { user, roles } = useAuth();
+  const { hasPermission } = usePermissions();
+
   const lowStockItems = warehouseStock.filter(
     (item) => item.min_stock_level && item.quantity <= item.min_stock_level
   );
@@ -361,6 +444,48 @@ export const WarehouseContent = () => {
   );
 
   const pendingRequests = warehouseRequests.filter(r => r.status === "pending");
+
+  const hasApproveRole = roles.some((role) => {
+    if (typeof role.role !== "string") return false;
+    const normalized = role.role.trim().toLowerCase();
+    return ["super_admin", "admin", "owner", "store_owner", "finance"].includes(normalized);
+  });
+  const canApproveRequests = hasPermission("warehouse_requests.approve") || hasApproveRole;
+  const currentUserIsLogistics = roles.some(
+    (role) => typeof role.role === "string" && role.role.trim().toLowerCase() === "logistics"
+  );
+
+  const canApproveRequest = (request: WarehouseRequestRow) => {
+    const isOwnRequest = user?.id === request.requested_by;
+    return canApproveRequests && !(isOwnRequest && currentUserIsLogistics);
+  };
+
+  const openApproveDialog = (request: WarehouseRequestRow) => {
+    setApprovalRequest(request);
+    setApprovalExpenseAmount(request.expense_amount || 0);
+    setIsApproveDialogOpen(true);
+  };
+
+  const closeApproveDialog = () => {
+    setApprovalRequest(null);
+    setApprovalExpenseAmount(0);
+    setIsApproveDialogOpen(false);
+  };
+
+  const handleApproveRequest = () => {
+    if (!approvalRequest) return;
+    if (approvalExpenseAmount <= 0) {
+      toast({ title: "Please enter a valid expense amount", variant: "destructive" });
+      return;
+    }
+
+    handleRequestMutation.mutate({
+      requestId: approvalRequest.id,
+      status: "approved",
+      expenseAmount: approvalExpenseAmount,
+    });
+    closeApproveDialog();
+  };
 
   const handleCreateRequest = () => {
     if (!newRequest.item_name || !newRequest.reason || newRequest.quantity <= 0) {
@@ -737,6 +862,42 @@ export const WarehouseContent = () => {
                     </div>
                   </DialogContent>
                 </Dialog>
+
+                <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Approve Warehouse Request</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="space-y-2">
+                        <Label>Request</Label>
+                        <Input
+                          value={approvalRequest ? `${approvalRequest.item_name} — ${approvalRequest.quantity} ${approvalRequest.unit}` : ''}
+                          readOnly
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Total Expense Amount *</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={approvalExpenseAmount}
+                          onChange={(e) => setApprovalExpenseAmount(Number(e.target.value))}
+                          placeholder="Enter the expected expense amount"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2 mt-4">
+                        <Button variant="outline" onClick={closeApproveDialog}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleApproveRequest} disabled={handleRequestMutation.isPending}>
+                          {handleRequestMutation.isPending ? "Approving..." : "Approve Request"}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <Card>
@@ -783,24 +944,21 @@ export const WarehouseContent = () => {
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-2">
-                                {request.status === "pending" && (
+                                {request.status === "pending" && user?.id === request.requested_by && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleEditRequest(request)}
+                                  >
+                                    Edit
+                                  </Button>
+                                )}
+                                {request.status === "pending" && canApproveRequest(request) && (
                                   <>
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      onClick={() => handleEditRequest(request)}
-                                    >
-                                      Edit
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() =>
-                                        handleRequestMutation.mutate({
-                                          requestId: request.id,
-                                          status: "approved",
-                                        })
-                                      }
+                                      onClick={() => openApproveDialog(request)}
                                     >
                                       <Check className="h-4 w-4" />
                                     </Button>
@@ -817,6 +975,9 @@ export const WarehouseContent = () => {
                                       <X className="h-4 w-4" />
                                     </Button>
                                   </>
+                                )}
+                                {request.status === "pending" && !canApproveRequest(request) && (
+                                  <Badge variant="outline">Awaiting approval</Badge>
                                 )}
                                 {request.status === "rejected" && !request.complaint && (
                                   <Button

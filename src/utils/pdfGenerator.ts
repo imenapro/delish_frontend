@@ -5,7 +5,9 @@ import { toast } from 'sonner';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from './currency';
 
 interface OrderItem {
+  id?: string;
   quantity: number;
+  subtotal: number;
   product?: {
     name: string;
   };
@@ -23,6 +25,17 @@ interface InventorySnapshotItem {
   product_name: string;
   quantity: number;
   category?: string;
+}
+
+interface InventoryReconciliationItem {
+  product_name: string;
+  category?: string;
+  opening_stock: number;
+  added_stock: number;
+  closing_stock: number;
+  sold_quantity: number;
+  unit_price: number;
+  total_revenue: number;
 }
 
 interface ShiftReportData {
@@ -47,6 +60,7 @@ interface ShiftReportData {
   description?: string;
   currency?: string;
   inventorySnapshot?: InventorySnapshotItem[];
+  inventoryReconciliation?: InventoryReconciliationItem[];
 }
 
 interface jsPDFWithAutoTable extends jsPDF {
@@ -62,7 +76,8 @@ const createShiftReportDoc = ({
   expectedCash,
   description,
   currency = DEFAULT_SYSTEM_CURRENCY,
-  inventorySnapshot
+  inventorySnapshot,
+  inventoryReconciliation
 }: ShiftReportData) => {
   const doc = new jsPDF();
   const shopName = session.shop?.name || 'Shop Name';
@@ -113,14 +128,42 @@ const createShiftReportDoc = ({
     metaY += 6;
   });
 
+  const cashSales = shiftOrders?.reduce((sum, order) => {
+    if (order.payment_method === 'cash') return sum + Number(order.total_amount);
+    return sum;
+  }, 0) || 0;
+
+  const mobileMoneySales = shiftOrders?.reduce((sum, order) => {
+    if (order.payment_method === 'mobile_money') return sum + Number(order.total_amount);
+    return sum;
+  }, 0) || 0;
+
+  const cardSales = shiftOrders?.reduce((sum, order) => {
+    if (order.payment_method === 'card') return sum + Number(order.total_amount);
+    return sum;
+  }, 0) || 0;
+
+  const walletSales = shiftOrders?.reduce((sum, order) => {
+    if (order.payment_method === 'wallet') return sum + Number(order.total_amount);
+    return sum;
+  }, 0) || 0;
+
+  const cashAndMobileSales = cashSales + mobileMoneySales;
+  const cardAndWalletSales = cardSales + walletSales;
+
   // Financial Summary Table
   autoTable(doc, {
     startY: metaY + 5,
     head: [['Financial Summary', 'Amount']],
     body: [
       ['Opening Cash', formatCurrency(session.opening_cash, currency)],
+      ['Cash Sales', formatCurrency(cashSales, currency)],
+      ['Mobile Money Sales', formatCurrency(mobileMoneySales, currency)],
+      ['Card Sales', formatCurrency(cardSales, currency)],
+      ['Wallet Sales', formatCurrency(walletSales, currency)],
+      ['Total Card/Wallet Sales', formatCurrency(cardAndWalletSales, currency)],
       ['Total Sales', formatCurrency(session.total_sales, currency)],
-      ['Expected Cash', formatCurrency(expectedCash, currency)],
+      ['Expected Cash + Mobile', formatCurrency(expectedCash, currency)],
       ['Actual Cash Count', formatCurrency(closingCash, currency)],
       ['Variance', formatCurrency(difference, currency)],
     ],
@@ -136,13 +179,55 @@ const createShiftReportDoc = ({
 
     autoTable(doc, {
       startY: finalY + 20,
-      head: [['Order #', 'Time', 'Payment', 'Total']],
-      body: shiftOrders.map(order =>
-        [`${order.order_code}`, format(new Date(order.created_at), 'HH:mm'), order.payment_method || '-', formatCurrency(Number(order.total_amount), currency)]
-      ),
+      head: [['Order #', 'Time', 'Payment', 'Total', 'Items Purchased']],
+      body: shiftOrders.map(order => [
+        `${order.order_code}`,
+        format(new Date(order.created_at), 'HH:mm'),
+        order.payment_method || '-',
+        formatCurrency(Number(order.total_amount), currency),
+        order.order_items?.map(item => `${item.quantity}x ${item.product?.name || 'Item'}`).join(', ') || '-',
+      ]),
       theme: 'grid',
       headStyles: { fillColor: [66, 66, 66] },
-      styles: { fontSize: 9, cellPadding: 3 },
+      styles: { fontSize: 8, cellPadding: 3 },
+      columnStyles: {
+        4: { cellWidth: 80 },
+      },
+    });
+  }
+
+  // Inventory Reconciliation Table
+  if (inventoryReconciliation && inventoryReconciliation.length > 0) {
+    const finalY = (doc as unknown as jsPDFWithAutoTable).lastAutoTable.finalY || 100;
+    doc.setFontSize(12);
+    doc.text("Product Inventory Reconciliation", 14, finalY + 15);
+
+    autoTable(doc, {
+      startY: finalY + 20,
+      head: [['NO', 'PRODUCT', 'STARTING STOCK', 'STOCK PROVIDED DURING A SHIFT', 'CLOSING STOCK', 'SOLD STOCK', 'PRICE', 'TOTAL SOLD PRICE']],
+      body: inventoryReconciliation.map((item, idx) => [
+        (idx + 1).toString(),
+        item.product_name,
+        item.opening_stock.toString(),
+        item.added_stock.toString(),
+        item.closing_stock.toString(),
+        item.sold_quantity.toString(),
+        formatCurrency(item.unit_price, currency),
+        formatCurrency(item.total_revenue, currency),
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [66, 66, 66], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 3 },
+      columnStyles: {
+        0: { halign: 'center' },
+        2: { halign: 'right' },
+        3: { halign: 'right' },
+        4: { halign: 'right' },
+        5: { halign: 'right', textColor: [220, 53, 69] },
+        6: { halign: 'right' },
+        7: { halign: 'right', textColor: [40, 167, 69], fontStyle: 'bold' },
+      },
+      margin: { left: 14, right: 14 },
     });
   }
 

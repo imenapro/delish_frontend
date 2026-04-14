@@ -28,6 +28,7 @@ import {
   TenantInvoiceSettingsPage,
   InventorySettings,
   TenantProfile,
+  TenantAuditReports,
 } from "./pages/tenant";
 
 export const TenantRoutes = (
@@ -62,6 +63,7 @@ export const TenantRoutes = (
     <Route path="finance" element={<TenantFinance />} />
     <Route path="workforce" element={<TenantWorkforce />} />
     <Route path="reports" element={<TenantReports />} />
+    <Route path="reports/audit" element={<TenantAuditReports />} />
     <Route path="delivery" element={<TenantDelivery />} />
     <Route path="staff" element={<TenantStaff />} />
     <Route path="admin" element={<TenantAdmin />} />

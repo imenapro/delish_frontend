@@ -39,6 +39,7 @@ interface Product {
   description: string | null;
   price: number;
   category: string;
+  unit: string;
   image_url: string | null;
   business_id: string;
   is_active: boolean;
@@ -368,11 +369,12 @@ export default function TenantProducts() {
                       <Badge variant="secondary" className="text-xs mb-1 w-fit">
                         {product.category}
                       </Badge>
-                      {product.promotion_description && (
-                        <Badge variant="outline" className="text-xs mb-1 bg-orange-50 text-orange-700 border-orange-200 w-fit">
-                          {product.promotion_description}
-                        </Badge>
-                      )}
+                      <Badge 
+                        variant={product.is_active ? "default" : "destructive"} 
+                        className="text-xs mb-1 w-fit"
+                      >
+                        {product.is_active ? "Active" : "Inactive"}
+                      </Badge>
                       <div className="flex flex-col">
                         {product.discount_price ? (
                           <>
@@ -382,11 +384,19 @@ export default function TenantProducts() {
                             <p className="text-xs text-muted-foreground line-through">
                               {formatPrice(product.price)}
                             </p>
+                            <p className="text-xs text-muted-foreground">
+                              per {product.unit}
+                            </p>
                           </>
                         ) : (
-                          <p className="text-lg font-bold text-primary">
-                            {formatPrice(product.price)}
-                          </p>
+                          <>
+                            <p className="text-lg font-bold text-primary">
+                              {formatPrice(product.price)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              per {product.unit}
+                            </p>
+                          </>
                         )}
                       </div>
                       {product.barcode && (

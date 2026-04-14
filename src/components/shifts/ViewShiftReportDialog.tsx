@@ -62,26 +62,62 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
     queryFn: async () => {
       if (!session) return [];
       
-      // We use a time-based query to ensure we catch all orders within the shift window,
-      // regardless of whether pos_session_id was correctly stamped (legacy support/redundancy).
-      // This matches the logic used in the PDF report generation.
-      const { data, error } = await supabase
+      // Fetch orders for this session
+      const { data: orders, error: ordersError } = await supabase
         .from('orders')
-        .select(`
-          *,
-          order_items (
-            id,
-            quantity,
-            unit_price,
-            subtotal,
-            product:products (name)
-          )
-        `)
+        .select('*')
         .eq('pos_session_id', session.id)
+        .eq('source', 'pos')
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
-      return data;
+      if (ordersError) throw ordersError;
+      if (!orders || orders.length === 0) return [];
+
+      // Fetch all order items for these orders
+      const orderIds = orders.map(o => o.id);
+      const { data: items, error: itemsError } = await supabase
+        .from('order_items')
+        .select(`
+          id,
+          order_id,
+          quantity,
+          unit_price,
+          subtotal,
+          product:products (id, name)
+        `)
+        .in('order_id', orderIds);
+      
+      if (itemsError) throw itemsError;
+      
+      // Group items by order_id
+      const itemsByOrder: { [key: string]: any[] } = {};
+      items?.forEach(item => {
+        if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
+        itemsByOrder[item.order_id].push(item);
+      });
+      
+      // Attach items to orders, with fallback to items_snapshot for online/legacy orders
+      return orders.map(order => {
+        const sourceItems = Array.isArray(order.items_snapshot) ? order.items_snapshot : Array.isArray(order.items) ? order.items : [];
+        const snapshotItems = sourceItems.map((item: any, idx: number) => ({
+          id: item.id || `${order.id}-${idx}`,
+          quantity: item.quantity,
+          unit_price: item.unit_price ?? item.price ?? 0,
+          subtotal: item.subtotal ?? ((item.quantity || 0) * (item.unit_price ?? item.price ?? 0)),
+          product: item.product ? { name: item.product.name } : item.product_name ? { name: item.product_name } : item.name ? { name: item.name } : undefined,
+          name: item.name,
+          product_name: item.product_name,
+        }));
+
+        const orderItems = (itemsByOrder[order.id] && itemsByOrder[order.id].length > 0)
+          ? itemsByOrder[order.id]
+          : snapshotItems;
+
+        return {
+          ...order,
+          order_items: orderItems,
+        };
+      });
     },
     enabled: !!session && open,
   });
@@ -104,7 +140,28 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
 
   if (!session) return null;
 
-  const expectedCash = session.expected_cash ?? (session.opening_cash + session.total_sales);
+  const totalCashSales = shiftOrders?.reduce((acc, order) => {
+    if (order.payment_method === 'cash') return acc + Number(order.total_amount);
+    return acc;
+  }, 0) || 0;
+
+  const totalMobileMoneySales = shiftOrders?.reduce((acc, order) => {
+    if (order.payment_method === 'mobile_money') return acc + Number(order.total_amount);
+    return acc;
+  }, 0) || 0;
+
+  const totalCardSales = shiftOrders?.reduce((acc, order) => {
+    if (order.payment_method === 'card') return acc + Number(order.total_amount);
+    return acc;
+  }, 0) || 0;
+
+  const totalWalletSales = shiftOrders?.reduce((acc, order) => {
+    if (order.payment_method === 'wallet') return acc + Number(order.total_amount);
+    return acc;
+  }, 0) || 0;
+
+  const totalCashAndMobileMoneySales = totalCashSales + totalMobileMoneySales;
+  const expectedCash = session.expected_cash ?? (session.opening_cash + totalCashAndMobileMoneySales);
   const closingCashNum = session.closing_cash ?? 0;
   
   const handleGeneratePDF = async () => {
@@ -178,13 +235,30 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
                                 <span>Opening Cash</span>
                                 <span>{formatCurrency(session.opening_cash, currency)}</span>
                             </div>
+                            <div className="flex justify-between text-xs">
+                                <span>Cash Sales</span>
+                                <span>{formatCurrency(totalCashSales, currency)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                                <span>Mobile Money Sales</span>
+                                <span>{formatCurrency(totalMobileMoneySales, currency)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                                <span>Card Sales</span>
+                                <span>{formatCurrency(totalCardSales, currency)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                                <span>Wallet Sales</span>
+                                <span>{formatCurrency(totalWalletSales, currency)}</span>
+                            </div>
+                            <div className="border-t my-1"></div>
                             <div className="flex justify-between text-xs font-medium">
                                 <span>Total Sales</span>
                                 <span className="text-blue-600">+{formatCurrency(session.total_sales, currency)}</span>
                             </div>
                              <div className="border-t my-1"></div>
                             <div className="flex justify-between text-xs">
-                                <span>Expected Cash</span>
+                                <span>Expected Cash + Mobile</span>
                                 <span>{formatCurrency(expectedCash, currency)}</span>
                             </div>
                             {session.closed_at && (
@@ -221,14 +295,26 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
                                             {shiftOrders?.map((order) => (
                                                 <AccordionItem key={order.id} value={order.id} className="border-b last:border-0 px-2">
                                                     <AccordionTrigger className="py-2 hover:no-underline hover:bg-muted/50 rounded px-2 text-xs">
-                                                        <div className="flex justify-between w-full pr-2 items-center">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-mono font-medium text-primary">{order.order_code}</span>
-                                                                <span className="text-muted-foreground font-normal hidden sm:inline">
-                                                                    {format(new Date(order.created_at), 'HH:mm')}
-                                                                </span>
+                                                        <div className="flex flex-col gap-1 w-full pr-2">
+                                                            <div className="flex justify-between items-center gap-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-mono font-medium text-primary">{order.order_code}</span>
+                                                                    <span className="text-muted-foreground font-normal hidden sm:inline">
+                                                                        {format(new Date(order.created_at), 'HH:mm')}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-medium">{formatCurrency(order.total_amount, currency)}</span>
+                                                                    {order.source && (
+                                                                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                                                            {order.source}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                            <span className="font-medium">{formatCurrency(order.total_amount, currency)}</span>
+                                                            <div className="text-[11px] text-muted-foreground">
+                                                                {(order.order_items?.length ? order.order_items : order.items_snapshot || order.items || []).map((item: OrderItem) => `${item.quantity}x ${item.product?.name || item.product_name || item.name || 'Item'}`).join(', ') || 'No items recorded'}
+                                                            </div>
                                                         </div>
                                                     </AccordionTrigger>
                                                     <AccordionContent className="px-2 pb-2 bg-muted/20 rounded-b-md">
@@ -237,11 +323,14 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
                                                                 <span>Time: {format(new Date(order.created_at), 'PP p')}</span>
                                                                 <span className="uppercase">{order.payment_method?.replace('_', ' ')}</span>
                                                             </div>
+                                                            {order.source && (
+                                                              <div className="text-[10px] text-muted-foreground">Source: {order.source}</div>
+                                                            )}
                                                             <div className="text-xs space-y-1">
-                                                                {order.order_items?.map((item: OrderItem) => (
+                                                                {((order.order_items?.length ? order.order_items : order.items_snapshot || order.items || []) as OrderItem[]).map((item: OrderItem) => (
                                                                     <div key={item.id} className="flex justify-between items-center">
                                                                         <span className="flex-1 truncate pr-2">
-                                                                            <span className="font-medium">{item.quantity}x</span> {item.product?.name}
+                                                                            <span className="font-medium">{item.quantity}x</span> {item.product?.name || item.product_name || item.name || 'Item'}
                                                                         </span>
                                                                         <span className="text-muted-foreground">{formatCurrency(item.subtotal, currency)}</span>
                                                                     </div>

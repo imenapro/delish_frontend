@@ -57,27 +57,56 @@ export default function TenantShiftManagement() {
     setPrintingSessionId(session.id);
     try {
         // Fetch orders for this session
-        const { data: shiftOrders, error } = await supabase
+        const { data: orders, error: ordersError } = await supabase
             .from('orders')
-            .select(`
-              *,
-              order_items (
-                id,
-                quantity,
-                unit_price,
-                subtotal,
-                product:products (name)
-              )
-            `)
+            .select('*')
             .eq('shop_id_origin', session.shop_id)
             .eq('seller_id', session.user_id)
             .gte('created_at', session.opened_at)
             .lte('created_at', session.closed_at || new Date().toISOString())
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (ordersError) throw ordersError;
+        
+        let shiftOrders = [];
+        if (orders && orders.length > 0) {
+          // Fetch order items
+          const orderIds = orders.map(o => o.id);
+          const { data: items, error: itemsError } = await supabase
+              .from('order_items')
+              .select(`
+                id,
+                order_id,
+                quantity,
+                unit_price,
+                subtotal,
+                product:products (id, name)
+              `)
+              .in('order_id', orderIds);
 
-        const expectedCash = session.expected_cash ?? (session.opening_cash + session.total_sales);
+          if (itemsError) throw itemsError;
+          
+          // Group items
+          const itemsByOrder: { [key: string]: any[] } = {};
+          items?.forEach(item => {
+            if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
+            itemsByOrder[item.order_id].push(item);
+          });
+          
+          shiftOrders = orders.map(order => ({
+            ...order,
+            order_items: itemsByOrder[order.id] || []
+          }));
+        }
+
+        const cashAndMobileSales = shiftOrders?.reduce((sum: number, order: any) => {
+            if (order.payment_method === 'cash' || order.payment_method === 'mobile_money') {
+                return sum + Number(order.total_amount);
+            }
+            return sum;
+        }, 0) || 0;
+
+        const expectedCash = session.expected_cash ?? (session.opening_cash + cashAndMobileSales);
         const closingCash = session.closing_cash ?? 0;
 
         await generateShiftReportPDF({

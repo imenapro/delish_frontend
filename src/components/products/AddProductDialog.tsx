@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Upload, Package } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -34,12 +35,31 @@ const PRODUCT_CATEGORIES = [
   'Other',
 ];
 
+const PRODUCT_UNITS = [
+  'piece',
+  'kg',
+  'grams',
+  'box',
+  'pack',
+  'bottle',
+  'can',
+  'liter',
+  'ml',
+  'dozen',
+  'bundle',
+  'roll',
+  'sheet',
+  'other'
+];
+
 export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: AddProductDialogProps) {
   const { store } = useStoreContext();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
+  const [unit, setUnit] = useState('piece');
   const [price, setPrice] = useState('');
+  const [isActive, setIsActive] = useState(true);
   // Discount and Promotion fields removed as per requirement
   const [barcode, setBarcode] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -71,12 +91,14 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
         name,
         description: description || null,
         category,
+        unit,
         price: parseFloat(price),
         discount_price: null,
         promotion_description: null,
         barcode: barcode || null,
         image_url: imageUrl || null,
         business_id: businessId,
+        is_active: isActive,
       });
 
       if (error) throw error;
@@ -98,7 +120,9 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
     setName('');
     setDescription('');
     setCategory('');
+    setUnit('piece');
     setPrice('');
+    setIsActive(true);
     setBarcode('');
     setImageFile(null);
     setImagePreview('');
@@ -164,15 +188,40 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="price">Base Price ({store?.currency || DEFAULT_SYSTEM_CURRENCY}) *</Label>
+              <Label htmlFor="unit">Unit *</Label>
+              <Select value={unit} onValueChange={setUnit}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_UNITS.map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="price">Base Price per {unit} ({store?.currency || DEFAULT_SYSTEM_CURRENCY}) *</Label>
               <Input
                 id="price"
                 type="number"
-                step="1"
+                step="0.01"
                 min="0"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                placeholder="0"
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="is-active">Active Status</Label>
+              <Switch
+                id="is-active"
+                checked={isActive}
+                onCheckedChange={setIsActive}
               />
             </div>
 

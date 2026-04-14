@@ -1,11 +1,14 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { useNavigate } from 'react-router-dom';
 import { PasswordChangeDialog } from '@/components/auth/PasswordChangeDialog';
 
+export type AppRole = Database['public']['Enums']['app_role'] | string;
+
 export interface UserRole {
-  role: 'super_admin' | 'branch_manager' | 'admin' | 'seller' | 'manager' | 'delivery' | 'customer' | 'store_keeper' | 'manpower' | 'accountant' | 'store_owner';
+  role: AppRole;
   shop_id?: string;
   business_id?: string;
 }
@@ -65,23 +68,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (controller.signal.aborted) return;
 
       // Define role priority for sorting (higher number = higher priority)
+      const normalizeRole = (role: string) => role?.trim().toLowerCase();
+
       const ROLE_PRIORITY: Record<string, number> = {
         'super_admin': 100,
         'store_owner': 90,
+        'owner': 90,
         'admin': 80,
         'branch_manager': 70,
         'manager': 70, // Alias for branch_manager
+        'finance': 65,
         'accountant': 60,
         'seller': 50,
+        'logistics': 45,
         'store_keeper': 40,
         'delivery': 30,
         'manpower': 20,
-        'customer': 10
+        'customer': 10,
       };
 
       const sortedRoles = (data || []).sort((a, b) => {
-        const priorityA = ROLE_PRIORITY[a.role] || 0;
-        const priorityB = ROLE_PRIORITY[b.role] || 0;
+        const priorityA = ROLE_PRIORITY[normalizeRole(a.role) || ''] || 0;
+        const priorityB = ROLE_PRIORITY[normalizeRole(b.role) || ''] || 0;
         return priorityB - priorityA; // Descending order
       });
 

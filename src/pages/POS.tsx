@@ -37,6 +37,7 @@ interface CartItem {
   name: string;
   price: number;
   quantity: number;
+  unit: string;
   subtotal: number;
 }
 
@@ -45,6 +46,7 @@ interface Product {
   name: string;
   price: number;
   category: string;
+  unit: string;
   image_url: string | null;
   barcode: string | null;
   description: string | null;
@@ -412,6 +414,7 @@ export default function POS() {
         name: product.name,
         price: Number(product.price),
         quantity: 1,
+        unit: product.unit,
         subtotal: Number(product.price),
       }]);
     }
@@ -419,7 +422,12 @@ export default function POS() {
   };
 
   const updateQuantity = async (productId: string, newQuantity: number) => {
-    if (newQuantity < 1) return;
+    const item = cart.find(item => item.product_id === productId);
+    if (!item) return;
+
+    const allowsDecimals = ['kg', 'grams', 'liter', 'ml'].includes(item.unit);
+    if (!allowsDecimals && newQuantity < 1) return;
+    if (allowsDecimals && newQuantity <= 0) return;
 
     if (selectedShop) {
       const { data: inventory } = await supabase
@@ -793,6 +801,7 @@ export default function POS() {
                           name={item.name}
                           price={item.price}
                           quantity={item.quantity}
+                          unit={item.unit}
                           subtotal={item.subtotal}
                           currency={currency}
                           onUpdateQuantity={(qty) => updateQuantity(item.product_id, qty)}

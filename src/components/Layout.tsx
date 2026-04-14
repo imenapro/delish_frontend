@@ -58,7 +58,7 @@ export function Layout({ children }: LayoutProps) {
     { name: 'Chat', href: '/chat', icon: MessageSquare, show: true },
     { name: 'Wallet', href: '/wallet', icon: Wallet, show: true },
 
-    { name: 'Warehouse', href: '/warehouse', icon: Factory, show: hasRole('manager') || hasRole('branch_manager') || isAdmin || hasRole('super_admin')},
+    { name: 'Warehouse', href: '/warehouse', icon: Factory, show: hasRole('manager') || hasRole('branch_manager') || hasRole('logistics') || isAdmin || hasRole('super_admin')},
     { name: 'Recipes (BOM)', href: '/recipes', icon: Utensils, show: hasRole('manager') || isAdmin },
     { name: 'Production', href: '/production-stock', icon: ChefHat, show: hasRole('manager') || isAdmin },
     { name: 'Finished Products', href: '/finished-products', icon: Package, show: hasRole('manager') || isAdmin },
@@ -71,10 +71,13 @@ export function Layout({ children }: LayoutProps) {
     return user?.email?.charAt(0).toUpperCase() || 'U';
   };
 
+  const normalizeRole = (role?: string) => role?.trim().toLowerCase();
+
   const getRoleDisplayName = (role?: string) => {
     if (!role) return 'User';
     const roleNames: Record<string, string> = {
       'store_owner': 'Owner',
+      'owner': 'Owner',
       'admin': 'Admin',
       'branch_manager': 'Manager',
       'seller': 'Seller',
@@ -83,14 +86,17 @@ export function Layout({ children }: LayoutProps) {
       'delivery': 'Delivery',
       'manpower': 'Worker',
       'customer': 'Customer',
+      'logistics': 'Logistics',
+      'finance': 'Finance',
       'super_admin': 'Super Admin',
     };
-    return roleNames[role] || role;
+    return roleNames[normalizeRole(role) || ''] || role;
   };
 
   const getPrimaryRole = () => {
     const roleNames: Record<string, string> = {
       'store_owner': 'Owner',
+      'owner': 'Owner',
       'admin': 'Admin',
       'branch_manager': 'Manager',
       'seller': 'Seller',
@@ -99,17 +105,22 @@ export function Layout({ children }: LayoutProps) {
       'delivery': 'Delivery',
       'manpower': 'Worker',
       'customer': 'Customer',
+      'logistics': 'Logistics',
+      'finance': 'Finance',
       'super_admin': 'Super Admin',
     };
 
     const orderedRoles = [
       'super_admin',
       'store_owner',
+      'owner',
       'admin',
       'branch_manager',
       'manager',
+      'finance',
       'accountant',
       'seller',
+      'logistics',
       'store_keeper',
       'delivery',
       'manpower',
@@ -117,11 +128,11 @@ export function Layout({ children }: LayoutProps) {
     ];
 
     const highestRole = orderedRoles
-      .map(roleKey => roles.find(r => r.role === roleKey))
+      .map(roleKey => roles.find(r => normalizeRole(r.role) === roleKey))
       .find(Boolean);
 
     if (highestRole) {
-      return roleNames[highestRole.role] || highestRole.role;
+      return roleNames[normalizeRole(highestRole.role) || ''] || highestRole.role;
     }
 
     return 'User';

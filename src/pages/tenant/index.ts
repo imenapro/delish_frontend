@@ -17,3 +17,4 @@ export { default as TenantInvoiceManagement } from './TenantInvoiceManagement';
 export { default as TenantInvoiceSettingsPage } from './TenantInvoiceSettingsPage';
 export { default as InventorySettings } from './InventorySettings';
 export { default as TenantProfile } from './TenantProfile';
+export { default as TenantAuditReports } from './TenantAuditReports';

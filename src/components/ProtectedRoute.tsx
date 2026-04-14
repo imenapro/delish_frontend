@@ -5,8 +5,8 @@ import { usePermissions } from '@/hooks/usePermissions';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: 'super_admin' | 'branch_manager' | 'admin' | 'seller' | 'manager' | 'delivery' | 'customer' | 'store_keeper' | 'manpower' | 'accountant' | 'store_owner';
-  requiredRoles?: ('super_admin' | 'branch_manager' | 'admin' | 'seller' | 'manager' | 'delivery' | 'customer' | 'store_keeper' | 'manpower' | 'accountant' | 'store_owner')[];
+  requiredRole?: string;
+  requiredRoles?: string[];
   requiredPermission?: string;
 }
 
