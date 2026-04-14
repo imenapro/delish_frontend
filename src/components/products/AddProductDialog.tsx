@@ -67,13 +67,19 @@ export function AddProductDialog({ open, onOpenChange, businessId, onSuccess }: 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
+  const sanitizeFileName = (name: string) =>
+    name
+      .trim()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9._-]/g, '_');
+
 
   const addProductMutation = useMutation({
     mutationFn: async () => {
       let imageUrl = '';
       
       if (imageFile) {
-        const filePath = `products/${Date.now()}-${imageFile.name}`;
+        const filePath = `products/${Date.now()}-${sanitizeFileName(imageFile.name)}`;
         const { error: uploadError } = await supabase.storage
           .from('product-images')
           .upload(filePath, imageFile);

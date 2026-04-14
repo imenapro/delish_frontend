@@ -11,7 +11,6 @@ export function useBusinessProducts(businessId: string | undefined) {
         .from('products')
         .select('*')
         .eq('business_id', businessId)
-        .eq('is_active', true)
         .order('name');
 
       if (error) throw error;

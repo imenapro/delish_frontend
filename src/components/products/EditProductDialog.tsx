@@ -77,6 +77,12 @@ export function EditProductDialog({ open, onOpenChange, product, onSuccess }: Ed
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
 
+  const sanitizeFileName = (name: string) =>
+    name
+      .trim()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9._-]/g, '_');
+
   useEffect(() => {
     if (product) {
       setName(product.name || '');
@@ -118,7 +124,7 @@ export function EditProductDialog({ open, onOpenChange, product, onSuccess }: Ed
     try {
       let imageUrl = product.image_url || null;
       if (imageFile) {
-        const filePath = `products/${product.id}-${Date.now()}-${imageFile.name}`;
+        const filePath = `products/${Date.now()}-${sanitizeFileName(imageFile.name)}`;
         const { error: uploadError } = await supabase.storage
           .from('product-images')
           .upload(filePath, imageFile);

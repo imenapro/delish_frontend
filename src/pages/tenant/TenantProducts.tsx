@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Package, Tag, Plus, Search, MoreVertical, Pencil, Trash2, AlertTriangle, Upload, Download } from 'lucide-react';
+import { Package, Tag, Plus, Search, MoreVertical, Pencil, Trash2, AlertTriangle, Upload, Download, Eye, EyeOff } from 'lucide-react';
 import { AddProductDialog } from '@/components/products/AddProductDialog';
 import { EditProductDialog } from '@/components/products/EditProductDialog';
 import { SetDiscountDialog } from '@/components/products/SetDiscountDialog';
@@ -31,7 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { formatCurrency } from '@/utils/currency';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
 interface Product {
   id: string;
@@ -64,11 +64,12 @@ export default function TenantProducts() {
   const deleteProduct = useDeleteProduct();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const filteredProducts = products.filter(
-    (product) =>
-      product.is_active &&
-      (product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchQuery.toLowerCase()))
+  const activeProducts = products.filter((product) => product.is_active);
+  const inactiveProducts = products.filter((product) => !product.is_active);
+
+  const filteredProducts = products.filter((product) =>
+    product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    product.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const categories = [...new Set(filteredProducts.map((p) => p.category))];
@@ -181,6 +182,25 @@ export default function TenantProducts() {
     }
   };
 
+  const toggleProductActiveStatus = async (product: Product) => {
+    try {
+      const updatedStatus = !product.is_active;
+      const { error } = await supabase
+        .from('products')
+        .update({ is_active: updatedStatus })
+        .eq('id', product.id);
+
+      if (error) throw error;
+
+      toast.success(`Product ${updatedStatus ? 'activated' : 'deactivated'} successfully`);
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['tenant-pos-products'] });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to update product status';
+      toast.error(msg);
+    }
+  };
+
   const formatPrice = (price: number) => {
     return formatCurrency(price, currency);
   };
@@ -254,13 +274,23 @@ export default function TenantProducts() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{filteredProducts.length}</div>
-            <p className="text-xs text-muted-foreground">Available for sale</p>
-          </CardContent>
-        </Card>
-      </div>
+              <div className="text-2xl font-bold">{activeProducts.length}</div>
+              <p className="text-xs text-muted-foreground">Available for sale</p>
+            </CardContent>
+          </Card>
 
-      {/* Search */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Inactive</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{inactiveProducts.length}</div>
+              <p className="text-xs text-muted-foreground">Hidden from POS/Inventory</p>
+            </CardContent>
+          </Card>
+        </div>
+
       <div className="relative mt-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -349,6 +379,17 @@ export default function TenantProducts() {
                         >
                           <AlertTriangle className="mr-2 h-4 w-4" />
                           Promotion
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => toggleProductActiveStatus(product)}
+                        >
+                          {product.is_active ? (
+                            <EyeOff className="mr-2 h-4 w-4" />
+                          ) : (
+                            <Eye className="mr-2 h-4 w-4" />
+                          )}
+                          {product.is_active ? 'Deactivate' : 'Activate'}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
