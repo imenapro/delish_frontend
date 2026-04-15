@@ -44,6 +44,7 @@ export interface Store {
   currency: string;
   invoiceTemplateId?: string;
   invoiceSettings?: InvoiceSettings;
+  disableShiftOpeningCash?: boolean;
 }
 
 interface StoreContextType {
@@ -132,6 +133,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               footerText: 'Thank you for your business!',
               fontFamily: 'Inter'
             },
+            disableShiftOpeningCash: business.disable_shift_opening_cash ?? false,
           });
         } else {
           setStore(null);

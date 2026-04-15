@@ -1,0 +1,79 @@
+import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { useAuth } from '@/hooks/useAuth';
+import { useStoreContext } from '@/contexts/StoreContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+export function TenantShiftSettings() {
+  const { store, refreshStore } = useStoreContext();
+  const { roles } = useAuth();
+  const [disableOpeningCash, setDisableOpeningCash] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const canManageShiftSettings = roles.some((role) =>
+    ['super_admin', 'owner', 'manager', 'store_owner'].includes(role.role)
+  );
+
+  useEffect(() => {
+    if (store) {
+      setDisableOpeningCash(store.disableShiftOpeningCash ?? false);
+    }
+  }, [store]);
+
+  if (!canManageShiftSettings || !store) {
+    return null;
+  }
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('businesses')
+        .update({ disable_shift_opening_cash: disableOpeningCash })
+        .eq('id', store.id);
+
+      if (error) throw error;
+      toast.success('Shift settings updated successfully');
+      refreshStore();
+    } catch (error) {
+      console.error('Failed to update shift settings:', error);
+      toast.error('Failed to save shift settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Shift Opening Cash</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-medium">Disable opening cash entry</h3>
+            <p className="text-sm text-muted-foreground">
+              When enabled, the opening cash field is locked to 0 for all new shift opens.
+            </p>
+          </div>
+          <Switch
+            checked={disableOpeningCash}
+            onCheckedChange={setDisableOpeningCash}
+          />
+        </div>
+        <div className="rounded-lg border border-muted/50 bg-muted/5 p-4">
+          <p className="text-sm">
+            If this setting is turned on, shift open will always use an opening cash value of 0 and the field will be disabled. When off, users can enter an opening cash amount (default 0).
+          </p>
+        </div>
+        <Button onClick={handleSave} disabled={saving} className="mt-2">
+          {saving ? 'Saving...' : 'Save Shift Setting'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}

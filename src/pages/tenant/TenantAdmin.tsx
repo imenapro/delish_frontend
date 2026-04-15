@@ -13,6 +13,7 @@ import { TenantPaymentMethods } from '@/components/finance/payment-methods/Tenan
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UIPersistenceSettings } from '@/components/settings/ui-persistence-settings';
 import { RoleManagement } from '@/components/admin/RoleManagement';
+import { TenantShiftSettings } from '@/components/tenant/TenantShiftSettings';
 
 export default function TenantAdmin() {
   const { store } = useStoreContext();
@@ -117,6 +118,9 @@ export default function TenantAdmin() {
                 </section>
                 <section className="pt-8 border-t">
                   <TenantTaxManagement />
+                </section>
+                <section className="pt-8 border-t">
+                  <TenantShiftSettings />
                 </section>
               </div>
             </TabsContent>

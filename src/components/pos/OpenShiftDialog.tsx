@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Clock, DollarSign, Store } from 'lucide-react';
 import { DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
+import { useStoreContext } from '@/contexts/StoreContext';
 
 interface Shop {
   id: string;
@@ -33,14 +34,22 @@ interface OpenShiftDialogProps {
 
 export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShiftOpened, currency = DEFAULT_SYSTEM_CURRENCY }: OpenShiftDialogProps) {
   const queryClient = useQueryClient();
+  const { store } = useStoreContext();
   const [selectedShop, setSelectedShop] = useState('');
-  const [openingCash, setOpeningCash] = useState('');
+  const [openingCash, setOpeningCash] = useState('0');
+  const isOpeningCashDisabled = store?.disableShiftOpeningCash ?? false;
 
   useEffect(() => {
     if (shops.length === 1 && !selectedShop) {
       setSelectedShop(shops[0].id);
     }
   }, [shops, selectedShop]);
+
+  useEffect(() => {
+    if (isOpeningCashDisabled) {
+      setOpeningCash('0');
+    }
+  }, [isOpeningCashDisabled]);
 
   const openShiftMutation = useMutation({
     mutationFn: async () => {
@@ -54,7 +63,7 @@ export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShift
           user_id: user.id,
           shop_id: selectedShop,
           business_id: businessId,
-          opening_cash: parseFloat(openingCash) || 0,
+          opening_cash: isOpeningCashDisabled ? 0 : parseFloat(openingCash) || 0,
           status: 'open',
         })
         .select()
@@ -116,10 +125,13 @@ export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShift
               type="number"
               placeholder="0"
               value={openingCash}
-              onChange={(e) => setOpeningCash(e.target.value)}
+              disabled={isOpeningCashDisabled}
+              onChange={(e) => !isOpeningCashDisabled && setOpeningCash(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Enter the amount of cash in the drawer at the start of your shift
+              {isOpeningCashDisabled
+                ? 'Opening cash is disabled by admin and will be set to 0.'
+                : 'Enter the amount of cash in the drawer at the start of your shift.'}
             </p>
           </div>
         </div>
