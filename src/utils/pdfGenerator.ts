@@ -7,6 +7,7 @@ import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from './currency';
 interface OrderItem {
   id?: string;
   quantity: number;
+  unit_price?: number;
   subtotal: number;
   product?: {
     name: string;
@@ -185,13 +186,13 @@ const createShiftReportDoc = ({
         format(new Date(order.created_at), 'HH:mm'),
         order.payment_method || '-',
         formatCurrency(Number(order.total_amount), currency),
-        order.order_items?.map(item => `${item.quantity}x ${item.product?.name || 'Item'}`).join(', ') || '-',
+        order.order_items?.map(item => `${item.quantity}x ${formatCurrency(item.unit_price || 0, currency)} ${item.product?.name || 'Item'}`).join(', ') || '-',
       ]),
       theme: 'grid',
       headStyles: { fillColor: [66, 66, 66] },
       styles: { fontSize: 8, cellPadding: 3 },
       columnStyles: {
-        4: { cellWidth: 80 },
+        4: { cellWidth: 100 },
       },
     });
   }

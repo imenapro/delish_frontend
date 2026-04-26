@@ -12,8 +12,9 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Clock, Users, DollarSign, AlertCircle, CheckCircle, Eye, Printer, Loader2 } from 'lucide-react';
+import { Clock, Users, DollarSign, AlertCircle, CheckCircle, Eye, Printer, Loader2, FileText } from 'lucide-react';
 import { ViewShiftReportDialog } from '@/components/shifts/ViewShiftReportDialog';
+import { Link } from 'react-router-dom';
 import { generateShiftReportPDF } from '@/utils/pdfGenerator';
 import { toast } from 'sonner';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
@@ -36,6 +37,10 @@ interface Session {
   };
   shop?: {
     name: string;
+    logo_url?: string;
+    address: string;
+    phone?: string;
+    owner_email?: string;
   };
 }
 
@@ -56,52 +61,45 @@ export default function TenantShiftManagement() {
   const handlePrintReport = async (session: Session) => {
     setPrintingSessionId(session.id);
     try {
-        // Fetch orders for this session
-        const { data: orders, error: ordersError } = await supabase
-            .from('orders')
+        // Fetch invoices for this session
+        const { data: invoices, error: invoicesError } = await supabase
+            .from('invoices')
             .select('*')
-            .eq('shop_id_origin', session.shop_id)
-            .eq('seller_id', session.user_id)
+            .eq('shop_id', session.shop_id)
+            .eq('staff_id', session.user_id)
             .gte('created_at', session.opened_at)
             .lte('created_at', session.closed_at || new Date().toISOString())
             .order('created_at', { ascending: false });
 
-        if (ordersError) throw ordersError;
+        if (invoicesError) throw invoicesError;
         
-        let shiftOrders = [];
-        if (orders && orders.length > 0) {
-          // Fetch order items
-          const orderIds = orders.map(o => o.id);
-          const { data: items, error: itemsError } = await supabase
-              .from('order_items')
-              .select(`
-                id,
-                order_id,
-                quantity,
-                unit_price,
-                subtotal,
-                product:products (id, name)
-              `)
-              .in('order_id', orderIds);
+        // Process invoices to extract items from items_snapshot
+        let shiftInvoices = [];
+        if (invoices && invoices.length > 0) {
+          shiftInvoices = invoices.map((invoice: any) => {
+            const sourceItems = Array.isArray(invoice.items_snapshot) ? invoice.items_snapshot : [];
+            const invoiceItems = sourceItems.map((item: any, idx: number) => ({
+              id: item.id || `${invoice.id}-${idx}`,
+              quantity: item.quantity,
+              unit_price: item.unit_price ?? item.price ?? 0,
+              subtotal: item.subtotal ?? ((item.quantity || 0) * (item.unit_price ?? item.price ?? 0)),
+              product: item.product ? { name: item.product.name } : item.product_name ? { name: item.product_name } : item.name ? { name: item.name } : undefined,
+              name: item.name,
+              product_name: item.product_name,
+            }));
 
-          if (itemsError) throw itemsError;
-          
-          // Group items
-          const itemsByOrder: { [key: string]: any[] } = {};
-          items?.forEach(item => {
-            if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
-            itemsByOrder[item.order_id].push(item);
+            return {
+              ...invoice,
+              order_code: invoice.invoice_number,
+              source: 'pos',
+              order_items: invoiceItems,
+            };
           });
-          
-          shiftOrders = orders.map(order => ({
-            ...order,
-            order_items: itemsByOrder[order.id] || []
-          }));
         }
 
-        const cashAndMobileSales = shiftOrders?.reduce((sum: number, order: any) => {
-            if (order.payment_method === 'cash' || order.payment_method === 'mobile_money') {
-                return sum + Number(order.total_amount);
+        const cashAndMobileSales = shiftInvoices?.reduce((sum: number, invoice: any) => {
+            if (invoice.payment_method === 'cash' || invoice.payment_method === 'mobile_money') {
+                return sum + Number(invoice.total_amount);
             }
             return sum;
         }, 0) || 0;
@@ -111,7 +109,7 @@ export default function TenantShiftManagement() {
 
         await generateShiftReportPDF({
             session,
-            shiftOrders: shiftOrders || [],
+            shiftOrders: shiftInvoices || [],
             closingCash,
             expectedCash,
             description: session.notes || undefined
@@ -217,6 +215,14 @@ export default function TenantShiftManagement() {
     <TenantPageWrapper
       title="Shift Management"
       description="Monitor all POS shifts across your shops"
+      actions={
+        <Button asChild variant="outline">
+          <Link to={store?.id ? `/tenant/${store.id}/invoices` : '/invoices'}>
+            <FileText className="mr-2 h-4 w-4" />
+            Invoice History
+          </Link>
+        </Button>
+      }
     >
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
