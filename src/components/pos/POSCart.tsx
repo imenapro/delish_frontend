@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { ShoppingCart, Trash2, CreditCard, Save } from 'lucide-react';
+import { ShoppingCart, Trash2, CreditCard, Save, Package } from 'lucide-react';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 import { POSCartItemRow } from './POSCartItemRow';
 
@@ -20,6 +20,7 @@ interface POSCartProps {
   onClearCart: () => void;
   onCheckout: () => void;
   onPark: () => void;
+  onCommand?: () => void;
   isProcessing?: boolean;
   currency?: string;
   tax?: number;
@@ -33,6 +34,7 @@ export function POSCart({
   onClearCart,
   onCheckout,
   onPark,
+  onCommand,
   isProcessing,
   currency = DEFAULT_SYSTEM_CURRENCY,
   tax = 0,
@@ -115,8 +117,19 @@ export function POSCart({
             >
               <Save className="h-4 w-4" />
             </Button>
+            {onCommand && (
+              <Button 
+                variant="outline" 
+                className="col-span-1 text-purple-600 border-purple-200 hover:bg-purple-50 hover:text-purple-700"
+                onClick={onCommand}
+                title="Create Command with Advance Payment"
+                disabled={isProcessing}
+              >
+                <Package className="h-4 w-4" />
+              </Button>
+            )}
             <Button 
-              className="col-span-2"
+              className={onCommand ? 'col-span-1' : 'col-span-2'}
               onClick={onCheckout}
               disabled={isProcessing}
             >

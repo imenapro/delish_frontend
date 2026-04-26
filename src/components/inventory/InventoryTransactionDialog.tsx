@@ -9,13 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 
 export function InventoryTransactionDialog() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
   const [formData, setFormData] = useState({
     shop_id: '',
     product_id: '',
@@ -163,7 +164,18 @@ export function InventoryTransactionDialog() {
                 <SelectValue placeholder="Select product" />
               </SelectTrigger>
               <SelectContent>
-                {products?.map((product) => (
+                <div className="p-2">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search products..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+                {products?.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => (
                   <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>
                 ))}
               </SelectContent>

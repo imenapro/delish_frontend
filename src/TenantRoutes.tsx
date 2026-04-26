@@ -8,6 +8,7 @@ import { RecipesContent } from "./pages/Recipes";
 import { ProductionStockContent } from "./pages/ProductionStock";
 import { FinishedProductsContent } from "./pages/FinishedProducts";
 import { SuppliersContent } from "./pages/Suppliers";
+import CommandsDashboard from "./pages/tenant/Production/CommandsDashboard";
 import {
   TenantPOS,
   TenantShops,
@@ -33,7 +34,7 @@ import {
 
 export const TenantRoutes = (
   <>
-    <Route index element={<Navigate to="dashboard" replace />} />
+    <Route index element={<Navigate to="warehouse" replace />} />
     <Route path="dashboard" element={<TenantDashboard />} />
     <Route path="profile" element={<TenantProfile />} />
     <Route
@@ -58,6 +59,7 @@ export const TenantRoutes = (
     <Route path="products" element={<TenantProducts />} />
     <Route path="orders" element={<TenantOrders />} />
     <Route path="kitchen" element={<TenantKitchen />} />
+    <Route path="commands" element={<CommandsDashboard />} />
     <Route path="inventory" element={<TenantInventory />} />
     <Route path="inventory/settings" element={<InventorySettings />} />
     <Route path="finance" element={<TenantFinance />} />

@@ -22,6 +22,18 @@ import { generateShiftReportPDF } from '@/utils/pdfGenerator';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 
+interface OrderItem {
+  id: string;
+  quantity: number;
+  unit_price?: number;
+  product?: {
+    name: string;
+  };
+  subtotal: number;
+  name?: string;
+  product_name?: string;
+}
+
 interface ViewShiftReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -56,51 +68,30 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  // Fetch Shift Orders with Details
+  // Fetch Shift Sales (POS Invoices) with Details
   const { data: shiftOrders, isLoading: isLoadingOrders } = useQuery({
     queryKey: ['shift-orders', session?.id],
     queryFn: async () => {
       if (!session) return [];
-      
-      // Fetch orders for this session
-      const { data: orders, error: ordersError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('pos_session_id', session.id)
-        .eq('source', 'pos')
-        .order('created_at', { ascending: false });
-      
-      if (ordersError) throw ordersError;
-      if (!orders || orders.length === 0) return [];
 
-      // Fetch all order items for these orders
-      const orderIds = orders.map(o => o.id);
-      const { data: items, error: itemsError } = await supabase
-        .from('order_items')
-        .select(`
-          id,
-          order_id,
-          quantity,
-          unit_price,
-          subtotal,
-          product:products (id, name)
-        `)
-        .in('order_id', orderIds);
-      
-      if (itemsError) throw itemsError;
-      
-      // Group items by order_id
-      const itemsByOrder: { [key: string]: any[] } = {};
-      items?.forEach(item => {
-        if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
-        itemsByOrder[item.order_id].push(item);
-      });
-      
-      // Attach items to orders, with fallback to items_snapshot for online/legacy orders
-      return orders.map(order => {
-        const sourceItems = Array.isArray(order.items_snapshot) ? order.items_snapshot : Array.isArray(order.items) ? order.items : [];
-        const snapshotItems = sourceItems.map((item: any, idx: number) => ({
-          id: item.id || `${order.id}-${idx}`,
+      const endTime = new Date().toISOString();
+
+      const { data: invoices, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('shop_id', session.shop_id)
+        .eq('staff_id', session.user_id)
+        .gte('created_at', session.opened_at)
+        .lte('created_at', endTime)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (!invoices || invoices.length === 0) return [];
+
+      return invoices.map((invoice: any) => {
+        const sourceItems = Array.isArray(invoice.items_snapshot) ? invoice.items_snapshot : [];
+        const invoiceItems = sourceItems.map((item: any, idx: number) => ({
+          id: item.id || `${invoice.id}-${idx}`,
           quantity: item.quantity,
           unit_price: item.unit_price ?? item.price ?? 0,
           subtotal: item.subtotal ?? ((item.quantity || 0) * (item.unit_price ?? item.price ?? 0)),
@@ -109,13 +100,11 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
           product_name: item.product_name,
         }));
 
-        const orderItems = (itemsByOrder[order.id] && itemsByOrder[order.id].length > 0)
-          ? itemsByOrder[order.id]
-          : snapshotItems;
-
         return {
-          ...order,
-          order_items: orderItems,
+          ...invoice,
+          order_code: invoice.invoice_number,
+          source: 'pos',
+          order_items: invoiceItems,
         };
       });
     },
@@ -277,11 +266,11 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
                             )}
                         </div>
 
-                        {/* Order History */}
+                        {/* Invoice History */}
                         <div>
                             <div className="flex justify-between items-center mb-2">
-                                <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Detailed Order History</h4>
-                                <span className="text-xs bg-secondary px-2 py-0.5 rounded-full">{session.total_orders} Orders</span>
+                                <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Detailed Invoice History</h4>
+                                <span className="text-xs bg-secondary px-2 py-0.5 rounded-full">{session.total_orders} Invoices</span>
                             </div>
                             
                             {isLoadingOrders ? (
@@ -330,7 +319,7 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
                                                                 {((order.order_items?.length ? order.order_items : order.items_snapshot || order.items || []) as OrderItem[]).map((item: OrderItem) => (
                                                                     <div key={item.id} className="flex justify-between items-center">
                                                                         <span className="flex-1 truncate pr-2">
-                                                                            <span className="font-medium">{item.quantity}x</span> {item.product?.name || item.product_name || item.name || 'Item'}
+                                                                            <span className="font-medium">{item.quantity}x</span> {item.product?.name || item.product_name || item.name || 'Item'}{typeof item.unit_price === 'number' ? ` @ ${formatCurrency(item.unit_price, currency)}` : ''}
                                                                         </span>
                                                                         <span className="text-muted-foreground">{formatCurrency(item.subtotal, currency)}</span>
                                                                     </div>

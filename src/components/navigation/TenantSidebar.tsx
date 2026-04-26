@@ -134,7 +134,9 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
       return roleNames[normalizeRole(highestRole.role) || ''] || highestRole.role;
     }
 
-    const primaryRole = roles[0].role;
+    // Prioritize non-customer roles - filter out customer and take the first non-customer role
+    const nonCustomerRoles = roles.filter(r => normalizeRole(r.role) !== 'customer');
+    const primaryRole = nonCustomerRoles.length > 0 ? nonCustomerRoles[0].role : roles[0].role;
     return primaryRole
       .split('_')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))

@@ -60,6 +60,7 @@ interface CloseShiftDialogProps {
 interface OrderItem {
   id: string;
   quantity: number;
+  unit_price?: number;
   product?: {
     name: string;
   };
@@ -80,49 +81,28 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const [isSending, setIsSending] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
 
-  // Fetch Shift Orders with Details
+  // Fetch Shift Sales (POS Invoices) with Details
   const { data: shiftOrders } = useQuery({
-    queryKey: ['shift-orders', session.id],
+    queryKey: ['shift-invoices', session.id],
     queryFn: async () => {
-      // Fetch orders for this session
-      const { data: orders, error: ordersError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('pos_session_id', session.id)
-        .eq('source', 'pos')
-        .order('created_at', { ascending: false });
-      
-      if (ordersError) throw ordersError;
-      if (!orders || orders.length === 0) return [];
+      const endTime = new Date().toISOString();
 
-      // Fetch all order items for these orders
-      const orderIds = orders.map(o => o.id);
-      const { data: items, error: itemsError } = await supabase
-        .from('order_items')
-        .select(`
-          id,
-          order_id,
-          quantity,
-          unit_price,
-          subtotal,
-          product:products (id, name)
-        `)
-        .in('order_id', orderIds);
-      
-      if (itemsError) throw itemsError;
-      
-      // Group items by order_id
-      const itemsByOrder: { [key: string]: any[] } = {};
-      items?.forEach(item => {
-        if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
-        itemsByOrder[item.order_id].push(item);
-      });
-      
-      // Attach items to orders, with fallback to items_snapshot for online/legacy orders
-      return orders.map(order => {
-        const sourceItems = Array.isArray(order.items_snapshot) ? order.items_snapshot : Array.isArray(order.items) ? order.items : [];
-        const snapshotItems = sourceItems.map((item: any, idx: number) => ({
-          id: item.id || `${order.id}-${idx}`,
+      const { data: invoices, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('shop_id', session.shop_id)
+        .eq('staff_id', session.user_id)
+        .gte('created_at', session.opened_at)
+        .lte('created_at', endTime)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (!invoices || invoices.length === 0) return [];
+
+      return invoices.map((invoice: any) => {
+        const sourceItems = Array.isArray(invoice.items_snapshot) ? invoice.items_snapshot : [];
+        const invoiceItems = sourceItems.map((item: any, idx: number) => ({
+          id: item.id || `${invoice.id}-${idx}`,
           quantity: item.quantity,
           unit_price: item.unit_price ?? item.price ?? 0,
           subtotal: item.subtotal ?? ((item.quantity || 0) * (item.unit_price ?? item.price ?? 0)),
@@ -131,13 +111,11 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
           product_name: item.product_name,
         }));
 
-        const orderItems = (itemsByOrder[order.id] && itemsByOrder[order.id].length > 0)
-          ? itemsByOrder[order.id]
-          : snapshotItems;
-
         return {
-          ...order,
-          order_items: orderItems,
+          ...invoice,
+          order_code: invoice.invoice_number,
+          source: 'pos',
+          order_items: invoiceItems,
         };
       });
     },
@@ -719,13 +697,13 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                                     <span>{formatCurrency(session.total_sales, currency)}</span>
                                 </div>
                                 <div className="flex justify-between text-muted-foreground text-xs mb-1">
-                                    <span>Total Orders</span>
+                                    <span>Total Invoices</span>
                                     <span>{session.total_orders}</span>
                                 </div>
                             </div>
 
                             <div className="border-t pt-2">
-                                <p className="font-semibold mb-2 text-xs uppercase tracking-wider text-muted-foreground">Order History</p>
+                                <p className="font-semibold mb-2 text-xs uppercase tracking-wider text-muted-foreground">Invoice History</p>
                                 <Accordion type="single" collapsible className="w-full">
                                     {shiftOrders?.map((order) => (
                                         <AccordionItem key={order.id} value={order.id} className="border-b-0 mb-1">
@@ -756,7 +734,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                                                     <div className="text-xs space-y-1">
                                                         {((order.order_items?.length ? order.order_items : order.items_snapshot || order.items || []) as OrderItem[]).map((item: OrderItem) => (
                                                             <div key={item.id} className="flex justify-between">
-                                                                <span>{item.quantity}x {item.product?.name || item.product_name || item.name || 'Item'}</span>
+                                                                <span>{item.quantity}x {item.product?.name || item.product_name || item.name || 'Item'}{typeof item.unit_price === 'number' ? ` @ ${formatCurrency(item.unit_price, currency)}` : ''}</span>
                                                                 <span>{formatCurrency(item.subtotal, currency)}</span>
                                                             </div>
                                                         ))}

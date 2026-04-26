@@ -8,6 +8,8 @@ import { OpenShiftDialog } from '@/components/pos/OpenShiftDialog';
 import { CloseShiftDialog } from '@/components/pos/CloseShiftDialog';
 import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
 import { Receipt } from '@/components/pos/Receipt';
+import { POSCommandDialog } from '@/components/pos/POSCommandDialog';
+import { POSSettleCommandDialog, CommandToSettle } from '@/components/pos/POSSettleCommandDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Printer, Wifi, WifiOff, CreditCard, ShoppingCart, Calculator, Clock, LogOut, Store, Maximize, Minimize, ShoppingBag, RotateCcw } from 'lucide-react';
+import { Printer, Wifi, WifiOff, CreditCard, ShoppingCart, Calculator, Clock, LogOut, Store, Maximize, Minimize, ShoppingBag, RotateCcw, Package } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { format, formatDistanceToNow } from 'date-fns';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
@@ -88,6 +90,10 @@ export default function TenantPOS() {
   const [postSaleDialogOpen, setPostSaleDialogOpen] = useState(false);
   const [lastSaleData, setLastSaleData] = useState<any>(null);
   const [lastTaxBreakdown, setLastTaxBreakdown] = useState<{ name: string; rate: number; amount: number }[]>([]);
+  const [commandDialogOpen, setCommandDialogOpen] = useState(false);
+  const [settleCommandDialogOpen, setSettleCommandDialogOpen] = useState(false);
+  const [selectedCommandToSettle, setSelectedCommandToSettle] = useState<CommandToSettle | null>(null);
+  const [pendingCommands, setPendingCommands] = useState<CommandToSettle[]>([]);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
 
@@ -619,6 +625,106 @@ export default function TenantPOS() {
     }
   };
 
+  // Create Command Mutation
+  const createCommandMutation = useMutation({
+    mutationFn: async ({
+      customer_name,
+      customer_phone,
+      advance_amount,
+      payment_method,
+      notes,
+    }: {
+      customer_name: string;
+      customer_phone: string;
+      advance_amount: number;
+      payment_method: string;
+      notes?: string;
+    }) => {
+      if (!user?.id) throw new Error('Not authenticated');
+      if (!activeSession) throw new Error('No active shift');
+      if (!store?.id) throw new Error('Store context missing');
+
+      const rpcItems = cart.map(item => ({
+        product_id: item.id,
+        quantity: item.quantity,
+        unit_price: item.price,
+        name: item.name,
+      }));
+
+      const total = cartTotal;
+
+      const { data: result, error } = await supabase.rpc('create_command_with_advance', {
+        p_shop_id: activeSession.shop_id,
+        p_user_id: user.id,
+        p_customer_name: customer_name,
+        p_customer_phone: customer_phone,
+        p_items: rpcItems,
+        p_total_amount: total,
+        p_advance_paid: advance_amount,
+        p_payment_method: payment_method,
+        p_pos_session_id: activeSession.id,
+        p_notes: notes || null,
+      });
+
+      if (error) {
+        console.error('[Command] RPC Error:', error);
+        throw error;
+      }
+
+      return result;
+    },
+    onSuccess: (data) => {
+      setCart([]);
+      setCommandDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['active-pos-session'] });
+      toast.success(`Command created! Order code: ${data.order_code}`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to create command');
+    },
+  });
+
+  // Settle Command Mutation
+  const settleCommandMutation = useMutation({
+    mutationFn: async ({
+      order_id,
+      final_payment,
+      payment_method,
+      notes,
+    }: {
+      order_id: string;
+      final_payment: number;
+      payment_method: string;
+      notes?: string;
+    }) => {
+      if (!user?.id) throw new Error('Not authenticated');
+
+      const { data: result, error } = await supabase.rpc('settle_command', {
+        p_order_id: order_id,
+        p_final_payment: final_payment,
+        p_payment_method: payment_method,
+        p_user_id: user.id,
+        p_notes: notes || null,
+      });
+
+      if (error) {
+        console.error('[Settle] RPC Error:', error);
+        throw error;
+      }
+
+      return result;
+    },
+    onSuccess: (data) => {
+      setSettleCommandDialogOpen(false);
+      setSelectedCommandToSettle(null);
+      queryClient.invalidateQueries({ queryKey: ['active-pos-session'] });
+      toast.success('Command payment settled! Payment recorded.');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to settle command');
+    },
+  });
+
   const handlePrint = useReactToPrint({
     contentRef: receiptRef,
   });
@@ -960,7 +1066,8 @@ export default function TenantPOS() {
               onClearCart={() => setCart([])}
               onCheckout={() => setPaymentDialogOpen(true)}
               onPark={handleParkOrder}
-              isProcessing={createOrderMutation.isPending}
+              onCommand={() => setCommandDialogOpen(true)}
+              isProcessing={createOrderMutation.isPending || createCommandMutation.isPending}
               currency={currency}
               tax={currentTaxTotal}
               total={cartTotal}
@@ -980,6 +1087,42 @@ export default function TenantPOS() {
           extras
         })}
         isProcessing={createOrderMutation.isPending}
+        currency={currency}
+      />
+
+      {/* Create Command Dialog */}
+      <POSCommandDialog
+        open={commandDialogOpen}
+        onOpenChange={setCommandDialogOpen}
+        cartItems={cart}
+        total={cartTotal}
+        onCreate={async (data) => {
+          await createCommandMutation.mutateAsync({
+            customer_name: data.customer_name,
+            customer_phone: data.customer_phone,
+            advance_amount: data.advance_amount,
+            payment_method: data.payment_method,
+            notes: data.notes,
+          });
+        }}
+        isProcessing={createCommandMutation.isPending}
+        currency={currency}
+      />
+
+      {/* Settle Command Dialog */}
+      <POSSettleCommandDialog
+        open={settleCommandDialogOpen}
+        onOpenChange={setSettleCommandDialogOpen}
+        command={selectedCommandToSettle}
+        onSettle={async (data) => {
+          await settleCommandMutation.mutateAsync({
+            order_id: data.order_id,
+            final_payment: data.final_payment,
+            payment_method: data.payment_method,
+            notes: data.notes,
+          });
+        }}
+        isProcessing={settleCommandMutation.isPending}
         currency={currency}
       />
 
