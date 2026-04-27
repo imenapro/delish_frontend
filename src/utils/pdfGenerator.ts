@@ -36,7 +36,7 @@ interface InventoryReconciliationItem {
   closing_stock: number;
   sold_quantity: number;
   unit_price: number;
-  total_revenue: number;
+  current_stock_value: number;
 }
 
 interface ShiftReportData {
@@ -205,7 +205,7 @@ const createShiftReportDoc = ({
 
     autoTable(doc, {
       startY: finalY + 20,
-      head: [['NO', 'PRODUCT', 'STARTING STOCK', 'STOCK PROVIDED DURING A SHIFT', 'CLOSING STOCK', 'SOLD STOCK', 'PRICE', 'TOTAL SOLD PRICE']],
+      head: [['NO', 'PRODUCT', 'STARTING STOCK', 'STOCK PROVIDED DURING A SHIFT', 'CLOSING STOCK', 'SOLD STOCK', 'PRICE', 'CURRENT STOCK VALUE']],
       body: inventoryReconciliation.map((item, idx) => [
         (idx + 1).toString(),
         item.product_name,
@@ -214,7 +214,7 @@ const createShiftReportDoc = ({
         item.closing_stock.toString(),
         item.sold_quantity.toString(),
         formatCurrency(item.unit_price, currency),
-        formatCurrency(item.total_revenue, currency),
+        formatCurrency(item.current_stock_value, currency),
       ]),
       theme: 'grid',
       headStyles: { fillColor: [66, 66, 66], textColor: [255, 255, 255], fontStyle: 'bold' },
@@ -229,24 +229,6 @@ const createShiftReportDoc = ({
         7: { halign: 'right', textColor: [40, 167, 69], fontStyle: 'bold' },
       },
       margin: { left: 14, right: 14 },
-    });
-  }
-
-  // Inventory Snapshot Table
-  if (inventorySnapshot && inventorySnapshot.length > 0) {
-    const finalY = (doc as unknown as jsPDFWithAutoTable).lastAutoTable.finalY || 100;
-    doc.setFontSize(12);
-    doc.text("Inventory Snapshot", 14, finalY + 15);
-
-    autoTable(doc, {
-      startY: finalY + 20,
-      head: [['Product', 'Category', 'Quantity']],
-      body: inventorySnapshot.map(item =>
-        [item.product_name, item.category || '-', item.quantity.toString()]
-      ),
-      theme: 'grid',
-      headStyles: { fillColor: [66, 66, 66] },
-      styles: { fontSize: 9, cellPadding: 3 },
     });
   }
 

@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Accordion,
   AccordionContent,
@@ -243,6 +244,8 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const { data: inventoryReconciliation } = useQuery({
     queryKey: ['inventory-reconciliation', session.id],
     queryFn: async () => {
+      console.log('Fetching inventory reconciliation for session:', session.id);
+
       // Fetch opening inventory snapshot (at shift start, if available)
       const { data: openingSnapshots } = await supabase
         .from('pos_session_inventory_snapshots')
@@ -251,24 +254,103 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
         .order('created_at', { ascending: true })
         .limit(1);
 
+      console.log('Opening snapshots:', openingSnapshots);
+
       // Fetch closing inventory from shop_inventory (current state)
       const { data: currentInventory } = await supabase
         .from('shop_inventory')
         .select('product_id, stock, product:products(name, category, unit_price)')
         .eq('shop_id', session.shop_id);
 
-      // Get quantities sold per product in this shift
-      const { data: shiftOrderItems } = await supabase
-        .from('order_items')
-        .select('product_id, quantity, unit_price, product:products(name, category)')
-        .in('order_id', shiftOrders?.map(o => o.id) || []);
+      console.log('Current inventory:', currentInventory);
 
-      // Build reconciliation data
-      const productMap = new Map();
+      // Fetch inventory transactions during this shift (stock in/out)
+      const { data: inventoryTransactions } = await supabase
+        .from('inventory_transactions')
+        .select('product_id, quantity, transaction_type')
+        .eq('shop_id', session.shop_id)
+        .gte('created_at', session.opened_at)
+        .order('created_at', { ascending: true });
 
-      // Initialize with current inventory
+      console.log('Inventory transactions during shift:', inventoryTransactions);
+
+      // Calculate added stock from inventory transactions (stock in = positive, stock out = negative)
+      const addedStockMap = new Map<string, number>();
+      inventoryTransactions?.forEach(tx => {
+        const current = addedStockMap.get(tx.product_id) || 0;
+        if (tx.transaction_type === 'stock_in') {
+          addedStockMap.set(tx.product_id, current + (tx.quantity || 0));
+        } else if (tx.transaction_type === 'stock_out') {
+          addedStockMap.set(tx.product_id, current - (tx.quantity || 0));
+        }
+      });
+      console.log('Added stock map:', Array.from(addedStockMap.entries()));
+
+      // Create a mapping from product name to product_id for matching
+      const productNameToIdMap = new Map<string, string>();
+      currentInventory?.forEach(inv => {
+        if (inv.product?.name) {
+          productNameToIdMap.set(inv.product.name.toLowerCase(), inv.product_id);
+        }
+      });
+      console.log('Product name to ID map:', Array.from(productNameToIdMap.entries()));
+
+      // Get quantities sold per product from invoices (items_snapshot)
+      const soldQuantities = new Map<string, { quantity: number; unit_price: number; product_name: string }>();
+      
+      // If shiftOrders is empty, try fetching invoices directly
+      const invoicesToProcess = shiftOrders && shiftOrders.length > 0 ? shiftOrders : [];
+      
+      if (invoicesToProcess.length === 0) {
+        console.log('No shiftOrders, trying to fetch invoices directly...');
+        const endTime = new Date().toISOString();
+        const { data: directInvoices, error: invoiceError } = await supabase
+          .from('invoices')
+          .select('*')
+          .eq('shop_id', session.shop_id)
+          .eq('staff_id', session.user_id)
+          .gte('created_at', session.opened_at)
+          .lte('created_at', endTime)
+          .order('created_at', { ascending: false });
+        
+        console.log('Direct invoices:', directInvoices, 'Error:', invoiceError);
+        if (directInvoices) {
+          invoicesToProcess.push(...directInvoices);
+        }
+      }
+
+      invoicesToProcess.forEach((invoice: any) => {
+        const sourceItems = Array.isArray(invoice.items_snapshot) ? invoice.items_snapshot : [];
+        console.log('Invoice items_snapshot:', sourceItems);
+        sourceItems.forEach((item: any) => {
+          const productId = item.product_id || item.product?.id;
+          const productName = item.product?.name || item.product_name || item.name;
+          console.log('Item:', { productId, productName, quantity: item.quantity, fullItem: item });
+          
+          // Use product_id if available, otherwise try to match by product name
+          let key = productId;
+          if (!key && productName) {
+            key = productNameToIdMap.get(productName.toLowerCase()) || productName;
+          }
+          key = key || productName || 'Unknown';
+          
+          const existing = soldQuantities.get(key) || { quantity: 0, unit_price: 0, product_name: productName || 'Unknown' };
+          existing.quantity += item.quantity || 0;
+          existing.unit_price = item.unit_price ?? item.price ?? existing.unit_price;
+          existing.product_name = productName || existing.product_name;
+          soldQuantities.set(key, existing);
+        });
+      });
+
+      console.log('Sold quantities map:', Array.from(soldQuantities.entries()));
+
+      // Build reconciliation data - use product_id as key
+      const productMap = new Map<string, any>();
+
+      // Initialize with current inventory using product_id as key
       currentInventory?.forEach(inv => {
         productMap.set(inv.product_id, {
+          product_id: inv.product_id,
           product_name: inv.product?.name || 'Unknown',
           category: inv.product?.category,
           unit_price: inv.product?.unit_price || 0,
@@ -276,7 +358,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
           added_stock: 0,
           closing_stock: inv.stock || 0,
           sold_quantity: 0,
-          total_revenue: 0,
+          current_stock_value: 0,
         });
       });
 
@@ -288,6 +370,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
           item.opening_stock = snap.quantity || 0;
         } else {
           productMap.set(key, {
+            product_id: key,
             product_name: snap.product_name || 'Unknown',
             category: snap.category,
             unit_price: 0,
@@ -295,34 +378,56 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
             added_stock: 0,
             closing_stock: 0,
             sold_quantity: 0,
-            total_revenue: 0,
+            current_stock_value: 0,
           });
         }
       });
 
-      // Calculate sold quantities from order items
-      shiftOrderItems?.forEach(item => {
-        const key = item.product_id;
+      // Calculate sold quantities from invoices - use product_id as key
+      soldQuantities.forEach((sold, key) => {
+        console.log('Processing sold item:', { key, sold, hasInMap: productMap.has(key) });
         if (productMap.has(key)) {
           const reconcItem = productMap.get(key);
-          reconcItem.sold_quantity += item.quantity || 0;
-          reconcItem.unit_price = item.unit_price || reconcItem.unit_price;
-          reconcItem.total_revenue = reconcItem.sold_quantity * (item.unit_price || 0);
+          reconcItem.sold_quantity = sold.quantity;
+          reconcItem.unit_price = sold.unit_price || reconcItem.unit_price;
+        } else {
+          // Add products that were sold but not in current inventory
+          console.log('Adding sold product not in inventory:', sold);
+          productMap.set(key, {
+            product_id: key,
+            product_name: sold.product_name,
+            category: '',
+            unit_price: sold.unit_price || 0,
+            opening_stock: 0,
+            added_stock: 0,
+            closing_stock: 0,
+            sold_quantity: sold.quantity,
+            current_stock_value: 0,
+          });
         }
       });
 
-      // Calculate added stock: opening + added - sold = closing
-      // So: added = closing - opening + sold
+      // Set added stock from inventory transactions
+      addedStockMap.forEach((added, productId) => {
+        if (productMap.has(productId)) {
+          const item = productMap.get(productId);
+          item.added_stock = added;
+        }
+      });
+
+      // Calculate current stock value (closing_stock * unit_price)
       productMap.forEach(item => {
-        item.added_stock = Math.max(0, item.closing_stock - item.opening_stock + item.sold_quantity);
-        if (item.total_revenue === 0 && item.sold_quantity > 0 && item.unit_price > 0) {
-          item.total_revenue = item.sold_quantity * item.unit_price;
-        }
+        item.current_stock_value = item.closing_stock * item.unit_price;
       });
 
-      return Array.from(productMap.values()).filter(item => item.sold_quantity > 0 || item.opening_stock > 0 || item.closing_stock > 0);
+      const result = Array.from(productMap.values());
+      console.log('Reconciliation result before filter:', result);
+      // Return all items from current inventory to show full reconciliation
+      const filtered = result.filter(item => item.closing_stock > 0 || item.opening_stock > 0 || item.sold_quantity > 0);
+      console.log('Reconciliation result after filter:', filtered);
+      return filtered;
     },
-    enabled: open && shiftOrders && shiftOrders.length > 0,
+    enabled: open,
   });
 
   const handleAddRecipient = () => {
@@ -351,7 +456,6 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
         expectedCash: expectedCashWithMobile,
         description,
         currency,
-        inventorySnapshot: inventory || undefined,
         inventoryReconciliation: inventoryReconciliation || undefined
     });
     setIsGeneratingPdf(false);
@@ -424,7 +528,6 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                 expectedCash: expectedCashWithMobile,
                 description,
                 currency,
-                inventorySnapshot: inventory || undefined,
                 inventoryReconciliation: inventoryReconciliation || undefined
             });
 
@@ -468,7 +571,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                         to: recipient,
                         subject: `End of Shift Report - ${session.shop?.name} - ${format(now, 'MMM d')}`,
                         html: emailHtml,
-                        businessId: session.shop_id, // Assuming shop_id can serve as business context or we need store.id
+                        businessId: store?.id, // Use the actual business/tenant ID for email settings lookup
                         attachments: pdfBase64 ? [{
                             filename: `Shift_Report_${format(now, 'yyyyMMdd_HHmm')}.pdf`,
                             content: pdfBase64,
@@ -748,6 +851,39 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                                     )}
                                 </Accordion>
                             </div>
+
+                            {/* Inventory Reconciliation */}
+                            {inventoryReconciliation && inventoryReconciliation.length > 0 && (
+                                <div className="border-t pt-2">
+                                    <p className="font-semibold mb-2 text-xs uppercase tracking-wider text-muted-foreground">Inventory Reconciliation</p>
+                                    <ScrollArea className="h-48">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="text-[10px]">Product</TableHead>
+                                                    <TableHead className="text-[10px] text-right">Start</TableHead>
+                                                    <TableHead className="text-[10px] text-right">Added</TableHead>
+                                                    <TableHead className="text-[10px] text-right">Sold</TableHead>
+                                                    <TableHead className="text-[10px] text-right">End</TableHead>
+                                                    <TableHead className="text-[10px] text-right">Current Stock Value</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {inventoryReconciliation.map((item, idx) => (
+                                                    <TableRow key={idx}>
+                                                        <TableCell className="text-[10px] font-medium">{item.product_name}</TableCell>
+                                                        <TableCell className="text-[10px] text-right">{item.opening_stock}</TableCell>
+                                                        <TableCell className="text-[10px] text-right">{item.added_stock}</TableCell>
+                                                        <TableCell className="text-[10px] text-right text-red-600">{item.sold_quantity}</TableCell>
+                                                        <TableCell className="text-[10px] text-right">{item.closing_stock}</TableCell>
+                                                        <TableCell className="text-[10px] text-right font-mono">{formatCurrency(item.current_stock_value, currency)}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </ScrollArea>
+                                </div>
+                            )}
                             </div>
                         </CardContent>
                     </Card>
