@@ -38,8 +38,8 @@ export function TenantInventoryTransactionDialog({
     notes: '',
     reason_id: '',
     purchase_price: '',
-    transfer_from_location: '',
-    transfer_to_location: '',
+    transfer_from_location_id: '',
+    transfer_to_location_id: '',
   });
 
   const { data: reasons } = useQuery({
@@ -94,21 +94,66 @@ export function TenantInventoryTransactionDialog({
     mutationFn: async (data: typeof formData) => {
       const quantity = parseInt(data.quantity);
       const adjustedQuantity = type === 'out' ? -Math.abs(quantity) : Math.abs(quantity);
+      
+      const sourceShop = shops?.find(s => s.id === data.transfer_from_location_id);
+      const destShop = shops?.find(s => s.id === data.transfer_to_location_id);
+
+      const transactions = [];
+
+      // Primary transaction
+      transactions.push({
+        shop_id: data.shop_id,
+        product_id: data.product_id,
+        quantity: adjustedQuantity,
+        transaction_type: type === 'in' ? 'in' : 'out',
+        notes: data.notes,
+        reason_id: data.reason_id,
+        purchase_price: data.purchase_price ? parseFloat(data.purchase_price) : null,
+        transfer_from_location: sourceShop?.name || null,
+        transfer_to_location: destShop?.name || null,
+        from_shop_id: data.transfer_from_location_id || null,
+        to_shop_id: data.transfer_to_location_id || null,
+        created_by: user?.id,
+      });
+
+      // Handle the "other side" of the transfer
+      if (isTransfer) {
+        if (type === 'out' && data.transfer_to_location_id) {
+          // If we are transferring OUT of current shop, we should also record an IN transaction for the destination shop
+          transactions.push({
+            shop_id: data.transfer_to_location_id,
+            product_id: data.product_id,
+            quantity: Math.abs(quantity),
+            transaction_type: 'in',
+            notes: `Transfer from ${shops?.find(s => s.id === data.shop_id)?.name}. ${data.notes}`,
+            reason_id: data.reason_id,
+            transfer_from_location: shops?.find(s => s.id === data.shop_id)?.name || null,
+            transfer_to_location: destShop?.name || null,
+            from_shop_id: data.shop_id,
+            to_shop_id: data.transfer_to_location_id,
+            created_by: user?.id,
+          });
+        } else if (type === 'in' && data.transfer_from_location_id) {
+          // If we are transferring IN to current shop, we should also record an OUT transaction for the source shop
+          transactions.push({
+            shop_id: data.transfer_from_location_id,
+            product_id: data.product_id,
+            quantity: -Math.abs(quantity),
+            transaction_type: 'out',
+            notes: `Transfer to ${shops?.find(s => s.id === data.shop_id)?.name}. ${data.notes}`,
+            reason_id: data.reason_id,
+            transfer_from_location: sourceShop?.name || null,
+            transfer_to_location: shops?.find(s => s.id === data.shop_id)?.name || null,
+            from_shop_id: data.transfer_from_location_id,
+            to_shop_id: data.shop_id,
+            created_by: user?.id,
+          });
+        }
+      }
 
       const { error: txError } = await supabase
         .from('inventory_transactions')
-        .insert([{
-          shop_id: data.shop_id,
-          product_id: data.product_id,
-          quantity: adjustedQuantity,
-          transaction_type: type === 'in' ? 'in' : 'out',
-          notes: data.notes,
-          reason_id: data.reason_id,
-          purchase_price: data.purchase_price ? parseFloat(data.purchase_price) : null,
-          transfer_from_location: data.transfer_from_location || null,
-          transfer_to_location: data.transfer_to_location || null,
-          created_by: user?.id,
-        }]);
+        .insert(transactions);
 
       if (txError) throw txError;
     },
@@ -128,8 +173,8 @@ export function TenantInventoryTransactionDialog({
         notes: '',
         reason_id: '',
         purchase_price: '',
-        transfer_from_location: '',
-        transfer_to_location: '',
+        transfer_from_location_id: '',
+        transfer_to_location_id: '',
       });
     },
     onError: (error: Error) => {
@@ -236,38 +281,42 @@ export function TenantInventoryTransactionDialog({
 
           {isTransfer && (
             <>
-              <div className="space-y-2">
-                <Label>Transfer From <span className="text-red-500">*</span></Label>
-                <Select 
-                  value={formData.transfer_from_location} 
-                  onValueChange={(value) => setFormData({ ...formData, transfer_from_location: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select source shop" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shops?.map((shop) => (
-                      <SelectItem key={shop.id} value={shop.name}>{shop.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Transfer To <span className="text-red-500">*</span></Label>
-                <Select 
-                  value={formData.transfer_to_location} 
-                  onValueChange={(value) => setFormData({ ...formData, transfer_to_location: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select destination shop" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shops?.map((shop) => (
-                      <SelectItem key={shop.id} value={shop.name}>{shop.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {type === 'in' && (
+                <div className="space-y-2">
+                  <Label>Transfer From <span className="text-red-500">*</span></Label>
+                  <Select 
+                    value={formData.transfer_from_location_id} 
+                    onValueChange={(value) => setFormData({ ...formData, transfer_from_location_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select source shop" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shops?.filter(s => s.id !== formData.shop_id).map((shop) => (
+                        <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {type === 'out' && (
+                <div className="space-y-2">
+                  <Label>Transfer To <span className="text-red-500">*</span></Label>
+                  <Select 
+                    value={formData.transfer_to_location_id} 
+                    onValueChange={(value) => setFormData({ ...formData, transfer_to_location_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select destination shop" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shops?.filter(s => s.id !== formData.shop_id).map((shop) => (
+                        <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </>
           )}
 
@@ -305,7 +354,7 @@ export function TenantInventoryTransactionDialog({
             !formData.quantity || 
             !formData.reason_id || 
             !formData.notes ||
-            (isTransfer && (!formData.transfer_from_location || !formData.transfer_to_location))
+            (isTransfer && (type === 'out' ? !formData.transfer_to_location_id : !formData.transfer_from_location_id))
           }
           className="w-full"
         >
