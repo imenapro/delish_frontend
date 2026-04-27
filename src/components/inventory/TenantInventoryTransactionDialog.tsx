@@ -238,19 +238,35 @@ export function TenantInventoryTransactionDialog({
             <>
               <div className="space-y-2">
                 <Label>Transfer From <span className="text-red-500">*</span></Label>
-                <Input
-                  value={formData.transfer_from_location}
-                  onChange={(e) => setFormData({ ...formData, transfer_from_location: e.target.value })}
-                  placeholder="Source location"
-                />
+                <Select 
+                  value={formData.transfer_from_location} 
+                  onValueChange={(value) => setFormData({ ...formData, transfer_from_location: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select source shop" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shops?.map((shop) => (
+                      <SelectItem key={shop.id} value={shop.name}>{shop.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Transfer To <span className="text-red-500">*</span></Label>
-                <Input
-                  value={formData.transfer_to_location}
-                  onChange={(e) => setFormData({ ...formData, transfer_to_location: e.target.value })}
-                  placeholder="Destination location"
-                />
+                <Select 
+                  value={formData.transfer_to_location} 
+                  onValueChange={(value) => setFormData({ ...formData, transfer_to_location: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select destination shop" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shops?.map((shop) => (
+                      <SelectItem key={shop.id} value={shop.name}>{shop.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </>
           )}

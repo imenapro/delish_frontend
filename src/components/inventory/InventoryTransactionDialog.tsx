@@ -48,10 +48,6 @@ export function InventoryTransactionDialog() {
     },
   });
 
-  const selectedReason = reasons?.find(r => r.id === formData.reason_id);
-  const isPurchase = selectedReason?.name === 'Purchase';
-  const isTransfer = selectedReason?.name.includes('Transfer');
-
   const { data: shops } = useQuery({
     queryKey: ['shops'],
     queryFn: async () => {
@@ -63,6 +59,15 @@ export function InventoryTransactionDialog() {
       return data;
     },
   });
+
+  const selectedReason = reasons?.find(r => r.id === formData.reason_id);
+  const isPurchase = selectedReason?.name === 'Purchase';
+  const isTransfer = selectedReason?.name.includes('Transfer');
+
+  const selectedShop = shops?.find(s => s.id === formData.shop_id);
+  const transferShops = selectedShop 
+    ? shops?.filter(s => s.business_id === selectedShop.business_id)
+    : shops;
 
   const { data: products } = useQuery({
     queryKey: ['products'],
@@ -226,19 +231,35 @@ export function InventoryTransactionDialog() {
             <>
               <div className="space-y-2">
                 <Label>Transfer From <span className="text-red-500">*</span></Label>
-                <Input
-                  value={formData.transfer_from_location}
-                  onChange={(e) => setFormData({ ...formData, transfer_from_location: e.target.value })}
-                  placeholder="Source location"
-                />
+                <Select 
+                  value={formData.transfer_from_location} 
+                  onValueChange={(value) => setFormData({ ...formData, transfer_from_location: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select source shop" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {transferShops?.map((shop) => (
+                      <SelectItem key={shop.id} value={shop.name}>{shop.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Transfer To <span className="text-red-500">*</span></Label>
-                <Input
-                  value={formData.transfer_to_location}
-                  onChange={(e) => setFormData({ ...formData, transfer_to_location: e.target.value })}
-                  placeholder="Destination location"
-                />
+                <Select 
+                  value={formData.transfer_to_location} 
+                  onValueChange={(value) => setFormData({ ...formData, transfer_to_location: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select destination shop" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {transferShops?.map((shop) => (
+                      <SelectItem key={shop.id} value={shop.name}>{shop.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </>
           )}

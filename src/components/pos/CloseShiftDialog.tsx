@@ -421,11 +421,9 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
       });
 
       const result = Array.from(productMap.values());
-      console.log('Reconciliation result before filter:', result);
+      console.log('Reconciliation result:', result);
       // Return all items from current inventory to show full reconciliation
-      const filtered = result.filter(item => item.closing_stock > 0 || item.opening_stock > 0 || item.sold_quantity > 0);
-      console.log('Reconciliation result after filter:', filtered);
-      return filtered;
+      return result;
     },
     enabled: open,
   });

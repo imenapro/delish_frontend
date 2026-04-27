@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
+import { isCustomDomain } from '@/utils/domainMapping';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -39,7 +40,9 @@ export function ProtectedRoute({ children, requiredRole, requiredRoles, required
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate('/auth');
+      // On custom domain (tenant), redirect to /login instead of /auth
+      const isCustom = isCustomDomain(window.location.hostname);
+      navigate(isCustom ? '/login' : '/auth');
     }
     
     if (!loading && user && (requiredRole || requiredRoles || requiredPermission) && !hasAccess()) {

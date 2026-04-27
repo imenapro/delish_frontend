@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { useNavigate } from 'react-router-dom';
 import { PasswordChangeDialog } from '@/components/auth/PasswordChangeDialog';
+import { isCustomDomain } from '@/utils/domainMapping';
 
 export type AppRole = Database['public']['Enums']['app_role'] | string;
 
@@ -44,7 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (fetchRolesAbortController.current) {
       fetchRolesAbortController.current.abort();
     }
-    navigate(redirectPath || '/auth');
+    // On custom domain (tenant), redirect to /login instead of /auth
+    const isCustom = isCustomDomain(window.location.hostname);
+    const defaultRedirect = isCustom ? '/login' : '/auth';
+    navigate(redirectPath || defaultRedirect);
   }, [navigate]);
 
   const fetchUserRoles = useCallback(async (userId: string) => {
