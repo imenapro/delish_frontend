@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import {
   Dialog,
@@ -48,6 +48,17 @@ export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShift
   const [stockMatches, setStockMatches] = useState(true);
   const [discrepancyReport, setDiscrepancyReport] = useState('');
   const isOpeningCashDisabled = store?.disableShiftOpeningCash ?? false;
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when shop is selected or stock discrepancy is toggled
+  useEffect(() => {
+    if (open) {
+      const timer = setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedShop, stockMatches, open]);
 
   const exportToPDF = () => {
     if (!inventory || inventory.length === 0) return;
@@ -179,21 +190,21 @@ export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShift
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0">
-        <div className="p-6 pb-2">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-2xl">
-              <Clock className="h-6 w-6 text-primary" />
-              Open Your Shift
-            </DialogTitle>
-            <DialogDescription className="text-base">
-              You need to open a shift before you can process sales. Review your stock and enter opening cash.
-            </DialogDescription>
-          </DialogHeader>
-        </div>
+      <DialogContent className="sm:max-w-2xl max-h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth">
+          <div className="p-6 space-y-8">
+            <DialogHeader className="space-y-3">
+              <DialogTitle className="flex items-center gap-3 text-3xl font-bold tracking-tight">
+                <div className="bg-primary/10 p-2.5 rounded-xl">
+                  <Clock className="h-7 w-7 text-primary" />
+                </div>
+                Open Your Shift
+              </DialogTitle>
+              <DialogDescription className="text-lg leading-relaxed text-muted-foreground/90">
+                You need to open a shift before you can process sales. Review your stock and enter opening cash.
+              </DialogDescription>
+            </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6">
-          <div className="space-y-6 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -276,7 +287,7 @@ export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShift
                   </div>
                 </div>
 
-                <div className="border rounded-md bg-background">
+                <div className="border rounded-md bg-background overflow-hidden">
                   <ScrollArea className="h-[240px]">
                     <div className="min-w-[500px]">
                       <Table>
@@ -368,10 +379,11 @@ export function OpenShiftDialog({ open, onOpenChange, shops, businessId, onShift
                 </div>
               </div>
             )}
+            <div ref={bottomRef} className="h-px" />
           </div>
-        </ScrollArea>
+        </div>
 
-        <DialogFooter className="p-6 pt-2 border-t bg-muted/20">
+        <DialogFooter className="p-6 pt-4 border-t bg-muted/20">
           <div className="flex w-full gap-3">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
               Cancel

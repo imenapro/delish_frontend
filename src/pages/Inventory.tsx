@@ -9,11 +9,32 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { StockTransferDialog } from '@/components/inventory/StockTransferDialog';
 import { InventoryTransactionDialog } from '@/components/inventory/InventoryTransactionDialog';
-import { format } from 'date-fns';
-import { useRef } from 'react';
+import { format, startOfDay, endOfDay, subDays } from 'date-fns';
+import { useRef, useState, useEffect } from 'react';
 import { useReactToPrint } from 'react-to-print';
+import { CalendarDateRangePicker } from '@/components/ui/date-range-picker';
+import { DateRange } from 'react-day-picker';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 export default function Inventory() {
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: subDays(new Date(), 7),
+    to: new Date(),
+  });
+
+  // Trigger snapshot capture on mount
+  useEffect(() => {
+    const captureSnapshot = async () => {
+      try {
+        await supabase.rpc('capture_daily_inventory_snapshots');
+      } catch (err) {
+        console.error('Failed to capture daily snapshot:', err);
+      }
+    };
+    captureSnapshot();
+  }, []);
+
   const { data: inventory, isLoading: inventoryLoading } = useQuery({
     queryKey: ['shop-inventory'],
     queryFn: async () => {
@@ -53,18 +74,54 @@ export default function Inventory() {
   });
 
   const { data: transactions, isLoading: transactionsLoading } = useQuery({
-    queryKey: ['inventory-transactions'],
+    queryKey: ['inventory-transactions', dateRange],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('inventory_transactions')
         .select(`
           *,
           product:products(name),
           shop:shops!inventory_transactions_shop_id_fkey(name)
         `)
-        .order('created_at', { ascending: false })
-        .limit(50);
+        .order('created_at', { ascending: false });
+
+      if (dateRange?.from) {
+        query = query.gte('created_at', startOfDay(dateRange.from).toISOString());
+      }
+      if (dateRange?.to) {
+        query = query.lte('created_at', endOfDay(dateRange.to).toISOString());
+      } else if (dateRange?.from) {
+        // If only 'from' is selected, default to end of that day
+        query = query.lte('created_at', endOfDay(dateRange.from).toISOString());
+      }
+
+      const { data, error } = await query;
       
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: snapshots, isLoading: snapshotsLoading } = useQuery({
+    queryKey: ['inventory-snapshots', dateRange],
+    queryFn: async () => {
+      let query = supabase
+        .from('daily_inventory_snapshots')
+        .select(`
+          *,
+          shop:shops(name),
+          product:products(name, category)
+        `)
+        .order('snapshot_date', { ascending: false });
+
+      if (dateRange?.from) {
+        query = query.gte('snapshot_date', format(dateRange.from, 'yyyy-MM-dd'));
+      }
+      if (dateRange?.to) {
+        query = query.lte('snapshot_date', format(dateRange.to, 'yyyy-MM-dd'));
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -84,6 +141,7 @@ export default function Inventory() {
   const stockRef = useRef<HTMLDivElement>(null);
   const transfersRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+  const snapshotsRef = useRef<HTMLDivElement>(null);
 
   const handlePrintStock = useReactToPrint({
     contentRef: stockRef,
@@ -98,6 +156,11 @@ export default function Inventory() {
   const handlePrintHistory = useReactToPrint({
     contentRef: historyRef,
     documentTitle: 'Inventory-History',
+  });
+
+  const handlePrintSnapshots = useReactToPrint({
+    contentRef: snapshotsRef,
+    documentTitle: 'Inventory-Snapshots',
   });
 
   const downloadCsv = (content: string, filename: string) => {
@@ -184,11 +247,22 @@ export default function Inventory() {
           </div>
 
           <Tabs defaultValue="stock" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="stock">Current Stock</TabsTrigger>
-              <TabsTrigger value="transfers">Transfers</TabsTrigger>
-              <TabsTrigger value="history">Transaction History</TabsTrigger>
-            </TabsList>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-4 rounded-lg border shadow-sm print:hidden">
+              <TabsList className="grid w-full md:w-auto grid-cols-2 lg:grid-cols-4">
+                <TabsTrigger value="stock">Current Stock</TabsTrigger>
+                <TabsTrigger value="transfers">Transfers</TabsTrigger>
+                <TabsTrigger value="history">Transaction History</TabsTrigger>
+                <TabsTrigger value="snapshots">Stock History</TabsTrigger>
+              </TabsList>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Filter Period:</span>
+                <CalendarDateRangePicker 
+                  date={dateRange} 
+                  onDateChange={setDateRange} 
+                />
+              </div>
+            </div>
 
             <TabsContent value="stock" className="space-y-4">
               <div className="flex justify-end gap-2 print:hidden">
@@ -345,10 +419,104 @@ export default function Inventory() {
                 <Card>
                   <CardContent className="flex flex-col items-center justify-center py-12">
                     <History className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No transaction history</p>
+                    <p className="text-muted-foreground text-center">
+                      No transaction history found for the selected period.<br/>
+                      <span className="text-xs">Try selecting a different date range.</span>
+                    </p>
                   </CardContent>
                 </Card>
               )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="snapshots" className="space-y-4">
+              <div className="flex justify-end gap-2 print:hidden">
+                <Button variant="outline" size="sm" onClick={handlePrintSnapshots}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => {
+                  if (!snapshots) return;
+                  const headers = ['Date', 'Shop', 'Product', 'Category', 'Stock', 'Price'];
+                  const csvContent = [
+                    headers.join(','),
+                    ...snapshots.map(s => [
+                      s.snapshot_date,
+                      `"${s.shop?.name}"`,
+                      `"${s.product?.name}"`,
+                      `"${s.product?.category}"`,
+                      s.stock,
+                      s.price
+                    ].join(','))
+                  ].join('\n');
+                  downloadCsv(csvContent, 'inventory_snapshots.csv');
+                }}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export
+                </Button>
+              </div>
+              
+              <div ref={snapshotsRef} className="space-y-4">
+                {snapshotsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                  </div>
+                ) : snapshots && snapshots.length > 0 ? (
+                  <div className="border rounded-lg overflow-hidden bg-card shadow-sm">
+                    <ScrollArea className="h-[600px] w-full">
+                      <div className="min-w-[800px]">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-muted/90 backdrop-blur-sm z-10">
+                            <TableRow>
+                              <TableHead className="whitespace-nowrap">Date</TableHead>
+                              <TableHead className="whitespace-nowrap">Shop</TableHead>
+                              <TableHead className="whitespace-nowrap">Product</TableHead>
+                              <TableHead className="whitespace-nowrap">Category</TableHead>
+                              <TableHead className="text-right whitespace-nowrap">Stock Level</TableHead>
+                              <TableHead className="text-right whitespace-nowrap">Price</TableHead>
+                              <TableHead className="text-right whitespace-nowrap">Value</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {snapshots.map((snapshot) => (
+                              <TableRow key={snapshot.id}>
+                                <TableCell className="whitespace-nowrap font-medium">
+                                  {format(new Date(snapshot.snapshot_date), 'MMM dd, yyyy')}
+                                </TableCell>
+                                <TableCell className="whitespace-nowrap">{snapshot.shop?.name}</TableCell>
+                                <TableCell className="whitespace-nowrap font-semibold">{snapshot.product?.name}</TableCell>
+                                <TableCell className="whitespace-nowrap text-xs">
+                                  <Badge variant="outline">{snapshot.product?.category}</Badge>
+                                </TableCell>
+                                <TableCell className="text-right whitespace-nowrap font-mono">
+                                  {snapshot.stock} units
+                                </TableCell>
+                                <TableCell className="text-right whitespace-nowrap font-mono">
+                                  {formatCurrency(snapshot.price, DEFAULT_SYSTEM_CURRENCY)}
+                                </TableCell>
+                                <TableCell className="text-right whitespace-nowrap font-bold text-primary">
+                                  {formatCurrency(snapshot.stock * snapshot.price, DEFAULT_SYSTEM_CURRENCY)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      <ScrollBar orientation="horizontal" />
+                      <ScrollBar orientation="vertical" />
+                    </ScrollArea>
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <History className="h-12 w-12 text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground text-center">
+                        No historical stock snapshots found for this period.<br/>
+                        <span className="text-xs">Snapshots are captured daily. Try selecting a different date range.</span>
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </TabsContent>
           </Tabs>
