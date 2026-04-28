@@ -109,17 +109,16 @@ export default function TenantStaff() {
       // Fetch profile data for these users
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, name, phone, avatar_url, is_suspended, created_at')
+        .select('id, name, email, phone, avatar_url, is_suspended, created_at')
         .in('id', userIds);
 
       if (profilesError) throw profilesError;
 
-      // Get emails from auth (we'll use name/phone for now since we can't access auth.users directly)
       // Combine data
       return (profiles || []).map(profile => ({
         id: profile.id,
         name: profile.name,
-        email: '', // Would need edge function to get from auth
+        email: profile.email || '', 
         phone: profile.phone,
         avatar_url: profile.avatar_url,
         is_suspended: profile.is_suspended || false,

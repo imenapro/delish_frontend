@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,7 +16,7 @@ interface TenantStockTransferDialogProps {
 }
 
 export function TenantStockTransferDialog({ businessId }: TenantStockTransferDialogProps) {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -29,7 +29,7 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
     notes: '',
   });
 
-  const { data: shops } = useQuery({
+  const { data: allShops } = useQuery({
     queryKey: ['business-shops', businessId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -42,6 +42,33 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
     },
     enabled: !!businessId,
   });
+
+  const isAdminLike = roles.some(r =>
+    ['super_admin', 'admin', 'store_owner', 'branch_manager', 'accountant', 'manager'].includes(r.role.toLowerCase()) &&
+    (r.business_id ? r.business_id === businessId : true)
+  );
+
+  const assignedShopIds = roles
+    .filter(r => r.shop_id && (r.business_id ? r.business_id === businessId : true))
+    .map(r => r.shop_id as string);
+
+  const isDistributor = roles.some(r => r.role.toLowerCase() === 'distributor');
+  const isProduction = roles.some(r => r.role.toLowerCase() === 'production');
+
+  const manageableShops = allShops?.filter(shop => {
+    if (isAdminLike) return true;
+    if (assignedShopIds.includes(shop.id)) return true;
+    if (isDistributor && shop.name.toUpperCase() === 'DISTRIBUTOR') return true;
+    if (isProduction && shop.name.toUpperCase() === 'PRODUCTION') return true;
+    return false;
+  }) || [];
+
+  // Auto-select from_shop_id if only one manageable shop is available
+  useEffect(() => {
+    if (manageableShops.length === 1 && !formData.from_shop_id) {
+      setFormData(prev => ({ ...prev, from_shop_id: manageableShops[0].id }));
+    }
+  }, [manageableShops, formData.from_shop_id]);
 
   const { data: products } = useQuery({
     queryKey: ['business-products', businessId],
@@ -91,7 +118,7 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
     },
   });
 
-  const hasMultipleShops = shops && shops.length > 1;
+  const hasMultipleShops = allShops && allShops.length > 1;
 
   if (!hasMultipleShops) {
     return null;
@@ -115,12 +142,16 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>From Shop</Label>
-            <Select value={formData.from_shop_id} onValueChange={(value) => setFormData({ ...formData, from_shop_id: value })}>
+            <Select 
+              value={formData.from_shop_id} 
+              onValueChange={(value) => setFormData({ ...formData, from_shop_id: value })}
+              disabled={manageableShops.length === 1 && !isAdminLike}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select source shop" />
               </SelectTrigger>
               <SelectContent>
-                {shops?.map((shop) => (
+                {manageableShops?.map((shop) => (
                   <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -133,7 +164,7 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
                 <SelectValue placeholder="Select destination shop" />
               </SelectTrigger>
               <SelectContent>
-                {shops?.filter(s => s.id !== formData.from_shop_id).map((shop) => (
+                {allShops?.filter(s => s.id !== formData.from_shop_id).map((shop) => (
                   <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
                 ))}
               </SelectContent>

@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TenantPageWrapper } from '@/components/tenant/TenantPageWrapper';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,8 +20,24 @@ export default function TenantInventory() {
   const businessId = store?.id;
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
 
+  const { roles } = useAuth();
+
+  // Define roles and permissions
+  const isAdminLike = roles.some(r =>
+    ['super_admin', 'admin', 'store_owner', 'branch_manager', 'accountant', 'manager'].includes(r.role.toLowerCase()) &&
+    (r.business_id ? r.business_id === businessId : true)
+  );
+
+  const assignedShopIds = roles
+    .filter(r => r.shop_id && (r.business_id ? r.business_id === businessId : true))
+    .map(r => r.shop_id as string);
+
+  const isDistributor = roles.some(r => r.role.toLowerCase() === 'distributor');
+  const isProduction = roles.some(r => r.role.toLowerCase() === 'production');
+  const isSeller = roles.some(r => r.role.toLowerCase() === 'seller');
+
   // Fetch all shops for this business
-  const { data: shops, isLoading: shopsLoading } = useQuery({
+  const { data: allShops, isLoading: shopsLoading } = useQuery({
     queryKey: ['business-shops', businessId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -35,7 +51,28 @@ export default function TenantInventory() {
     enabled: !!businessId,
   });
 
+  // Filter shops based on role
+  const shops = allShops?.filter(shop => {
+    if (isAdminLike) return true;
+    
+    // Check if specifically assigned to this shop via shop_id
+    if (assignedShopIds.includes(shop.id)) return true;
+
+    // Check by name for special roles if no specific shop_id is assigned
+    if (isDistributor && shop.name.toUpperCase() === 'DISTRIBUTOR') return true;
+    if (isProduction && shop.name.toUpperCase() === 'PRODUCTION') return true;
+
+    return false;
+  });
+
   const shopIds = shops?.map(s => s.id) || [];
+
+  // Auto-select shop if only one is available
+  useEffect(() => {
+    if (shops && shops.length === 1 && !selectedShopId) {
+      setSelectedShopId(shops[0].id);
+    }
+  }, [shops, selectedShopId]);
 
   // Fetch inventory for all shops
   const { data: inventory, isLoading: inventoryLoading } = useQuery({
@@ -227,9 +264,9 @@ export default function TenantInventory() {
       actions={
         <div className="flex gap-2 flex-wrap">
           {businessId && <InventoryBarcodeScanner businessId={businessId} />}
-          {businessId && <TenantInventoryTransactionDialog businessId={businessId} type="in" />}
-          {businessId && <TenantInventoryTransactionDialog businessId={businessId} type="out" />}
-          {businessId && <TenantStockTransferDialog businessId={businessId} />}
+          {businessId && !isSeller && <TenantInventoryTransactionDialog businessId={businessId} type="in" />}
+          {businessId && !isSeller && <TenantInventoryTransactionDialog businessId={businessId} type="out" />}
+          {businessId && !isSeller && <TenantStockTransferDialog businessId={businessId} />}
         </div>
       }
     >

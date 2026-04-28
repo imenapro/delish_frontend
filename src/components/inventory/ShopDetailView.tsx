@@ -19,6 +19,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { HighlightedText } from "@/components/ui/highlighted-text";
 import { useReactToPrint } from 'react-to-print';
 import { useStoreContext } from '@/contexts/StoreContext';
+import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency } from '@/utils/currency';
 
 import { UseMutationResult } from '@tanstack/react-query';
@@ -102,6 +103,8 @@ export function ShopDetailView({
   updateTransferMutation 
 }: ShopDetailViewProps) {
   const { store } = useStoreContext();
+  const { roles } = useAuth();
+  const isSeller = roles.some(r => r.role.toLowerCase() === 'seller');
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -223,10 +226,10 @@ export function ShopDetailView({
         return value.includes(row.getValue(id))
       },
     },
-    {
+    ...(!isSeller ? [{
       id: "actions",
       header: "Action",
-      cell: ({ row }) => (
+      cell: ({ row }: { row: any }) => (
         <div className="flex items-center gap-2">
           <TenantInventoryTransactionDialog
             businessId={shop.business_id}
@@ -264,9 +267,9 @@ export function ShopDetailView({
           />
         </div>
       ),
-    },
+    }] : []),
     ];
-  }, [shop, store?.currency]);
+  }, [shop, store?.currency, isSeller]);
 
   const transferColumns: ColumnDef<Transfer>[] = useMemo(() => {
     if (!shop) return [];

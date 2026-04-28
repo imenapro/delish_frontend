@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -26,7 +26,7 @@ export function TenantInventoryTransactionDialog({
   initialProductId,
   trigger
 }: TenantInventoryTransactionDialogProps) {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -58,7 +58,7 @@ export function TenantInventoryTransactionDialog({
     enabled: !!businessId,
   });
 
-  const { data: shops } = useQuery({
+  const { data: allShops } = useQuery({
     queryKey: ['business-shops', businessId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -71,6 +71,33 @@ export function TenantInventoryTransactionDialog({
     },
     enabled: !!businessId,
   });
+
+  const isAdminLike = roles.some(r =>
+    ['super_admin', 'admin', 'store_owner', 'branch_manager', 'accountant', 'manager'].includes(r.role.toLowerCase()) &&
+    (r.business_id ? r.business_id === businessId : true)
+  );
+
+  const assignedShopIds = roles
+    .filter(r => r.shop_id && (r.business_id ? r.business_id === businessId : true))
+    .map(r => r.shop_id as string);
+
+  const isDistributor = roles.some(r => r.role.toLowerCase() === 'distributor');
+  const isProduction = roles.some(r => r.role.toLowerCase() === 'production');
+
+  const shops = allShops?.filter(shop => {
+    if (isAdminLike) return true;
+    if (assignedShopIds.includes(shop.id)) return true;
+    if (isDistributor && shop.name.toUpperCase() === 'DISTRIBUTOR') return true;
+    if (isProduction && shop.name.toUpperCase() === 'PRODUCTION') return true;
+    return false;
+  });
+
+  // Auto-select shop_id if only one manageable shop is available
+  useEffect(() => {
+    if (shops && shops.length === 1 && !formData.shop_id) {
+      setFormData(prev => ({ ...prev, shop_id: shops[0].id }));
+    }
+  }, [shops, formData.shop_id]);
 
   const { data: products } = useQuery({
     queryKey: ['business-products', businessId],
@@ -95,8 +122,8 @@ export function TenantInventoryTransactionDialog({
       const quantity = parseInt(data.quantity);
       const adjustedQuantity = type === 'out' ? -Math.abs(quantity) : Math.abs(quantity);
       
-      const sourceShop = shops?.find(s => s.id === data.transfer_from_location_id);
-      const destShop = shops?.find(s => s.id === data.transfer_to_location_id);
+      const sourceShop = allShops?.find(s => s.id === data.transfer_from_location_id);
+      const destShop = allShops?.find(s => s.id === data.transfer_to_location_id);
 
       const transactions = [];
 
@@ -125,9 +152,9 @@ export function TenantInventoryTransactionDialog({
             product_id: data.product_id,
             quantity: Math.abs(quantity),
             transaction_type: 'in',
-            notes: `Transfer from ${shops?.find(s => s.id === data.shop_id)?.name}. ${data.notes}`,
+            notes: `Transfer from ${allShops?.find(s => s.id === data.shop_id)?.name}. ${data.notes}`,
             reason_id: data.reason_id,
-            transfer_from_location: shops?.find(s => s.id === data.shop_id)?.name || null,
+            transfer_from_location: allShops?.find(s => s.id === data.shop_id)?.name || null,
             transfer_to_location: destShop?.name || null,
             from_shop_id: data.shop_id,
             to_shop_id: data.transfer_to_location_id,
@@ -140,10 +167,10 @@ export function TenantInventoryTransactionDialog({
             product_id: data.product_id,
             quantity: -Math.abs(quantity),
             transaction_type: 'out',
-            notes: `Transfer to ${shops?.find(s => s.id === data.shop_id)?.name}. ${data.notes}`,
+            notes: `Transfer to ${allShops?.find(s => s.id === data.shop_id)?.name}. ${data.notes}`,
             reason_id: data.reason_id,
             transfer_from_location: sourceShop?.name || null,
-            transfer_to_location: shops?.find(s => s.id === data.shop_id)?.name || null,
+            transfer_to_location: allShops?.find(s => s.id === data.shop_id)?.name || null,
             from_shop_id: data.transfer_from_location_id,
             to_shop_id: data.shop_id,
             created_by: user?.id,
@@ -209,7 +236,7 @@ export function TenantInventoryTransactionDialog({
             <Select 
               value={formData.shop_id} 
               onValueChange={(value) => setFormData({ ...formData, shop_id: value })}
-              disabled={!!initialShopId}
+              disabled={!!initialShopId || (shops?.length === 1 && !isAdminLike)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select shop" />
@@ -292,7 +319,7 @@ export function TenantInventoryTransactionDialog({
                       <SelectValue placeholder="Select source shop" />
                     </SelectTrigger>
                     <SelectContent>
-                      {shops?.filter(s => s.id !== formData.shop_id).map((shop) => (
+                      {allShops?.filter(s => s.id !== formData.shop_id).map((shop) => (
                         <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -310,7 +337,7 @@ export function TenantInventoryTransactionDialog({
                       <SelectValue placeholder="Select destination shop" />
                     </SelectTrigger>
                     <SelectContent>
-                      {shops?.filter(s => s.id !== formData.shop_id).map((shop) => (
+                      {allShops?.filter(s => s.id !== formData.shop_id).map((shop) => (
                         <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
                       ))}
                     </SelectContent>
