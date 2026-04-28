@@ -72,12 +72,25 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
     FileBarChart,
   };
 
-  const navigationItems = menus.map(menu => ({
-    name: menu.label,
-    href: getTenantRoute(menu.path),
-    icon: iconMap[menu.icon] || LayoutDashboard,
-    show: true
-  }));
+  const navigationItems = menus
+    .map(menu => ({
+      name: menu.label,
+      href: getTenantRoute(menu.path),
+      icon: iconMap[menu.icon] || LayoutDashboard,
+      show: true
+    }))
+    .filter(item => {
+      const isRestrictedRole = roles.some(r =>
+        ['seller', 'distributor', 'production', 'logistics'].includes(r.role.toLowerCase())
+      );
+      const isDashboard = item.name.toLowerCase() === 'dashboard';
+      const isOrder = item.name.toLowerCase().includes('order') || item.href.includes('/orders');
+
+      if (isRestrictedRole && (isDashboard || isOrder)) {
+        return false;
+      }
+      return true;
+    });
 
   const handleLogout = async () => {
     await signOut();

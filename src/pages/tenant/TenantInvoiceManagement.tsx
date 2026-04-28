@@ -40,7 +40,7 @@ interface Invoice {
 
 export default function TenantInvoiceManagement() {
   const { store, getTenantRoute } = useStoreContext();
-  const { roles } = useAuth();
+  const { user, roles } = useAuth();
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -55,6 +55,10 @@ export default function TenantInvoiceManagement() {
     key: 'created_at',
     direction: 'desc',
   });
+
+  const isSeller = roles.some(r => r.role.toLowerCase() === 'seller');
+  const isAdminLike = roles.some(r => ['admin', 'store_owner', 'super_admin'].includes(r.role.toLowerCase()));
+  const assignedShopIds = roles.filter(r => r.shop_id).map(r => r.shop_id);
 
   const canManageSettings = roles.some(r => ['admin', 'store_owner', 'super_admin'].includes(r.role));
 
@@ -100,6 +104,12 @@ export default function TenantInvoiceManagement() {
         .eq('is_active', true);
       
       if (error) throw error;
+
+      // Filter shops for sellers
+      if (isSeller && !isAdminLike) {
+        return data.filter(shop => assignedShopIds.includes(shop.id));
+      }
+
       return data;
     },
     enabled: !!store?.id,
@@ -131,6 +141,16 @@ export default function TenantInvoiceManagement() {
       // Filter by shop (if selected)
       if (selectedShop !== 'all') {
         query = query.eq('shop_id', selectedShop);
+      } else if (isSeller && !isAdminLike) {
+        // Sellers without admin rights are restricted to their assigned shops OR invoices they created
+        if (assignedShopIds.length > 0) {
+          // Use .or to allow seeing invoices from assigned shops OR created by them
+          const shopFilter = assignedShopIds.map(id => `shop_id.eq.${id}`).join(',');
+          query = query.or(`${shopFilter},staff_id.eq.${user?.id}`);
+        } else {
+          // If no assigned shops, they only see their own invoices
+          query = query.eq('staff_id', user?.id);
+        }
       }
 
       // Filter by date range
