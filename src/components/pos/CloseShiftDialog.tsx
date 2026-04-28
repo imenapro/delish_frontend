@@ -25,7 +25,7 @@ import { toast } from 'sonner';
 import { Clock, DollarSign, CheckCircle, FileText, Download, Mail, Plus, X, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { generateShiftReportPDF, generateShiftReportBase64 } from '@/utils/pdfGenerator';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -83,8 +83,10 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const [isVerified, setIsVerified] = useState(false);
 
   // Fetch Shift Sales (POS Invoices) with Details
-  const { data: shiftOrders } = useQuery({
+  const { data: shiftOrders, refetch: refetchOrders } = useQuery({
     queryKey: ['shift-invoices', session.id],
+    staleTime: 0,
+    gcTime: 0,
     queryFn: async () => {
       const endTime = new Date().toISOString();
 
@@ -124,8 +126,10 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   });
 
   // Fetch Shift Refunds to adjust Expected Cash
-  const { data: shiftRefunds } = useQuery({
+  const { data: shiftRefunds, refetch: refetchRefunds } = useQuery({
     queryKey: ['shift-refunds', session.id],
+    staleTime: 0,
+    gcTime: 0,
     queryFn: async () => {
         const { data, error } = await supabase
             .from('refunds')
@@ -217,8 +221,10 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   }, [open, emails]);
 
   // Fetch Current Inventory Snapshot
-  const { data: inventory } = useQuery({
+  const { data: inventory, refetch: refetchInventory } = useQuery({
     queryKey: ['shop-inventory-snapshot', session.shop_id],
+    staleTime: 0,
+    gcTime: 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('shop_inventory')
@@ -241,25 +247,42 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   });
 
   // Fetch Inventory Reconciliation Data
-  const { data: inventoryReconciliation } = useQuery({
+  const { data: inventoryReconciliation, refetch: refetchReconciliation } = useQuery({
     queryKey: ['inventory-reconciliation', session.id],
+    staleTime: 0, // Ensure we always get fresh data
+    gcTime: 0,    // Don't keep old reconciliation data in cache
     queryFn: async () => {
       console.log('Fetching inventory reconciliation for session:', session.id);
 
       // Fetch opening inventory snapshot (at shift start, if available)
-      const { data: openingSnapshots } = await supabase
+      // We fetch all snapshots for this session ordered by time, 
+      // then we'll group them by their creation time to find the earliest set.
+      const { data: allSnapshots } = await supabase
         .from('pos_session_inventory_snapshots')
         .select('*')
         .eq('session_id', session.id)
-        .order('created_at', { ascending: true })
-        .limit(1);
+        .order('created_at', { ascending: true });
 
-      console.log('Opening snapshots:', openingSnapshots);
+      console.log('All snapshots for session:', allSnapshots);
+
+      // Filter for only the opening snapshot (the first set of records saved)
+      let openingSnapshots: any[] = [];
+      if (allSnapshots && allSnapshots.length > 0) {
+        const firstTimestamp = allSnapshots[0].created_at;
+        // Allow a small buffer (e.g., 5 seconds) in case records were inserted slightly apart
+        const firstTime = new Date(firstTimestamp).getTime();
+        openingSnapshots = allSnapshots.filter(snap => {
+          const snapTime = new Date(snap.created_at).getTime();
+          return Math.abs(snapTime - firstTime) < 5000;
+        });
+      }
+
+      console.log('Identified opening snapshots:', openingSnapshots);
 
       // Fetch closing inventory from shop_inventory (current state)
       const { data: currentInventory } = await supabase
         .from('shop_inventory')
-        .select('product_id, stock, product:products(name, category, unit_price)')
+        .select('product_id, stock, price, product:products(name, category)')
         .eq('shop_id', session.shop_id);
 
       console.log('Current inventory:', currentInventory);
@@ -353,7 +376,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
           product_id: inv.product_id,
           product_name: inv.product?.name || 'Unknown',
           category: inv.product?.category,
-          unit_price: inv.product?.unit_price || 0,
+          unit_price: inv.price || 0,
           opening_stock: 0,
           added_stock: 0,
           closing_stock: inv.stock || 0,
@@ -427,6 +450,16 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
     },
     enabled: open,
   });
+
+  // Refetch all data when dialog opens to ensure fresh state
+  useEffect(() => {
+    if (open) {
+      refetchOrders();
+      refetchRefunds();
+      refetchInventory();
+      refetchReconciliation();
+    }
+  }, [open, refetchOrders, refetchRefunds, refetchInventory, refetchReconciliation]);
 
   const handleAddRecipient = () => {
     if (newRecipient && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newRecipient)) {
@@ -610,6 +643,12 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
         setIsSending(false);
       },
   });
+
+  useEffect(() => {
+    if (open) {
+      queryClient.invalidateQueries({ queryKey: ['active-pos-session'] });
+    }
+  }, [open, queryClient]);
 
   const shiftDuration = () => {
     const start = new Date(session.opened_at);
@@ -853,33 +892,49 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                             {/* Inventory Reconciliation */}
                             {inventoryReconciliation && inventoryReconciliation.length > 0 && (
                                 <div className="border-t pt-2">
-                                    <p className="font-semibold mb-2 text-xs uppercase tracking-wider text-muted-foreground">Inventory Reconciliation</p>
-                                    <ScrollArea className="h-48">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="text-[10px]">Product</TableHead>
-                                                    <TableHead className="text-[10px] text-right">Start</TableHead>
-                                                    <TableHead className="text-[10px] text-right">Added</TableHead>
-                                                    <TableHead className="text-[10px] text-right">Sold</TableHead>
-                                                    <TableHead className="text-[10px] text-right">End</TableHead>
-                                                    <TableHead className="text-[10px] text-right">Current Stock Value</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {inventoryReconciliation.map((item, idx) => (
-                                                    <TableRow key={idx}>
-                                                        <TableCell className="text-[10px] font-medium">{item.product_name}</TableCell>
-                                                        <TableCell className="text-[10px] text-right">{item.opening_stock}</TableCell>
-                                                        <TableCell className="text-[10px] text-right">{item.added_stock}</TableCell>
-                                                        <TableCell className="text-[10px] text-right text-red-600">{item.sold_quantity}</TableCell>
-                                                        <TableCell className="text-[10px] text-right">{item.closing_stock}</TableCell>
-                                                        <TableCell className="text-[10px] text-right font-mono">{formatCurrency(item.current_stock_value, currency)}</TableCell>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Inventory Reconciliation</p>
+                                        <div className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                                            Total Value: {formatCurrency(inventoryReconciliation.reduce((sum, item) => sum + (item.current_stock_value || 0), 0), currency)}
+                                        </div>
+                                    </div>
+                                    <ScrollArea className="h-48 w-full border rounded-md">
+                                        <div className="min-w-[800px]">
+                                            <Table>
+                                                <TableHeader className="sticky top-0 bg-background z-10">
+                                                    <TableRow>
+                                                        <TableHead className="text-[10px] whitespace-nowrap">Product</TableHead>
+                                                        <TableHead className="text-[10px] text-right whitespace-nowrap">Start</TableHead>
+                                                        <TableHead className="text-[10px] text-right whitespace-nowrap">Added</TableHead>
+                                                        <TableHead className="text-[10px] text-right whitespace-nowrap">Sold</TableHead>
+                                                        <TableHead className="text-[10px] text-right whitespace-nowrap">End (Balance)</TableHead>
+                                                        <TableHead className="text-[10px] text-right whitespace-nowrap">Value (End × Price)</TableHead>
                                                     </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {inventoryReconciliation.map((item, idx) => (
+                                                        <TableRow key={idx}>
+                                                            <TableCell className="text-[10px] font-medium whitespace-nowrap">{item.product_name}</TableCell>
+                                                            <TableCell className="text-[10px] text-right whitespace-nowrap">{item.opening_stock}</TableCell>
+                                                            <TableCell className="text-[10px] text-right whitespace-nowrap">{item.added_stock}</TableCell>
+                                                            <TableCell className="text-[10px] text-right text-red-600 whitespace-nowrap">-{item.sold_quantity}</TableCell>
+                                                            <TableCell className="text-[10px] text-right font-bold whitespace-nowrap">{item.closing_stock}</TableCell>
+                                                            <TableCell className="text-[10px] text-right font-mono text-blue-600 whitespace-nowrap">
+                                                                {formatCurrency(item.current_stock_value, currency)}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                        <ScrollBar orientation="horizontal" />
                                     </ScrollArea>
+                                    <div className="mt-2 p-2 bg-muted/30 rounded flex justify-between items-center">
+                                        <span className="text-[10px] font-semibold uppercase text-muted-foreground">Final Stock Valuation</span>
+                                        <span className="text-sm font-bold text-primary">
+                                            {formatCurrency(inventoryReconciliation.reduce((sum, item) => sum + (item.current_stock_value || 0), 0), currency)}
+                                        </span>
+                                    </div>
                                 </div>
                             )}
                             </div>
