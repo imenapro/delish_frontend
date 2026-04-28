@@ -21,7 +21,7 @@ interface AuthContextType {
   loading: boolean;
   mustChangePassword: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email: string, password: string, name: string, phone: string, shopId: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, name: string, phone: string, shopId: string, role?: string) => Promise<{ error: AuthError | null }>;
   signOut: (redirectPath?: string) => Promise<void>;
 }
 
@@ -83,6 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         'manager': 70, // Alias for branch_manager
         'finance': 65,
         'accountant': 60,
+        'distributor': 55,
+        'production': 52,
         'seller': 50,
         'logistics': 45,
         'store_keeper': 40,
@@ -202,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const signUp = async (email: string, password: string, name: string, phone: string, shopId: string) => {
+  const signUp = async (email: string, password: string, name: string, phone: string, shopId: string, role?: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
@@ -214,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           name: name,
           phone: phone,
           shop_id: shopId,
+          role: role || 'customer',
         }
       }
     });

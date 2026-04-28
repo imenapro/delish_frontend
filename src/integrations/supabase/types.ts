@@ -5561,6 +5561,9 @@ export type Database = {
         | "waiter"
         | "Owner"
         | "finance"
+        | "distributor"
+        | "production"
+        | "logistics"
       attendance_method: "qr_code" | "sms_otp" | "image_snap"
       credit_status: "active" | "blocked" | "suspended" | "pending_review"
       delivery_status:

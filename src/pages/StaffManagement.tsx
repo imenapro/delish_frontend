@@ -215,7 +215,7 @@ export default function StaffManagement() {
       // Insert new role
       const { error: roleError } = await supabase.from('user_roles').insert([{
         user_id: selectedStaff.id,
-        role: staffData.role as any,
+        role: (staffData.role || selectedStaff.roles[0]?.role || 'customer') as any,
         shop_id: staffData.shopId && staffData.shopId !== 'none' ? staffData.shopId : null,
         business_id: businessId
       }]);

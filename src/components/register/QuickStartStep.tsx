@@ -51,6 +51,7 @@ export function QuickStartStep({ data, onComplete, onBack }: QuickStartStepProps
           data: {
             full_name: data.fullName,
             phone: data.phone,
+            role: 'store_owner',
           },
         },
       });

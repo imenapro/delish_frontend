@@ -128,6 +128,8 @@ Login: ${loginUrl}`;
           data: {
             name: formData.name,
             phone: formData.phone,
+            role: formData.role,
+            business_id: store.id,
             shop_id: (!formData.shopId || formData.shopId === 'all') ? null : formData.shopId,
           },
         },

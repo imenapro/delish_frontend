@@ -118,7 +118,7 @@ export default function Auth() {
           setLoading(false);
           return;
         }
-        const { error } = await signUp(email, password, name, phone, shopId);
+        const { error } = await signUp(email, password, name, phone, shopId, 'customer');
         if (error) {
           toast.error(error.message);
         } else {
