@@ -61,6 +61,7 @@ export default function TenantInventory() {
     // Check by name for special roles if no specific shop_id is assigned
     if (isDistributor && shop.name.toUpperCase() === 'DISTRIBUTOR') return true;
     if (isProduction && shop.name.toUpperCase() === 'PRODUCTION') return true;
+    if (isSeller && assignedShopIds.includes(shop.id)) return true; // Explicitly allow sellers to see their assigned shops
 
     return false;
   });
