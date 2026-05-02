@@ -1,6 +1,6 @@
 @echo off
 echo Linking Supabase Project...
-call npx supabase link --project-ref hjaiwwoxuympbvjmakpa
+call npx supabase link --project-ref jcdaovmwmpkflccecsrg
 if %errorlevel% neq 0 (
     echo.
     echo Linking failed. You might need to enter your database password above.
