@@ -98,7 +98,7 @@ export function TenantInventoryTransactionDialog({
     if (isAdminLike) return true;
     if (assignedShopIds.includes(shop.id)) return true;
     if (isDistributor && (shop.name.toUpperCase() === 'DISTRIBUTOR' || shop.name.toUpperCase() === 'DISTRIBUTION')) return true;
-    if (isProduction && shop.name.toUpperCase() === 'PRODUCTION') return true;
+    if (isProduction && (shop.name.toUpperCase() === 'PRODUCTION' || shop.name.toUpperCase() === 'DISTRIBUTION' || shop.name.toUpperCase() === 'DISTRIBUTOR')) return true;
     return false;
   });
 
