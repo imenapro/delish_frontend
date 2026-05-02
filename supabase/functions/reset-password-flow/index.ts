@@ -4,7 +4,9 @@ import nodemailer from "npm:nodemailer@6.9.13";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-customer-id",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 interface RequestBody {
@@ -86,7 +88,12 @@ const sendEmail = async (to: string, code: string, businessId?: string, supabase
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { 
+      status: 204,
+      headers: corsHeaders 
+    });
+  }
 
   try {
     const { step, email, token, newPassword, businessId } = await req.json() as RequestBody;
