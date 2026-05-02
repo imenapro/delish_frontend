@@ -58,9 +58,18 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
   const manageableShops = allShops?.filter(shop => {
     if (isAdminLike) return true;
     if (assignedShopIds.includes(shop.id)) return true;
-    if (isDistributor && shop.name.toUpperCase() === 'DISTRIBUTOR') return true;
+    if (isDistributor && (shop.name.toUpperCase() === 'DISTRIBUTOR' || shop.name.toUpperCase() === 'DISTRIBUTION')) return true;
     if (isProduction && shop.name.toUpperCase() === 'PRODUCTION') return true;
     return false;
+  }) || [];
+
+  const targetShops = allShops?.filter(shop => {
+    if (isAdminLike) return true;
+    if (isProduction) {
+      // Production can only transfer to Distribution
+      return shop.name.toUpperCase() === 'DISTRIBUTION' || shop.name.toUpperCase() === 'DISTRIBUTOR';
+    }
+    return true; // Other roles can transfer to any shop
   }) || [];
 
   // Auto-select from_shop_id if only one manageable shop is available
@@ -69,6 +78,21 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
       setFormData(prev => ({ ...prev, from_shop_id: manageableShops[0].id }));
     }
   }, [manageableShops, formData.from_shop_id]);
+
+  const { data: currentStock } = useQuery({
+    queryKey: ['product-stock', formData.from_shop_id, formData.product_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('shop_inventory')
+        .select('quantity')
+        .eq('shop_id', formData.from_shop_id)
+        .eq('product_id', formData.product_id)
+        .single();
+      if (error && error.code !== 'PGRST116') throw error;
+      return data?.quantity || 0;
+    },
+    enabled: !!formData.from_shop_id && !!formData.product_id,
+  });
 
   const { data: products } = useQuery({
     queryKey: ['business-products', businessId],
@@ -164,7 +188,7 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
                 <SelectValue placeholder="Select destination shop" />
               </SelectTrigger>
               <SelectContent>
-                {allShops?.filter(s => s.id !== formData.from_shop_id).map((shop) => (
+                {targetShops?.filter(s => s.id !== formData.from_shop_id).map((shop) => (
                   <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -193,14 +217,31 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
                 ))}
               </SelectContent>
             </Select>
+            {formData.product_id && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Current Stock: {currentStock || 0}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Quantity</Label>
             <Input
               type="number"
               min="1"
+              max={currentStock || 0}
               value={formData.quantity}
-              onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+              onChange={(e) => {
+                const val = parseInt(e.target.value);
+                if (val > (currentStock || 0)) {
+                  toast({
+                    title: "Insufficient Stock",
+                    description: `You only have ${currentStock} in stock.`,
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                setFormData({ ...formData, quantity: e.target.value });
+              }}
               placeholder="Enter quantity to transfer"
             />
           </div>

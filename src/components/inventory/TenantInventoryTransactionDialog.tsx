@@ -84,20 +84,35 @@ export function TenantInventoryTransactionDialog({
   const isDistributor = roles.some(r => r.role.toLowerCase() === 'distributor');
   const isProduction = roles.some(r => r.role.toLowerCase() === 'production');
 
-  const shops = allShops?.filter(shop => {
+  const manageableShops = allShops?.filter(shop => {
     if (isAdminLike) return true;
     if (assignedShopIds.includes(shop.id)) return true;
-    if (isDistributor && shop.name.toUpperCase() === 'DISTRIBUTOR') return true;
+    if (isDistributor && (shop.name.toUpperCase() === 'DISTRIBUTOR' || shop.name.toUpperCase() === 'DISTRIBUTION')) return true;
     if (isProduction && shop.name.toUpperCase() === 'PRODUCTION') return true;
     return false;
   });
 
+  const { data: currentStock } = useQuery({
+    queryKey: ['product-stock', formData.shop_id, formData.product_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('shop_inventory')
+        .select('quantity')
+        .eq('shop_id', formData.shop_id)
+        .eq('product_id', formData.product_id)
+        .single();
+      if (error && error.code !== 'PGRST116') throw error;
+      return data?.quantity || 0;
+    },
+    enabled: !!formData.shop_id && !!formData.product_id,
+  });
+
   // Auto-select shop_id if only one manageable shop is available
   useEffect(() => {
-    if (shops && shops.length === 1 && !formData.shop_id) {
-      setFormData(prev => ({ ...prev, shop_id: shops[0].id }));
+    if (manageableShops && manageableShops.length === 1 && !formData.shop_id) {
+      setFormData(prev => ({ ...prev, shop_id: manageableShops[0].id }));
     }
-  }, [shops, formData.shop_id]);
+  }, [manageableShops, formData.shop_id]);
 
   const { data: products } = useQuery({
     queryKey: ['business-products', businessId],
@@ -236,13 +251,13 @@ export function TenantInventoryTransactionDialog({
             <Select 
               value={formData.shop_id} 
               onValueChange={(value) => setFormData({ ...formData, shop_id: value })}
-              disabled={!!initialShopId || (shops?.length === 1 && !isAdminLike)}
+              disabled={!!initialShopId || (manageableShops?.length === 1 && !isAdminLike)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select shop" />
               </SelectTrigger>
               <SelectContent>
-                {shops?.map((shop) => (
+                {manageableShops?.map((shop) => (
                   <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -276,6 +291,11 @@ export function TenantInventoryTransactionDialog({
                 ))}
               </SelectContent>
             </Select>
+            {formData.product_id && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Current Stock: {currentStock || 0}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -352,8 +372,20 @@ export function TenantInventoryTransactionDialog({
             <Input
               type="number"
               min="1"
+              max={type === 'out' ? (currentStock || 0) : undefined}
               value={formData.quantity}
-              onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+              onChange={(e) => {
+                const val = parseInt(e.target.value);
+                if (type === 'out' && val > (currentStock || 0)) {
+                  toast({
+                    title: "Insufficient Stock",
+                    description: `You only have ${currentStock} in stock.`,
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                setFormData({ ...formData, quantity: e.target.value });
+              }}
               placeholder={`Enter quantity to ${type === 'in' ? 'add' : 'remove'}`}
             />
           </div>

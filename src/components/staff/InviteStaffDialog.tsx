@@ -106,80 +106,24 @@ Login: ${loginUrl}`;
     try {
       const tempPassword = generateTempPassword();
 
-      // Create a temporary client to avoid switching the current session
-      // @ts-expect-error - Accessing internal properties
-      const supabaseUrl = supabase.supabaseUrl;
-      // @ts-expect-error - Accessing internal properties
-      const supabaseKey = supabase.supabaseKey;
-      
-      const tempClient = createClient(supabaseUrl, supabaseKey, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-        }
-      });
-
-      // Create user via Temp Client
-      const { data: authData, error: authError } = await tempClient.auth.signUp({
-        email: formData.email,
-        password: tempPassword,
-        options: {
-          data: {
-            name: formData.name,
-            phone: formData.phone,
-            role: formData.role,
-            business_id: store.id,
-            shop_id: (!formData.shopId || formData.shopId === 'all') ? null : formData.shopId,
-          },
+      // Invoke the Edge Function to create the user securely on the server
+      const { data: inviteData, error: inviteError } = await supabase.functions.invoke('send-invite-credentials', {
+        body: {
+          email: formData.email,
+          password: tempPassword,
+          name: formData.name,
+          phone: formData.phone,
+          role: formData.role,
+          businessId: store.id,
+          shopId: (!formData.shopId || formData.shopId === 'all') ? null : formData.shopId,
         },
       });
 
-      if (authError) {
-        if (authError.message?.includes('already registered')) {
-          throw new Error('This email address is already registered. Please use a different email or contact support.');
-        }
-        throw authError;
-      }
-      if (!authData.user) throw new Error('Failed to create user');
-
-      // Update profile with must_change_password flag
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          must_change_password: true,
-          phone: formData.phone,
-        })
-        .eq('id', authData.user.id);
-
-      if (profileError) {
-        console.error('Profile update error:', profileError);
+      if (inviteError || !inviteData?.success) {
+        throw new Error(inviteError?.message || inviteData?.error || 'Failed to create user account');
       }
 
-      // Assign role with business and shop context
-      const { error: roleError } = await supabase.from('user_roles').insert({
-        user_id: authData.user.id,
-        role: formData.role as any, // Allow dynamic roles
-        business_id: store.id,
-        shop_id: (!formData.shopId || formData.shopId === 'all') ? null : formData.shopId,
-      });
-
-      if (roleError) {
-        console.error('Role assignment error:', roleError);
-        throw new Error(`User created but role assignment failed: ${roleError.message}. Please contact support.`);
-      }
-
-      // Add to user_businesses junction table
-      const { error: businessError } = await supabase.from('user_businesses').insert({
-        user_id: authData.user.id,
-        business_id: store.id,
-      });
-
-      if (businessError) {
-        console.error('User business link error:', businessError);
-      }
-
-      // Send credentials via Email Service
+      // Send credentials via Email Service (Second step to ensure it uses the correct branding/Gmail)
       try {
         const loginUrl = window.location.pathname.startsWith(`/${store.slug}`) 
           ? `${window.location.origin}/${store.slug}/login`
