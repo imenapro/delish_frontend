@@ -91,16 +91,18 @@ export function ThemeCustomizer({ currentPrimary, currentSecondary }: ThemeCusto
   const uploadImage = async (file: File, path: string) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random()}.${fileExt}`;
-    const filePath = `${store?.id}/${path}/${fileName}`;
+    const filePath = `${store?.id}/${fileName}`;
+
+    const bucketName = path === 'logos' ? 'logos' : 'backgrounds';
 
     const { error: uploadError } = await supabase.storage
-      .from('business_assets')
+      .from(bucketName)
       .upload(filePath, file);
 
     if (uploadError) throw uploadError;
 
     const { data } = supabase.storage
-      .from('business_assets')
+      .from(bucketName)
       .getPublicUrl(filePath);
 
     return data.publicUrl;
