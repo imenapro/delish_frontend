@@ -53,7 +53,17 @@ export function TenantInventoryTransactionDialog({
         .order('name');
       
       if (error) throw error;
-      return data;
+      
+      // Remove duplicates by name to prevent UI confusion
+      const uniqueReasons = data.reduce((acc: any[], current) => {
+        const exists = acc.find(item => item.name === current.name);
+        if (!exists) {
+          return [...acc, current];
+        }
+        return acc;
+      }, []);
+
+      return uniqueReasons;
     },
     enabled: !!businessId,
   });
@@ -105,6 +115,30 @@ export function TenantInventoryTransactionDialog({
       return data?.quantity || 0;
     },
     enabled: !!formData.shop_id && !!formData.product_id,
+  });
+
+  const { data: sourceStock } = useQuery({
+    queryKey: ['product-stock', formData.transfer_from_location_id, formData.product_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('shop_inventory')
+        .select('quantity')
+        .eq('shop_id', formData.transfer_from_location_id)
+        .eq('product_id', formData.product_id)
+        .single();
+      if (error && error.code !== 'PGRST116') throw error;
+      return data?.quantity || 0;
+    },
+    enabled: !!formData.transfer_from_location_id && !!formData.product_id && type === 'in',
+  });
+
+  const allowedTransferShops = allShops?.filter(shop => {
+    if (isAdminLike) return true;
+    if (!isProduction) return true;
+    
+    // Production role can only transfer to/from: themselves, distribution, distributor shop
+    const name = shop.name.toUpperCase();
+    return name === 'PRODUCTION' || name === 'DISTRIBUTION' || name === 'DISTRIBUTOR';
   });
 
   // Auto-select shop_id if only one manageable shop is available
@@ -339,11 +373,16 @@ export function TenantInventoryTransactionDialog({
                       <SelectValue placeholder="Select source shop" />
                     </SelectTrigger>
                     <SelectContent>
-                      {allShops?.filter(s => s.id !== formData.shop_id).map((shop) => (
+                      {allowedTransferShops?.filter(s => s.id !== formData.shop_id).map((shop) => (
                         <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {formData.transfer_from_location_id && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Available at Source: {sourceStock || 0}
+                    </p>
+                  )}
                 </div>
               )}
               {type === 'out' && (
@@ -357,7 +396,7 @@ export function TenantInventoryTransactionDialog({
                       <SelectValue placeholder="Select destination shop" />
                     </SelectTrigger>
                     <SelectContent>
-                      {allShops?.filter(s => s.id !== formData.shop_id).map((shop) => (
+                      {allowedTransferShops?.filter(s => s.id !== formData.shop_id).map((shop) => (
                         <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -372,7 +411,7 @@ export function TenantInventoryTransactionDialog({
             <Input
               type="number"
               min="1"
-              max={type === 'out' ? (currentStock || 0) : undefined}
+              max={type === 'out' ? (currentStock || 0) : (isTransfer ? (sourceStock || 0) : undefined)}
               value={formData.quantity}
               onChange={(e) => {
                 const val = parseInt(e.target.value);
@@ -380,6 +419,14 @@ export function TenantInventoryTransactionDialog({
                   toast({
                     title: "Insufficient Stock",
                     description: `You only have ${currentStock} in stock.`,
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                if (type === 'in' && isTransfer && val > (sourceStock || 0)) {
+                  toast({
+                    title: "Insufficient Stock at Source",
+                    description: `The source shop only has ${sourceStock} in stock.`,
                     variant: "destructive",
                   });
                   return;

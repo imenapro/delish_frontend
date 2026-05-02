@@ -44,7 +44,17 @@ export function InventoryTransactionDialog() {
       
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+      
+      // Remove duplicates by name to prevent UI confusion
+      const uniqueReasons = data.reduce((acc: any[], current) => {
+        const exists = acc.find(item => item.name === current.name);
+        if (!exists) {
+          return [...acc, current];
+        }
+        return acc;
+      }, []);
+
+      return uniqueReasons;
     },
   });
 

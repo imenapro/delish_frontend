@@ -66,8 +66,9 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
   const targetShops = allShops?.filter(shop => {
     if (isAdminLike) return true;
     if (isProduction) {
-      // Production can only transfer to Distribution
-      return shop.name.toUpperCase() === 'DISTRIBUTION' || shop.name.toUpperCase() === 'DISTRIBUTOR';
+      // Production can only transfer to themselves, Distribution, or Distributor
+      const name = shop.name.toUpperCase();
+      return name === 'PRODUCTION' || name === 'DISTRIBUTION' || name === 'DISTRIBUTOR';
     }
     return true; // Other roles can transfer to any shop
   }) || [];
