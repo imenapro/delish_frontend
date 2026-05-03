@@ -25,15 +25,14 @@ import {
   MessageSquare, 
   Wallet,
   LogOut,
+  Factory,
+  Utensils,
+  FileBarChart,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
   Receipt,
   User,
-  Factory,
-  Utensils,
-  FileBarChart,
-  LucideIcon,
 } from 'lucide-react';
 
 import { useMenus } from '@/hooks/useMenus';
@@ -49,7 +48,7 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
   const navigate = useNavigate();
   const { data: menus = [] } = useMenus();
 
-  const iconMap: Record<string, LucideIcon> = {
+  const iconMap: Record<string, any> = {
     LayoutDashboard, 
     CreditCard, 
     Store, 
@@ -74,18 +73,24 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
   };
 
   const navigationItems = menus
-    .filter(menu => menu.can_view !== false)
     .map(menu => ({
       name: menu.label,
       href: getTenantRoute(menu.path),
       icon: iconMap[menu.icon] || LayoutDashboard,
-      show: true,
-      permissions: {
-        canCreate: menu.can_create,
-        canEdit: menu.can_edit,
-        canDelete: menu.can_delete
+      show: true
+    }))
+    .filter(item => {
+      const isRestrictedRole = roles.some(r =>
+        ['seller', 'distributor', 'production', 'logistics'].includes(r.role.toLowerCase())
+      );
+      const isDashboard = item.name.toLowerCase() === 'dashboard';
+      const isOrder = item.name.toLowerCase().includes('order') || item.href.includes('/orders');
+
+      if (isRestrictedRole && (isDashboard || isOrder)) {
+        return false;
       }
-    }));
+      return true;
+    });
 
   const handleLogout = async () => {
     await signOut();
@@ -97,21 +102,62 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
     return user.email.charAt(0).toUpperCase();
   };
 
+  const normalizeRole = (role?: string) => role?.trim().toLowerCase();
+
   const getPrimaryRole = () => {
     if (roles.length === 0) return 'User';
     const roleNames: Record<string, string> = {
       'super_admin': 'Super Admin',
       'store_owner': 'Owner',
+      'owner': 'Owner',
       'admin': 'Admin',
       'branch_manager': 'Manager',
       'seller': 'Seller',
       'store_keeper': 'Store Keeper',
       'accountant': 'Accountant',
+      'distributor': 'Distributor',
+      'production': 'Production',
       'delivery': 'Delivery',
       'manpower': 'Worker',
       'customer': 'Customer',
+      'logistics': 'Logistics',
+      'finance': 'Finance',
     };
-    return roleNames[roles[0].role] || roles[0].role;
+
+    const orderedRoles = [
+      'super_admin',
+      'store_owner',
+      'owner',
+      'admin',
+      'branch_manager',
+      'manager',
+      'finance',
+      'accountant',
+      'distributor',
+      'production',
+      'seller',
+      'logistics',
+      'store_keeper',
+      'delivery',
+      'manpower',
+      'customer',
+    ];
+
+    const highestRole = orderedRoles
+      .map(roleKey => roles.find(r => normalizeRole(r.role) === roleKey))
+      .find(Boolean);
+
+    if (highestRole) {
+      return roleNames[normalizeRole(highestRole.role) || ''] || highestRole.role;
+    }
+
+    // Prioritize non-customer roles - filter out customer and take the first non-customer role
+    const nonCustomerRoles = roles.filter(r => normalizeRole(r.role) !== 'customer');
+    const primaryRole = nonCustomerRoles.length > 0 ? nonCustomerRoles[0].role : roles[0].role;
+    return primaryRole
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
   const NavItem = ({ item }: { item: typeof navigationItems[0] }) => {

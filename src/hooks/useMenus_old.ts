@@ -8,11 +8,6 @@ export interface MenuItem {
   path: string;
   icon: string;
   sort_order: number;
-  module?: string;
-  can_view: boolean;
-  can_create: boolean;
-  can_edit: boolean;
-  can_delete: boolean;
   children?: MenuItem[];
 }
 

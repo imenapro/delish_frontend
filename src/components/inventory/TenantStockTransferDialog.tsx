@@ -85,12 +85,12 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
     queryFn: async () => {
       const { data, error } = await supabase
         .from('shop_inventory')
-        .select('quantity')
+        .select('stock')
         .eq('shop_id', formData.from_shop_id)
         .eq('product_id', formData.product_id)
         .single();
       if (error && error.code !== 'PGRST116') throw error;
-      return data?.quantity || 0;
+      return data?.stock || 0;
     },
     enabled: !!formData.from_shop_id && !!formData.product_id,
   });

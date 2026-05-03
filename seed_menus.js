@@ -29,7 +29,13 @@ async function seedMenus() {
         { code: 'admin.view', description: 'Access admin settings', module: 'admin' },
         { code: 'chat.view', description: 'Access chat', module: 'chat' },
         { code: 'wallet.view', description: 'Access wallet', module: 'wallet' },
-        { code: 'dashboard.view', description: 'View dashboard', module: 'dashboard' }
+        { code: 'dashboard.view', description: 'View dashboard', module: 'dashboard' },
+        { code: 'warehouse.view', description: 'Access warehouse module', module: 'warehouse' },
+        { code: 'suppliers.view', description: 'Access suppliers module', module: 'warehouse' },
+        { code: 'recipes.view', description: 'Access recipes module', module: 'warehouse' },
+        { code: 'production_stock.view', description: 'Access production stock module', module: 'warehouse' },
+        { code: 'finished_products.view', description: 'Access finished products module', module: 'warehouse' },
+        { code: 'stock_reports.view', description: 'Access stock reports module', module: 'warehouse' }
     ];
 
     const { error: permError } = await supabase.from('permissions').upsert(permissions, { onConflict: 'code' });
@@ -44,23 +50,29 @@ async function seedMenus() {
 
     // 2. Define Menus
     const menuItems = [
-        { label: 'Dashboard', path: '/dashboard', icon: 'LayoutDashboard', sort_order: 10, permission_required_id: permMap['dashboard.view'] },
-        { label: 'POS', path: '/pos', icon: 'CreditCard', sort_order: 20, permission_required_id: permMap['pos.access'] },
-        { label: 'Shifts', path: '/shifts', icon: 'ClipboardList', sort_order: 30, permission_required_id: permMap['shifts.view'] },
-        { label: 'Invoices', path: '/invoices', icon: 'Receipt', sort_order: 40, permission_required_id: permMap['invoices.view'] },
-        { label: 'Shops', path: '/shops', icon: 'Store', sort_order: 50, permission_required_id: permMap['shops.view'] },
-        { label: 'Products', path: '/products', icon: 'Package', sort_order: 60, permission_required_id: permMap['products.view'] },
-        { label: 'Orders', path: '/orders', icon: 'ShoppingCart', sort_order: 70, permission_required_id: permMap['orders.view'] },
-        { label: 'Kitchen', path: '/kitchen', icon: 'ChefHat', sort_order: 80, permission_required_id: permMap['kitchen.view'] },
-        { label: 'Inventory', path: '/inventory', icon: 'PackageOpen', sort_order: 90, permission_required_id: permMap['inventory.view'] },
-        { label: 'Finance', path: '/finance', icon: 'DollarSign', sort_order: 100, permission_required_id: permMap['finance.view'] },
-        { label: 'Workforce', path: '/workforce', icon: 'Calendar', sort_order: 110, permission_required_id: permMap['workforce.view'] },
-        { label: 'Reports', path: '/reports', icon: 'FileText', sort_order: 120, permission_required_id: permMap['reports.view'] },
-        { label: 'Delivery', path: '/delivery', icon: 'Truck', sort_order: 130, permission_required_id: permMap['delivery.view'] },
-        { label: 'Staff', path: '/staff', icon: 'Users', sort_order: 140, permission_required_id: permMap['staff.view'] },
-        { label: 'Admin', path: '/admin', icon: 'Shield', sort_order: 150, permission_required_id: permMap['admin.view'] },
-        { label: 'Chat', path: '/chat', icon: 'MessageSquare', sort_order: 160, permission_required_id: permMap['chat.view'] },
-        { label: 'Wallet', path: '/wallet', icon: 'Wallet', sort_order: 170, permission_required_id: permMap['wallet.view'] }
+        { label: 'Dashboard', path: '/dashboard', icon: 'LayoutDashboard', sort_order: 10, module: 'dashboard', permission_required_id: permMap['dashboard.view'] },
+        { label: 'POS', path: '/pos', icon: 'CreditCard', sort_order: 20, module: 'pos', permission_required_id: permMap['pos.access'] },
+        { label: 'Shifts', path: '/shifts', icon: 'ClipboardList', sort_order: 30, module: 'shifts', permission_required_id: permMap['shifts.view'] },
+        { label: 'Invoices', path: '/invoices', icon: 'Receipt', sort_order: 40, module: 'invoices', permission_required_id: permMap['invoices.view'] },
+        { label: 'Shops', path: '/shops', icon: 'Store', sort_order: 50, module: 'shops', permission_required_id: permMap['shops.view'] },
+        { label: 'Products', path: '/products', icon: 'Package', sort_order: 60, module: 'products', permission_required_id: permMap['products.view'] },
+        { label: 'Orders', path: '/orders', icon: 'ShoppingCart', sort_order: 70, module: 'orders', permission_required_id: permMap['orders.view'] },
+        { label: 'Kitchen', path: '/kitchen', icon: 'ChefHat', sort_order: 80, module: 'kitchen', permission_required_id: permMap['kitchen.view'] },
+        { label: 'Inventory', path: '/inventory', icon: 'PackageOpen', sort_order: 90, module: 'inventory', permission_required_id: permMap['inventory.view'] },
+        { label: 'Finance', path: '/finance', icon: 'DollarSign', sort_order: 100, module: 'finance', permission_required_id: permMap['finance.view'] },
+        { label: 'Workforce', path: '/workforce', icon: 'Calendar', sort_order: 110, module: 'workforce', permission_required_id: permMap['workforce.view'] },
+        { label: 'Reports', path: '/reports', icon: 'FileText', sort_order: 120, module: 'reports', permission_required_id: permMap['reports.view'] },
+        { label: 'Delivery', path: '/delivery', icon: 'Truck', sort_order: 130, module: 'delivery', permission_required_id: permMap['delivery.view'] },
+        { label: 'Staff', path: '/staff', icon: 'Users', sort_order: 140, module: 'staff', permission_required_id: permMap['staff.view'] },
+        { label: 'Admin', path: '/admin', icon: 'Shield', sort_order: 150, module: 'admin', permission_required_id: permMap['admin.view'] },
+        { label: 'Chat', path: '/chat', icon: 'MessageSquare', sort_order: 160, module: 'chat', permission_required_id: permMap['chat.view'] },
+        { label: 'Wallet', path: '/wallet', icon: 'Wallet', sort_order: 170, module: 'wallet', permission_required_id: permMap['wallet.view'] },
+        { label: 'Warehouse', path: '/warehouse', icon: 'Factory', sort_order: 180, module: 'warehouse', permission_required_id: permMap['warehouse.view'] },
+        { label: 'Suppliers', path: '/suppliers', icon: 'Users', sort_order: 190, module: 'warehouse', permission_required_id: permMap['suppliers.view'] },
+        { label: 'Recipes (BOM)', path: '/recipes', icon: 'Utensils', sort_order: 200, module: 'warehouse', permission_required_id: permMap['recipes.view'] },
+        { label: 'Production', path: '/production-stock', icon: 'ChefHat', sort_order: 210, module: 'warehouse', permission_required_id: permMap['production_stock.view'] },
+        { label: 'Finished Products', path: '/finished-products', icon: 'Package', sort_order: 220, module: 'warehouse', permission_required_id: permMap['finished_products.view'] },
+        { label: 'Stock Reports', path: '/stock-reports', icon: 'FileBarChart', sort_order: 230, module: 'warehouse', permission_required_id: permMap['stock_reports.view'] }
     ];
 
     const { data: existingMenus } = await supabase.from('menus').select('path');

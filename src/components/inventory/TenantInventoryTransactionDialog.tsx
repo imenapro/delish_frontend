@@ -107,12 +107,12 @@ export function TenantInventoryTransactionDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('shop_inventory')
-        .select('quantity')
+        .select('stock')
         .eq('shop_id', formData.shop_id)
         .eq('product_id', formData.product_id)
         .single();
       if (error && error.code !== 'PGRST116') throw error;
-      return data?.quantity || 0;
+      return data?.stock || 0;
     },
     enabled: !!formData.shop_id && !!formData.product_id,
   });
@@ -122,12 +122,12 @@ export function TenantInventoryTransactionDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('shop_inventory')
-        .select('quantity')
+        .select('stock')
         .eq('shop_id', formData.transfer_from_location_id)
         .eq('product_id', formData.product_id)
         .single();
       if (error && error.code !== 'PGRST116') throw error;
-      return data?.quantity || 0;
+      return data?.stock || 0;
     },
     enabled: !!formData.transfer_from_location_id && !!formData.product_id && type === 'in',
   });
@@ -418,7 +418,7 @@ export function TenantInventoryTransactionDialog({
                 if (type === 'out' && val > (currentStock || 0)) {
                   toast({
                     title: "Insufficient Stock",
-                    description: `You only have ${currentStock} in stock.`,
+                    description: `You only have ${currentStock || 0} in stock.`,
                     variant: "destructive",
                   });
                   return;
@@ -426,7 +426,7 @@ export function TenantInventoryTransactionDialog({
                 if (type === 'in' && isTransfer && val > (sourceStock || 0)) {
                   toast({
                     title: "Insufficient Stock at Source",
-                    description: `The source shop only has ${sourceStock} in stock.`,
+                    description: `The source shop only has ${sourceStock || 0} in stock.`,
                     variant: "destructive",
                   });
                   return;

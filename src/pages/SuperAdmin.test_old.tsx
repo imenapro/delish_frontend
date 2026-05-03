@@ -4,50 +4,27 @@ import SuperAdmin from './SuperAdmin';
 import { AuthProvider } from '@/hooks/useAuth';
 import { BrowserRouter } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { UIPersistenceProvider } from '@/contexts/ui-persistence-context';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-    },
-  },
-});
 
 // Mock Supabase client
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
-    from: vi.fn((table) => ({
+    from: vi.fn(() => ({
       select: vi.fn(() => ({
-        order: vi.fn(() => {
-          if (table === 'businesses') {
-            return {
-              data: [
-                {
-                  id: '1',
-                  name: 'Test Bakery',
-                  slug: 'test-bakery',
-                  plan_type: 'monthly',
-                  status: 'active',
-                  subscription_start_date: '2024-01-01',
-                  subscription_end_date: '2024-02-01',
-                  created_at: '2024-01-01T00:00:00Z'
-                }
-              ],
-              error: null
-            };
-          }
-          if (table === 'profiles') {
-            return {
-              data: [
-                { id: '1', name: 'User 1', created_at: '2024-01-01T00:00:00Z' }
-              ],
-              error: null
-            };
-          }
-          return { data: [], error: null };
-        })
+        order: vi.fn(() => ({
+          data: [
+            {
+              id: '1',
+              name: 'Test Bakery',
+              slug: 'test-bakery',
+              plan_type: 'monthly',
+              status: 'active',
+              subscription_start_date: '2024-01-01',
+              subscription_end_date: '2024-02-01',
+              created_at: '2024-01-01T00:00:00Z'
+            }
+          ],
+          error: null
+        }))
       })),
       insert: vi.fn(() => ({
         select: vi.fn(() => ({
@@ -92,11 +69,7 @@ describe('SuperAdmin Dashboard', () => {
   it('renders dashboard and fetches stores', async () => {
     render(
       <BrowserRouter>
-        <QueryClientProvider client={queryClient}>
-          <UIPersistenceProvider>
-            <SuperAdmin />
-          </UIPersistenceProvider>
-        </QueryClientProvider>
+        <SuperAdmin />
       </BrowserRouter>
     );
 
@@ -120,11 +93,7 @@ describe('SuperAdmin Dashboard', () => {
   it('navigates to Businesses tab and shows store list', async () => {
     render(
       <BrowserRouter>
-        <QueryClientProvider client={queryClient}>
-          <UIPersistenceProvider>
-            <SuperAdmin />
-          </UIPersistenceProvider>
-        </QueryClientProvider>
+        <SuperAdmin />
       </BrowserRouter>
     );
 
@@ -140,11 +109,7 @@ describe('SuperAdmin Dashboard', () => {
   it('navigates to Subscriptions tab', async () => {
     render(
       <BrowserRouter>
-        <QueryClientProvider client={queryClient}>
-          <UIPersistenceProvider>
-            <SuperAdmin />
-          </UIPersistenceProvider>
-        </QueryClientProvider>
+        <SuperAdmin />
       </BrowserRouter>
     );
 
@@ -160,11 +125,7 @@ describe('SuperAdmin Dashboard', () => {
   it('navigates to Analytics tab', async () => {
     render(
         <BrowserRouter>
-          <QueryClientProvider client={queryClient}>
-            <UIPersistenceProvider>
-              <SuperAdmin />
-            </UIPersistenceProvider>
-          </QueryClientProvider>
+          <SuperAdmin />
         </BrowserRouter>
       );
   
@@ -180,11 +141,7 @@ describe('SuperAdmin Dashboard', () => {
   it('navigates to Users tab', async () => {
     render(
         <BrowserRouter>
-          <QueryClientProvider client={queryClient}>
-            <UIPersistenceProvider>
-              <SuperAdmin />
-            </UIPersistenceProvider>
-          </QueryClientProvider>
+          <SuperAdmin />
         </BrowserRouter>
       );
   
