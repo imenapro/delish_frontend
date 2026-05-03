@@ -1,6 +1,8 @@
 import React from "react";
 import { Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useAuth } from "@/hooks/useAuth";
+import { useMenus } from "@/hooks/useMenus";
 import TenantDashboard from "./pages/TenantDashboard";
 import { WarehouseContent } from "./pages/Warehouse";
 import { StockReportsContent } from "./pages/StockReports";
@@ -32,9 +34,37 @@ import {
   TenantAuditReports,
 } from "./pages/tenant";
 
+const HomeRedirect = () => {
+  const { roles } = useAuth();
+  const { data: menus, isLoading } = useMenus();
+
+  if (isLoading) return null;
+
+  const isDistributor = roles.some(r => 
+    r.role.toLowerCase() === 'distributor' || 
+    r.role.toLowerCase() === 'distribution'
+  );
+
+  // If Distributor, default to inventory
+  if (isDistributor) {
+    return <Navigate to="inventory" replace />;
+  }
+
+  // Otherwise, try to find the first available menu item
+  if (menus && menus.length > 0) {
+    const firstMenu = menus.find(m => m.can_view !== false);
+    if (firstMenu) {
+      return <Navigate to={firstMenu.path} replace />;
+    }
+  }
+
+  // Fallback to warehouse if nothing else found
+  return <Navigate to="warehouse" replace />;
+};
+
 export const TenantRoutes = (
   <>
-    <Route index element={<Navigate to="warehouse" replace />} />
+    <Route index element={<HomeRedirect />} />
     <Route path="dashboard" element={<TenantDashboard />} />
     <Route path="profile" element={<TenantProfile />} />
     <Route

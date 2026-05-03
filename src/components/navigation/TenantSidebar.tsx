@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 
 import { useMenus } from '@/hooks/useMenus';
+import { usePendingTransfers } from '@/hooks/usePendingTransfers';
 
 interface TenantSidebarProps {
   collapsed: boolean;
@@ -48,6 +49,7 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
   const { user, roles, signOut } = useAuth();
   const navigate = useNavigate();
   const { data: menus = [] } = useMenus();
+  const { data: pendingTransfersCount = 0 } = usePendingTransfers();
 
   const iconMap: Record<string, LucideIcon> = {
     LayoutDashboard, 
@@ -116,6 +118,7 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
 
   const NavItem = ({ item }: { item: typeof navigationItems[0] }) => {
     const Icon = item.icon;
+    const showBadge = item.name === 'Inventory' && pendingTransfersCount > 0;
     
     if (collapsed) {
       return (
@@ -124,17 +127,29 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
             <NavLink
               to={item.href}
               className={({ isActive }) => cn(
-                "flex items-center justify-center p-2 rounded-md transition-colors",
+                "flex items-center justify-center p-2 rounded-md transition-colors relative",
                 isActive 
                   ? "bg-primary text-primary-foreground" 
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
               <Icon className="h-5 w-5" />
+              {showBadge && (
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                  {pendingTransfersCount > 99 ? '99+' : pendingTransfersCount}
+                </Badge>
+              )}
             </NavLink>
           </TooltipTrigger>
           <TooltipContent side="right">
-            {item.name}
+            <div className="flex items-center gap-2">
+              <span>{item.name}</span>
+              {showBadge && (
+                <Badge variant="secondary" className="text-xs">
+                  {pendingTransfersCount} pending
+                </Badge>
+              )}
+            </div>
           </TooltipContent>
         </Tooltip>
       );
@@ -152,6 +167,11 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
       >
         <Icon className="h-4 w-4 flex-shrink-0" />
         <span>{item.name}</span>
+        {showBadge && (
+          <Badge className="ml-auto">
+            {pendingTransfersCount > 99 ? '99+' : pendingTransfersCount}
+          </Badge>
+        )}
       </NavLink>
     );
   };

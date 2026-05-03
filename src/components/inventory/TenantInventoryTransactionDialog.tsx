@@ -16,6 +16,7 @@ interface TenantInventoryTransactionDialogProps {
   type: 'in' | 'out';
   initialShopId?: string;
   initialProductId?: string;
+  restrictToTransferIn?: boolean;
   trigger?: React.ReactNode;
 }
 
@@ -24,6 +25,7 @@ export function TenantInventoryTransactionDialog({
   type,
   initialShopId,
   initialProductId,
+  restrictToTransferIn,
   trigger
 }: TenantInventoryTransactionDialogProps) {
   const { user, roles } = useAuth();
@@ -54,8 +56,14 @@ export function TenantInventoryTransactionDialog({
       
       if (error) throw error;
       
+      // Filter reasons if restricted
+      let filteredData = data;
+      if (restrictToTransferIn) {
+        filteredData = data.filter(r => r.name.toLowerCase().includes('transfer in'));
+      }
+
       // Remove duplicates by name to prevent UI confusion
-      const uniqueReasons = data.reduce((acc: any[], current) => {
+      const uniqueReasons = filteredData.reduce((acc: any[], current) => {
         const exists = acc.find(item => item.name === current.name);
         if (!exists) {
           return [...acc, current];
@@ -147,6 +155,13 @@ export function TenantInventoryTransactionDialog({
       setFormData(prev => ({ ...prev, shop_id: manageableShops[0].id }));
     }
   }, [manageableShops, formData.shop_id]);
+
+  // Auto-select reason if only one is available (for restricted users)
+  useEffect(() => {
+    if (reasons && reasons.length === 1 && !formData.reason_id) {
+      setFormData(prev => ({ ...prev, reason_id: reasons[0].id }));
+    }
+  }, [reasons, formData.reason_id]);
 
   const { data: products } = useQuery({
     queryKey: ['business-products', businessId],

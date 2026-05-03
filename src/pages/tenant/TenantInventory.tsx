@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { ShopListView } from '@/components/inventory/ShopListView';
 import { ShopDetailView } from '@/components/inventory/ShopDetailView';
+import { ProductionTransferHistory } from '@/components/inventory/ProductionTransferHistory';
 
 export default function TenantInventory() {
   const { store } = useStoreContext();
@@ -140,7 +141,7 @@ export default function TenantInventory() {
   const { data: transfers, isLoading: transfersLoading } = useQuery({
     queryKey: ['stock-transfers', businessId],
     queryFn: async () => {
-      if (!shopIds.length && !isProduction && !isDistributor) return [];
+      if (!businessId) return [];
       
       let query = supabase
         .from('stock_transfers')
@@ -153,11 +154,6 @@ export default function TenantInventory() {
 
       // Build transfer visibility logic
       const orConditions = [];
-      
-      // Admin roles can see all transfers for their accessible shops
-      if (shopIds.length > 0) {
-        orConditions.push(`from_shop_id.in.(${shopIds.join(',')}),to_shop_id.in.(${shopIds.join(',')})`);
-      }
       
       // Production users can see transfers they initiated from PRODUCTION shop
       if (isProduction) {
@@ -175,8 +171,15 @@ export default function TenantInventory() {
         }
       }
       
+      // Admin roles can see all transfers for their accessible shops
+      if (shopIds.length > 0 && !isProduction && !isDistributor) {
+        orConditions.push(`from_shop_id.in.(${shopIds.join(',')}),to_shop_id.in.(${shopIds.join(',')})`);
+      }
+      
       if (orConditions.length > 0) {
         query = query.or(orConditions.join(','));
+      } else if (!isProduction && !isDistributor) {
+        return []; // No access if not special role and no shop access
       }
       
       const { data, error } = await query
@@ -186,7 +189,7 @@ export default function TenantInventory() {
       if (error) throw error;
       return data;
     },
-    enabled: !!businessId && (shopIds.length > 0 || isProduction || isDistributor),
+    enabled: !!businessId,
   });
 
   // Fetch recent transactions
@@ -302,22 +305,30 @@ export default function TenantInventory() {
         </div>
       }
     >
-      {selectedShopId && selectedShop ? (
-        <ShopDetailView 
-          shop={selectedShop}
-          inventory={inventory?.filter(i => i.shop_id === selectedShopId) || []}
-          transfers={transfers?.filter(t => t.from_shop_id === selectedShopId || t.to_shop_id === selectedShopId) || []}
-          transactions={transactions?.filter(t => t.shop_id === selectedShopId) || []}
-          onBack={() => setSelectedShopId(null)}
-          updateTransferMutation={updateTransferMutation}
-        />
-      ) : (
-        <ShopListView 
-          shops={shops || []}
-          inventory={inventory || []}
-          onSelectShop={setSelectedShopId}
-        />
-      )}
+      <div className="space-y-6">
+        {/* Production Transfer History - Only show for production users */}
+        {isProduction && (
+          <ProductionTransferHistory />
+        )}
+        
+        {/* Main Inventory View */}
+        {selectedShopId && selectedShop ? (
+          <ShopDetailView 
+            shop={selectedShop}
+            inventory={inventory?.filter(i => i.shop_id === selectedShopId) || []}
+            transfers={transfers?.filter(t => t.from_shop_id === selectedShopId || t.to_shop_id === selectedShopId) || []}
+            transactions={transactions?.filter(t => t.shop_id === selectedShopId) || []}
+            onBack={() => setSelectedShopId(null)}
+            updateTransferMutation={updateTransferMutation}
+          />
+        ) : (
+          <ShopListView 
+            shops={shops || []}
+            inventory={inventory || []}
+            onSelectShop={setSelectedShopId}
+          />
+        )}
+      </div>
     </TenantPageWrapper>
   );
 }

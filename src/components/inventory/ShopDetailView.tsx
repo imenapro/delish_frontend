@@ -105,6 +105,10 @@ export function ShopDetailView({
   const { store } = useStoreContext();
   const { roles } = useAuth();
   const isSeller = roles.some(r => r.role.toLowerCase() === 'seller');
+  const isDistributor = roles.some(r => 
+    r.role.toLowerCase() === 'distributor' || 
+    r.role.toLowerCase() === 'distribution'
+  );
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -226,7 +230,7 @@ export function ShopDetailView({
         return value.includes(row.getValue(id))
       },
     },
-    ...(!isSeller ? [{
+    ...((!isSeller || isDistributor) ? [{
       id: "actions",
       header: "Action",
       cell: ({ row }: { row: any }) => (
@@ -236,6 +240,7 @@ export function ShopDetailView({
             type="in"
             initialShopId={shop.id}
             initialProductId={row.original.product_id}
+            restrictToTransferIn={isDistributor}
             trigger={
               <Button 
                 size="sm" 
@@ -248,28 +253,30 @@ export function ShopDetailView({
               </Button>
             }
           />
-          <TenantInventoryTransactionDialog
-            businessId={shop.business_id}
-            type="out"
-            initialShopId={shop.id}
-            initialProductId={row.original.product_id}
-            trigger={
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="h-8 px-3 border-red-500/50 hover:bg-red-500/10 hover:text-red-600 text-red-600 font-medium transition-colors"
-                aria-label="Stock Out"
-              >
-                <Minus className="h-3.5 w-3.5 mr-1.5" />
-                Stock Out
-              </Button>
-            }
-          />
+          {!isDistributor && (
+            <TenantInventoryTransactionDialog
+              businessId={shop.business_id}
+              type="out"
+              initialShopId={shop.id}
+              initialProductId={row.original.product_id}
+              trigger={
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-8 px-3 border-red-500/50 hover:bg-red-500/10 hover:text-red-600 text-red-600 font-medium transition-colors"
+                  aria-label="Stock Out"
+                >
+                  <Minus className="h-3.5 w-3.5 mr-1.5" />
+                  Stock Out
+                </Button>
+              }
+            />
+          )}
         </div>
       ),
     }] : []),
     ];
-  }, [shop, store?.currency, isSeller]);
+  }, [shop, store?.currency, isSeller, isDistributor]);
 
   const transferColumns: ColumnDef<Transfer>[] = useMemo(() => {
     if (!shop) return [];

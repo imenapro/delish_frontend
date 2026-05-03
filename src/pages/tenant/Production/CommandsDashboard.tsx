@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Clock,
   Check,
@@ -35,9 +36,11 @@ import {
   DollarSign,
   Calendar,
   ChefHat,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 import { format } from 'date-fns';
+import { ProductionTransferHistory } from '@/components/inventory/ProductionTransferHistory';
 
 interface CommandWithItems {
   id: string;
@@ -258,198 +261,217 @@ export default function CommandsDashboard() {
           </Card>
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Search & Filter</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Input
-                placeholder="Search by order code, customer name, or phone..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="sm:flex-1"
-              />
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full sm:w-44">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Commands</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="confirmed">Ready for Pickup</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              Showing {filteredCommands.length} of {commands.length} commands
-            </p>
-          </CardContent>
-        </Card>
+        <Tabs defaultValue="commands" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-8">
+            <TabsTrigger value="commands" className="flex items-center gap-2">
+              <ChefHat className="h-4 w-4" />
+              Special Commands
+            </TabsTrigger>
+            <TabsTrigger value="transfers" className="flex items-center gap-2">
+              <ArrowLeftRight className="h-4 w-4" />
+              Stock Transfers
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Commands Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Active Commands</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {error && (
-              <div className="p-4 bg-destructive/10 text-destructive rounded-lg mb-4">
-                Error loading commands: {error.message}
-              </div>
-            )}
-
-            {isLoading ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">Loading commands...</p>
-              </div>
-            ) : filteredCommands.length === 0 ? (
-              <div className="text-center py-8">
-                <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-muted-foreground">No commands found</p>
-              </div>
-            ) : (
-              <ScrollArea className="w-full overflow-x-auto">
-                <div className="min-w-full">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="whitespace-nowrap">Order Code</TableHead>
-                        <TableHead className="whitespace-nowrap">Customer</TableHead>
-                        <TableHead className="whitespace-nowrap">Phone</TableHead>
-                        <TableHead className="whitespace-nowrap">Items</TableHead>
-                        <TableHead className="whitespace-nowrap text-right">Total</TableHead>
-                        <TableHead className="whitespace-nowrap text-right">Advance</TableHead>
-                        <TableHead className="whitespace-nowrap text-right">Due</TableHead>
-                        <TableHead className="whitespace-nowrap">Created</TableHead>
-                        <TableHead className="whitespace-nowrap">Status</TableHead>
-                        <TableHead className="whitespace-nowrap">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCommands.map((command) => (
-                        <TableRow key={command.id}>
-                          <TableCell className="font-mono font-semibold">
-                            <span className="text-primary">{command.order_code}</span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium">{command.customer_name}</div>
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {command.customer_phone}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {command.order_items?.map((item, idx) => (
-                              <div key={idx}>
-                                {item.quantity}x {item.product?.name}
-                              </div>
-                            ))}
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(command.total_amount, currency)}
-                          </TableCell>
-                          <TableCell className="text-right text-green-600 dark:text-green-400 font-medium">
-                            {formatCurrency(command.advance_paid, currency)}
-                          </TableCell>
-                          <TableCell className="text-right text-orange-600 dark:text-orange-400 font-medium">
-                            {formatCurrency(command.remaining_due, currency)}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {format(new Date(command.created_at), 'MMM dd, HH:mm')}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              className={`${getStatusColor(
-                                command.status
-                              )} flex items-center gap-1 w-fit`}
-                            >
-                              {getStatusIcon(command.status)}
-                              {command.status === 'pending'
-                                ? 'Pending'
-                                : 'Ready'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {command.status === 'pending' ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  updateStatusMutation.mutate({
-                                    orderId: command.id,
-                                    newStatus: 'confirmed',
-                                  })
-                                }
-                                disabled={updateStatusMutation.isPending}
-                                className="text-xs"
-                              >
-                                Mark Ready
-                              </Button>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">
-                                Awaiting payment
-                              </span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+          <TabsContent value="commands" className="space-y-6">
+            {/* Filters */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Search & Filter</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Input
+                    placeholder="Search by order code, customer name, or phone..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="sm:flex-1"
+                  />
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="w-full sm:w-44">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Commands</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="confirmed">Ready for Pickup</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Showing {filteredCommands.length} of {commands.length} commands
+                </p>
+              </CardContent>
+            </Card>
 
-        {/* Payment Tracking Info */}
-        <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Payment Tracking Info
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <p className="text-sm font-medium">How it works:</p>
-              <ul className="text-sm text-muted-foreground space-y-2 mt-2 ml-4">
-                <li>✓ Customers pay advance when ordering (shown in this dashboard)</li>
-                <li>✓ When ready, mark command as "Ready for Pickup"</li>
-                <li>✓ Staff at POS handles final payment when customer arrives</li>
-                <li>✓ View command payment details in Finance module</li>
-              </ul>
-            </div>
-            <Separator />
-            <div className="text-sm">
-              <span className="font-medium">Total Cash Flow:</span>
-              <div className="mt-2 space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Advance Collected:</span>
-                  <span className="font-semibold text-green-600">
-                    {formatCurrency(stats.totalAdvance, currency)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Remaining Due:</span>
-                  <span className="font-semibold text-orange-600">
-                    {formatCurrency(stats.totalRemaining, currency)}
-                  </span>
+            {/* Commands Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Active Commands</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {error && (
+                  <div className="p-4 bg-destructive/10 text-destructive rounded-lg mb-4">
+                    Error loading commands: {error.message}
+                  </div>
+                )}
+
+                {isLoading ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">Loading commands...</p>
+                  </div>
+                ) : filteredCommands.length === 0 ? (
+                  <div className="text-center py-8">
+                    <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-muted-foreground">No commands found</p>
+                  </div>
+                ) : (
+                  <ScrollArea className="w-full overflow-x-auto">
+                    <div className="min-w-full">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="whitespace-nowrap">Order Code</TableHead>
+                            <TableHead className="whitespace-nowrap">Customer</TableHead>
+                            <TableHead className="whitespace-nowrap">Phone</TableHead>
+                            <TableHead className="whitespace-nowrap">Items</TableHead>
+                            <TableHead className="whitespace-nowrap text-right">Total</TableHead>
+                            <TableHead className="whitespace-nowrap text-right">Advance</TableHead>
+                            <TableHead className="whitespace-nowrap text-right">Due</TableHead>
+                            <TableHead className="whitespace-nowrap">Created</TableHead>
+                            <TableHead className="whitespace-nowrap">Status</TableHead>
+                            <TableHead className="whitespace-nowrap">Action</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredCommands.map((command) => (
+                            <TableRow key={command.id}>
+                              <TableCell className="font-mono font-semibold">
+                                <span className="text-primary">{command.order_code}</span>
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium">{command.customer_name}</div>
+                              </TableCell>
+                              <TableCell className="font-mono text-sm">
+                                {command.customer_phone}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {command.order_items?.map((item, idx) => (
+                                  <div key={idx}>
+                                    {item.quantity}x {item.product?.name}
+                                  </div>
+                                ))}
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                {formatCurrency(command.total_amount, currency)}
+                              </TableCell>
+                              <TableCell className="text-right text-green-600 dark:text-green-400 font-medium">
+                                {formatCurrency(command.advance_paid, currency)}
+                              </TableCell>
+                              <TableCell className="text-right text-orange-600 dark:text-orange-400 font-medium">
+                                {formatCurrency(command.remaining_due, currency)}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {format(new Date(command.created_at), 'MMM dd, HH:mm')}
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  className={`${getStatusColor(
+                                    command.status
+                                  )} flex items-center gap-1 w-fit`}
+                                >
+                                  {getStatusIcon(command.status)}
+                                  {command.status === 'pending'
+                                    ? 'Pending'
+                                    : 'Ready'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {command.status === 'pending' ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      updateStatusMutation.mutate({
+                                        orderId: command.id,
+                                        newStatus: 'confirmed',
+                                      })
+                                    }
+                                    disabled={updateStatusMutation.isPending}
+                                    className="text-xs"
+                                  >
+                                    Mark Ready
+                                  </Button>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">
+                                    Awaiting payment
+                                  </span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Payment Tracking Info */}
+            <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <DollarSign className="h-5 w-5" />
+                  Payment Tracking Info
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium">How it works:</p>
+                  <ul className="text-sm text-muted-foreground space-y-2 mt-2 ml-4">
+                    <li>✓ Customers pay advance when ordering (shown in this dashboard)</li>
+                    <li>✓ When ready, mark command as "Ready for Pickup"</li>
+                    <li>✓ Staff at POS handles final payment when customer arrives</li>
+                    <li>✓ View command payment details in Finance module</li>
+                  </ul>
                 </div>
                 <Separator />
-                <div className="flex justify-between">
-                  <span className="font-medium">Total Order Value:</span>
-                  <span className="font-bold">
-                    {formatCurrency(
-                      stats.totalAdvance + stats.totalRemaining,
-                      currency
-                    )}
-                  </span>
+                <div className="text-sm">
+                  <span className="font-medium">Total Cash Flow:</span>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Advance Collected:</span>
+                      <span className="font-semibold text-green-600">
+                        {formatCurrency(stats.totalAdvance, currency)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Remaining Due:</span>
+                      <span className="font-semibold text-orange-600">
+                        {formatCurrency(stats.totalRemaining, currency)}
+                      </span>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-between">
+                      <span className="font-medium">Total Order Value:</span>
+                      <span className="font-bold">
+                        {formatCurrency(
+                          stats.totalAdvance + stats.totalRemaining,
+                          currency
+                        )}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="transfers">
+            <ProductionTransferHistory />
+          </TabsContent>
+        </Tabs>
       </div>
     </TenantPageWrapper>
   );
