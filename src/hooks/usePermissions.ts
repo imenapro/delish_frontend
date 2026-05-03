@@ -2,6 +2,24 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
+interface RolePermissionJoin {
+  name: string;
+  role_permissions: {
+    permissions: {
+      code: string;
+    } | {
+      code: string;
+    }[];
+  }[];
+}
+
+interface UserPermissionJoin {
+  is_granted: boolean;
+  permissions: {
+    code: string;
+  } | null;
+}
+
 export function usePermissions() {
   const { user } = useAuth();
 
@@ -42,13 +60,8 @@ export function usePermissions() {
             throw permError;
           }
 
-          rolePermissions?.forEach((role) => {
-            const roleData = role as unknown as {
-              role_permissions?: {
-                permissions?: { code: string } | { code: string }[];
-              }[];
-            };
-            roleData.role_permissions?.forEach((rp) => {
+          (rolePermissions as unknown as RolePermissionJoin[])?.forEach((role) => {
+            role.role_permissions?.forEach((rp) => {
                const permission = rp.permissions;
                if (permission && !Array.isArray(permission) && permission.code) {
                  rolePermissionsCodes.add(permission.code);
@@ -82,8 +95,8 @@ export function usePermissions() {
         const finalPermissions = new Set<string>(rolePermissionsCodes);
         
         if (userOverrides) {
-          userOverrides.forEach((override) => {
-             const code = (override.permissions as unknown as { code: string })?.code;
+          (userOverrides as unknown as UserPermissionJoin[]).forEach((override) => {
+             const code = override.permissions?.code;
              if (!code) return;
              
              if (override.is_granted) {
