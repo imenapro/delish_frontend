@@ -2,6 +2,24 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
+interface RolePermissionJoin {
+  name: string;
+  role_permissions: {
+    permissions: {
+      code: string;
+    } | {
+      code: string;
+    }[];
+  }[];
+}
+
+interface UserPermissionJoin {
+  is_granted: boolean;
+  permissions: {
+    code: string;
+  } | null;
+}
+
 export function usePermissions() {
   const { user } = useAuth();
 
@@ -22,7 +40,7 @@ export function usePermissions() {
         const roleNames = (userRoles || []).map(r => r.role);
         
         // 2. Get permissions from roles
-        let rolePermissionsCodes = new Set<string>();
+        const rolePermissionsCodes = new Set<string>();
         
         if (roleNames.length > 0) {
           const { data: rolePermissions, error: permError } = await supabase
@@ -42,13 +60,13 @@ export function usePermissions() {
             throw permError;
           }
 
-          rolePermissions?.forEach((role: any) => {
-            role.role_permissions?.forEach((rp: any) => {
+          (rolePermissions as unknown as RolePermissionJoin[])?.forEach((role) => {
+            role.role_permissions?.forEach((rp) => {
                const permission = rp.permissions;
-               if (permission && permission.code) {
+               if (permission && !Array.isArray(permission) && permission.code) {
                  rolePermissionsCodes.add(permission.code);
                } else if (Array.isArray(permission)) {
-                 permission.forEach(p => {
+                 permission.forEach((p) => {
                    if (p.code) rolePermissionsCodes.add(p.code);
                  });
                }
@@ -77,7 +95,7 @@ export function usePermissions() {
         const finalPermissions = new Set<string>(rolePermissionsCodes);
         
         if (userOverrides) {
-          userOverrides.forEach((override: any) => {
+          (userOverrides as unknown as UserPermissionJoin[]).forEach((override) => {
              const code = override.permissions?.code;
              if (!code) return;
              

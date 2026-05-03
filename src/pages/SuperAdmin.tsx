@@ -58,10 +58,10 @@ export default function SuperAdmin() {
         secondaryColor: b.secondary_color || '#ffffff',
         slogan: b.slogan || undefined,
         ownerEmail: 'N/A', // Placeholder
-        planType: (b.plan_type as any) || 'trial',
+        planType: (b.plan_type as StoreType['planType']) || 'trial',
         subscriptionStartDate: b.subscription_start_date || new Date().toISOString(),
         subscriptionEndDate: b.subscription_end_date || new Date().toISOString(),
-        status: (b.status as any) || 'active',
+        status: (b.status as StoreType['status']) || 'active',
         locale: 'en',
         customDomain: undefined
       }));
@@ -102,8 +102,8 @@ export default function SuperAdmin() {
       toast.success('Store created successfully');
       fetchStores();
       setCreateDialogOpen(false);
-    } catch (error: any) {
-      toast.error('Error creating store: ' + error.message);
+    } catch (error) {
+      toast.error('Error creating store: ' + (error as Error).message);
     }
   };
 
@@ -129,8 +129,8 @@ export default function SuperAdmin() {
       fetchStores();
       setEditDialogOpen(false);
       setSelectedStore(null);
-    } catch (error: any) {
-      toast.error('Error updating store: ' + error.message);
+    } catch (error) {
+      toast.error('Error updating store: ' + (error as Error).message);
     }
   };
 
@@ -147,8 +147,8 @@ export default function SuperAdmin() {
 
       toast.success('Store deleted successfully');
       fetchStores();
-    } catch (error: any) {
-      toast.error('Error deleting store: ' + error.message);
+    } catch (error) {
+      toast.error('Error deleting store: ' + (error as Error).message);
     }
   };
 
