@@ -59,16 +59,16 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
     if (isAdminLike) return true;
     if (assignedShopIds.includes(shop.id)) return true;
     if (isDistributor && (shop.name.toUpperCase() === 'DISTRIBUTOR' || shop.name.toUpperCase() === 'DISTRIBUTION')) return true;
-    if (isProduction && (shop.name.toUpperCase() === 'PRODUCTION' || shop.name.toUpperCase() === 'DISTRIBUTION' || shop.name.toUpperCase() === 'DISTRIBUTOR')) return true;
+    if (isProduction && (shop.name.toUpperCase() === 'PRODUCTION')) return true; // Production should only manage PRODUCTION shop
     return false;
   }) || [];
 
   const targetShops = allShops?.filter(shop => {
     if (isAdminLike) return true;
     if (isProduction) {
-      // Production can only transfer to themselves, Distribution, or Distributor
+      // Production can only transfer to themselves or Distribution
       const name = shop.name.toUpperCase();
-      return name === 'PRODUCTION' || name === 'DISTRIBUTION' || name === 'DISTRIBUTOR';
+      return name === 'PRODUCTION' || name === 'DISTRIBUTION';
     }
     return true; // Other roles can transfer to any shop
   }) || [];

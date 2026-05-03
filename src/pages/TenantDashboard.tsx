@@ -14,7 +14,7 @@ import { formatCurrency } from '@/utils/currency';
 
 export default function TenantDashboard() {
   const { store, loading, daysUntilExpiration, isExpired, getTenantRoute } = useStoreContext();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, roles } = useAuth();
   const { data: metrics, isLoading: metricsLoading } = useShopMetrics(store?.id);
   const navigate = useNavigate();
 
@@ -24,6 +24,16 @@ export default function TenantDashboard() {
       navigate(getTenantRoute('/login'));
     }
   }, [user, authLoading, store, getTenantRoute, navigate]);
+
+  // Redirect production users to inventory page
+  useEffect(() => {
+    if (!authLoading && user && store?.slug) {
+      const isProduction = roles.some(r => r.role.toLowerCase() === 'production');
+      if (isProduction) {
+        navigate(getTenantRoute('/inventory'));
+      }
+    }
+  }, [user, authLoading, roles, store, getTenantRoute, navigate]);
 
   if (loading || authLoading || metricsLoading) {
     return (

@@ -136,9 +136,9 @@ export function TenantInventoryTransactionDialog({
     if (isAdminLike) return true;
     if (!isProduction) return true;
     
-    // Production role can only transfer to/from: themselves, distribution, distributor shop
+    // Production role can only transfer to/from: themselves, distribution
     const name = shop.name.toUpperCase();
-    return name === 'PRODUCTION' || name === 'DISTRIBUTION' || name === 'DISTRIBUTOR';
+    return name === 'PRODUCTION' || name === 'DISTRIBUTION';
   });
 
   // Auto-select shop_id if only one manageable shop is available
