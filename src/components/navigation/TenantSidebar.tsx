@@ -30,6 +30,7 @@ import {
   ClipboardList,
   Receipt,
   User,
+  LucideIcon,
 } from 'lucide-react';
 
 import { useMenus } from '@/hooks/useMenus';
@@ -45,7 +46,7 @@ export function TenantSidebar({ collapsed, onToggle }: TenantSidebarProps) {
   const navigate = useNavigate();
   const { data: menus = [] } = useMenus();
 
-  const iconMap: Record<string, any> = {
+  const iconMap: Record<string, LucideIcon> = {
     LayoutDashboard, 
     CreditCard, 
     Store, 

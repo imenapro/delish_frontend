@@ -22,7 +22,7 @@ export function usePermissions() {
         const roleNames = (userRoles || []).map(r => r.role);
         
         // 2. Get permissions from roles
-        let rolePermissionsCodes = new Set<string>();
+        const rolePermissionsCodes = new Set<string>();
         
         if (roleNames.length > 0) {
           const { data: rolePermissions, error: permError } = await supabase
@@ -48,7 +48,7 @@ export function usePermissions() {
                if (permission && permission.code) {
                  rolePermissionsCodes.add(permission.code);
                } else if (Array.isArray(permission)) {
-                 permission.forEach(p => {
+                 permission.forEach((p: any) => {
                    if (p.code) rolePermissionsCodes.add(p.code);
                  });
                }

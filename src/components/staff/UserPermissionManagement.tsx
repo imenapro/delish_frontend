@@ -40,6 +40,9 @@ interface UserPermissionManagementProps {
   onClose: () => void;
 }
 
+/**
+ * Component to manage user roles and granular permission overrides.
+ */
 export function UserPermissionManagement({
   userId,
   userName,
