@@ -42,13 +42,18 @@ export function usePermissions() {
             throw permError;
           }
 
-          rolePermissions?.forEach((role: any) => {
-            role.role_permissions?.forEach((rp: any) => {
+          rolePermissions?.forEach((role) => {
+            const roleData = role as unknown as {
+              role_permissions?: {
+                permissions?: { code: string } | { code: string }[];
+              }[];
+            };
+            roleData.role_permissions?.forEach((rp) => {
                const permission = rp.permissions;
-               if (permission && permission.code) {
+               if (permission && !Array.isArray(permission) && permission.code) {
                  rolePermissionsCodes.add(permission.code);
                } else if (Array.isArray(permission)) {
-                 permission.forEach((p: any) => {
+                 permission.forEach((p) => {
                    if (p.code) rolePermissionsCodes.add(p.code);
                  });
                }
@@ -77,8 +82,8 @@ export function usePermissions() {
         const finalPermissions = new Set<string>(rolePermissionsCodes);
         
         if (userOverrides) {
-          userOverrides.forEach((override: any) => {
-             const code = override.permissions?.code;
+          userOverrides.forEach((override) => {
+             const code = (override.permissions as unknown as { code: string })?.code;
              if (!code) return;
              
              if (override.is_granted) {
