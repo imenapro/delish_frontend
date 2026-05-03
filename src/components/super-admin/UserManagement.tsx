@@ -14,20 +14,31 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Search, Loader2, Shield, Key } from 'lucide-react';
+import { Search, Loader2, Shield, Key, MoreVertical, ShieldCheck } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { UserPermissionManagement } from '@/components/staff/UserPermissionManagement';
 
 interface UserProfile {
   id: string;
   name: string;
   phone: string | null;
   created_at: string | null;
-  roles: string[];
+  roles: { role: string; business_id: string | null }[];
 }
 
 export function UserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -55,7 +66,7 @@ export function UserManagement() {
       const mergedUsers: UserProfile[] = (profiles || []).map(profile => {
         const userRoles = roles
           ?.filter(r => r.user_id === profile.id)
-          .map(r => r.role) || [];
+          .map(r => ({ role: r.role, business_id: r.business_id || null })) || [];
         
         return {
           id: profile.id,
@@ -134,12 +145,13 @@ export function UserManagement() {
                 <TableHead>Phone</TableHead>
                 <TableHead>Roles</TableHead>
                 <TableHead>Joined Date</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>
@@ -150,8 +162,8 @@ export function UserManagement() {
                     <TableCell>{user.phone || 'N/A'}</TableCell>
                     <TableCell className="flex gap-1 flex-wrap">
                       {user.roles.length > 0 ? (
-                        user.roles.map((role, idx) => (
-                          <div key={idx}>{getRoleBadge(role)}</div>
+                        user.roles.map((roleInfo, idx) => (
+                          <div key={idx}>{getRoleBadge(roleInfo.role)}</div>
                         ))
                       ) : (
                         <span className="text-muted-foreground text-sm">No roles</span>
@@ -160,6 +172,29 @@ export function UserManagement() {
                     <TableCell>
                       {user.created_at ? format(new Date(user.created_at), 'MMM d, yyyy') : 'N/A'}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => {
+                            setSelectedUser(user);
+                            setPermissionDialogOpen(true);
+                          }}>
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                            Manage Permissions
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => toast.info('Edit user feature requires backend integration')}>
+                            Edit Details
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -167,6 +202,20 @@ export function UserManagement() {
           </Table>
         )}
       </CardContent>
+
+      {selectedUser && (
+        <UserPermissionManagement
+          userId={selectedUser.id}
+          userName={selectedUser.name}
+          businessId={selectedUser.roles[0]?.business_id || ''}
+          isOpen={permissionDialogOpen}
+          onClose={() => {
+            setPermissionDialogOpen(false);
+            setSelectedUser(null);
+            fetchUsers();
+          }}
+        />
+      )}
     </Card>
   );
 }
