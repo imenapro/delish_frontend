@@ -155,30 +155,32 @@ export default function TenantInventory() {
       // Build transfer visibility logic
       const orConditions = [];
       
-      // Production users can see transfers they initiated from PRODUCTION shop
+      // Production users can see transfers involving PRODUCTION shop
       if (isProduction) {
         const productionShop = allShops?.find(s => s.name.toUpperCase() === 'PRODUCTION');
         if (productionShop) {
-          orConditions.push(`from_shop_id.eq.${productionShop.id}`);
+          orConditions.push(`from_shop_id.eq.${productionShop.id}`, `to_shop_id.eq.${productionShop.id}`);
         }
       }
       
-      // Distributor users can see transfers coming to DISTRIBUTOR shop
+      // Distributor users can see transfers coming to or from DISTRIBUTOR/DISTRIBUTION shop
       if (isDistributor) {
-        const distributorShop = allShops?.find(s => s.name.toUpperCase() === 'DISTRIBUTOR');
+        const distributorShop = allShops?.find(s => 
+          s.name.toUpperCase() === 'DISTRIBUTOR' || s.name.toUpperCase() === 'DISTRIBUTION'
+        );
         if (distributorShop) {
-          orConditions.push(`to_shop_id.eq.${distributorShop.id}`);
+          orConditions.push(`from_shop_id.eq.${distributorShop.id}`, `to_shop_id.eq.${distributorShop.id}`);
         }
       }
       
-      // Admin roles can see all transfers for their accessible shops
-      if (shopIds.length > 0 && !isProduction && !isDistributor) {
+      // Admin roles and Sellers can see all transfers for their accessible shops
+      if (shopIds.length > 0) {
         orConditions.push(`from_shop_id.in.(${shopIds.join(',')}),to_shop_id.in.(${shopIds.join(',')})`);
       }
       
       if (orConditions.length > 0) {
         query = query.or(orConditions.join(','));
-      } else if (!isProduction && !isDistributor) {
+      } else if (!isProduction && !isDistributor && !isSeller) {
         return []; // No access if not special role and no shop access
       }
       
@@ -217,49 +219,15 @@ export default function TenantInventory() {
   // Approve/Reject transfer mutation
   const updateTransferMutation = useMutation({
     mutationFn: async ({ transferId, status }: { transferId: string; status: 'approved' | 'rejected' }) => {
-      const { error } = await supabase
-        .from('stock_transfers')
-        .update({ status, approved_by: user?.id })
-        .eq('id', transferId);
+      if (!user?.id) throw new Error('User not authenticated');
+
+      const { error } = await supabase.rpc('process_stock_transfer', {
+        p_transfer_id: transferId,
+        p_approver_id: user.id,
+        p_status: status
+      });
+
       if (error) throw error;
-
-      // If approved, update inventory
-      if (status === 'approved') {
-        const transfer = transfers?.find(t => t.id === transferId);
-        if (transfer) {
-          // Decrease from source shop
-          const { data: fromInventory } = await supabase
-            .from('shop_inventory')
-            .select('stock')
-            .eq('shop_id', transfer.from_shop_id)
-            .eq('product_id', transfer.product_id)
-            .single();
-
-          if (fromInventory) {
-            await supabase
-              .from('shop_inventory')
-              .update({ stock: Math.max(0, (fromInventory.stock || 0) - transfer.quantity) })
-              .eq('shop_id', transfer.from_shop_id)
-              .eq('product_id', transfer.product_id);
-          }
-
-          // Increase in destination shop
-          const { data: toInventory } = await supabase
-            .from('shop_inventory')
-            .select('stock')
-            .eq('shop_id', transfer.to_shop_id)
-            .eq('product_id', transfer.product_id)
-            .single();
-
-          if (toInventory) {
-            await supabase
-              .from('shop_inventory')
-              .update({ stock: (toInventory.stock || 0) + transfer.quantity })
-              .eq('shop_id', transfer.to_shop_id)
-              .eq('product_id', transfer.product_id);
-          }
-        }
-      }
     },
     onSuccess: (_, { status }) => {
       toast({
