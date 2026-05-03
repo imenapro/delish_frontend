@@ -335,6 +335,7 @@ export function ShopDetailView({
       header: "Actions",
       cell: ({ row }) => {
         const transfer = row.original;
+        // Show approve/reject buttons for pending transfers to this shop
         if (transfer.status === 'pending' && transfer.to_shop_id === shop.id) {
             return (
                 <div className="flex gap-2">

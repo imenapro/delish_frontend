@@ -140,22 +140,53 @@ export default function TenantInventory() {
   const { data: transfers, isLoading: transfersLoading } = useQuery({
     queryKey: ['stock-transfers', businessId],
     queryFn: async () => {
-      if (!shopIds.length) return [];
-      const { data, error } = await supabase
+      if (!shopIds.length && !isProduction && !isDistributor) return [];
+      
+      let query = supabase
         .from('stock_transfers')
         .select(`
           *,
           product:products (name),
           from_shop:shops!stock_transfers_from_shop_id_fkey (name),
           to_shop:shops!stock_transfers_to_shop_id_fkey (name)
-        `)
-        .or(`from_shop_id.in.(${shopIds.join(',')}),to_shop_id.in.(${shopIds.join(',')})`)
+        `);
+
+      // Build transfer visibility logic
+      const orConditions = [];
+      
+      // Admin roles can see all transfers for their accessible shops
+      if (shopIds.length > 0) {
+        orConditions.push(`from_shop_id.in.(${shopIds.join(',')}),to_shop_id.in.(${shopIds.join(',')})`);
+      }
+      
+      // Production users can see transfers they initiated from PRODUCTION shop
+      if (isProduction) {
+        const productionShop = allShops?.find(s => s.name.toUpperCase() === 'PRODUCTION');
+        if (productionShop) {
+          orConditions.push(`from_shop_id.eq.${productionShop.id}`);
+        }
+      }
+      
+      // Distributor users can see transfers coming to DISTRIBUTOR shop
+      if (isDistributor) {
+        const distributorShop = allShops?.find(s => s.name.toUpperCase() === 'DISTRIBUTOR');
+        if (distributorShop) {
+          orConditions.push(`to_shop_id.eq.${distributorShop.id}`);
+        }
+      }
+      
+      if (orConditions.length > 0) {
+        query = query.or(orConditions.join(','));
+      }
+      
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(50);
+      
       if (error) throw error;
       return data;
     },
-    enabled: shopIds.length > 0,
+    enabled: !!businessId && (shopIds.length > 0 || isProduction || isDistributor),
   });
 
   // Fetch recent transactions

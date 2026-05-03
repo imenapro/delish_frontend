@@ -130,7 +130,14 @@ export function TenantStockTransferDialog({ businessId }: TenantStockTransferDia
         title: "Transfer request created",
         description: "Stock transfer request submitted successfully.",
       });
+      // Invalidate all inventory-related queries to ensure immediate UI update
       queryClient.invalidateQueries({ queryKey: ['stock-transfers', businessId] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-transactions', businessId] });
+      queryClient.invalidateQueries({ queryKey: ['shop-inventory', businessId] });
+      queryClient.invalidateQueries({ queryKey: ['business-inventory', businessId] });
+      queryClient.invalidateQueries({ queryKey: ['product-stock'] });
+      // Force refetch immediately
+      queryClient.refetchQueries({ queryKey: ['business-inventory', businessId] });
       setOpen(false);
       setFormData({ from_shop_id: '', to_shop_id: '', product_id: '', quantity: '', notes: '' });
     },

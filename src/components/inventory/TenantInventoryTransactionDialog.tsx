@@ -238,9 +238,14 @@ export function TenantInventoryTransactionDialog({
         title: type === 'in' ? "Stock added" : "Stock removed",
         description: `Inventory ${type === 'in' ? 'increased' : 'decreased'} successfully.`,
       });
+      // Invalidate all inventory-related queries to ensure immediate UI update
       queryClient.invalidateQueries({ queryKey: ['inventory-transactions', businessId] });
       queryClient.invalidateQueries({ queryKey: ['shop-inventory', businessId] });
       queryClient.invalidateQueries({ queryKey: ['business-inventory', businessId] });
+      queryClient.invalidateQueries({ queryKey: ['product-stock'] });
+      queryClient.invalidateQueries({ queryKey: ['business-products', businessId] });
+      // Force refetch immediately
+      queryClient.refetchQueries({ queryKey: ['business-inventory', businessId] });
       setOpen(false);
       setFormData({ 
         shop_id: initialShopId || '', 
