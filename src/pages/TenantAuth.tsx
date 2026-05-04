@@ -142,9 +142,8 @@ export default function TenantAuth() {
       }
 
       toast.success('Welcome back!');
-      // Use navigate instead of window.location.href to avoid server-side 404s
-      // and maintain SPA state.
-      navigate(getTenantRoute('/dashboard'));
+      // Navigate to the root of the tenant routes to let HomeRedirect handle the landing page
+      navigate(getTenantRoute('/'));
     } catch (error: unknown) {
       console.error('Login error:', error);
       const message = error instanceof Error ? error.message : 'Invalid credentials';

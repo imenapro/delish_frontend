@@ -71,7 +71,7 @@ export function TenantAwareLayout({ children }: TenantAwareLayoutProps) {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate(`/${storeSlug}/dashboard`)}
+                  onClick={() => navigate(`/${storeSlug}`)}
                 >
                   <Store className="mr-2 h-4 w-4" />
                   Dashboard

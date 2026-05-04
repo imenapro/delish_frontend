@@ -12,7 +12,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRole, requiredRoles, requiredPermission }: ProtectedRouteProps) {
-  const { user, roles, loading: authLoading } = useAuth();
+  const { user, roles, loading: authLoading, getTenantLoginPath } = useAuth();
   const { hasPermission, isLoading: permsLoading } = usePermissions();
   const navigate = useNavigate();
 
@@ -40,15 +40,14 @@ export function ProtectedRoute({ children, requiredRole, requiredRoles, required
 
   useEffect(() => {
     if (!loading && !user) {
-      // On custom domain (tenant), redirect to /login instead of /auth
-      const isCustom = isCustomDomain(window.location.hostname);
-      navigate(isCustom ? '/login' : '/auth');
+      // Use the tenant-aware login path
+      navigate(getTenantLoginPath());
     }
     
     if (!loading && user && (requiredRole || requiredRoles || requiredPermission) && !hasAccess()) {
       navigate('/');
     }
-  }, [user, roles, loading, requiredRole, requiredRoles, requiredPermission, navigate, hasAccess]);
+  }, [user, roles, loading, requiredRole, requiredRoles, requiredPermission, navigate, hasAccess, getTenantLoginPath]);
 
   if (loading) {
     return (

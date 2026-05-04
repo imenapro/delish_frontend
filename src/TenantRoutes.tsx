@@ -45,6 +45,13 @@ const HomeRedirect = () => {
     r.role.toLowerCase() === 'distribution'
   );
 
+  const isSeller = roles.some(r => r.role.toLowerCase() === 'seller');
+
+  // If Seller, default to POS
+  if (isSeller) {
+    return <Navigate to="pos" replace />;
+  }
+
   // If Distributor, default to inventory
   if (isDistributor) {
     return <Navigate to="inventory" replace />;

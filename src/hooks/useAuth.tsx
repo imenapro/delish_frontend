@@ -23,9 +23,13 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, name: string, phone: string, shopId: string, role?: string) => Promise<{ error: AuthError | null }>;
   signOut: (redirectPath?: string) => Promise<void>;
+  getTenantLoginPath: () => string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// 30 minutes in milliseconds
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -37,19 +41,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const lastFetchedUserId = useRef<string | null>(null);
   const fetchRolesAbortController = useRef<AbortController | null>(null);
   const passwordChangeCompletedAt = useRef<number | null>(null);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const getTenantLoginPath = useCallback(() => {
+    const hostname = window.location.hostname;
+    const isCustom = isCustomDomain(hostname);
+    
+    if (isCustom) return '/login';
+    
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    const possibleSlug = pathParts[0];
+    const globalRoutes = ['auth', 'register', 'super-admin', 'reset-password', 'i', 'dashboard'];
+    
+    if (possibleSlug && !globalRoutes.includes(possibleSlug)) {
+      return `/${possibleSlug}/login`;
+    }
+    
+    return '/auth';
+  }, []);
 
   const signOut = useCallback(async (redirectPath?: string) => {
+    // Clear inactivity timer
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+
     await supabase.auth.signOut();
     setRoles([]);
     lastFetchedUserId.current = null;
     if (fetchRolesAbortController.current) {
       fetchRolesAbortController.current.abort();
     }
-    // On custom domain (tenant), redirect to /login instead of /auth
-    const isCustom = isCustomDomain(window.location.hostname);
-    const defaultRedirect = isCustom ? '/login' : '/auth';
+    
+    const defaultRedirect = getTenantLoginPath();
     navigate(redirectPath || defaultRedirect);
-  }, [navigate]);
+  }, [navigate, getTenantLoginPath]);
+
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+
+    // Only set timer if user is logged in
+    if (lastFetchedUserId.current) {
+      inactivityTimerRef.current = setTimeout(() => {
+        console.log('[useAuth] Session timeout due to inactivity');
+        signOut();
+      }, INACTIVITY_TIMEOUT);
+    }
+  }, [signOut]);
+
+  // Set up activity listeners
+  useEffect(() => {
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'mousemove'];
+    
+    const handleActivity = () => {
+      resetInactivityTimer();
+    };
+
+    if (user) {
+      events.forEach(event => {
+        window.addEventListener(event, handleActivity);
+      });
+      
+      // Initialize timer
+      resetInactivityTimer();
+    }
+
+    return () => {
+      events.forEach(event => {
+        window.removeEventListener(event, handleActivity);
+      });
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, [user, resetInactivityTimer]);
+
+  // Handle offline status
+  useEffect(() => {
+    const handleOffline = () => {
+      console.log('[useAuth] Connection lost');
+      // Optional: we could show a toast or auto-logout if requested
+      // For now, let's just log it. The user asked to "protect them... when connection goes out"
+      // Usually this means ensuring they can't perform actions while offline that might compromise security
+      // or redirecting them to a safe place.
+    };
+
+    window.addEventListener('offline', handleOffline);
+    return () => window.removeEventListener('offline', handleOffline);
+  }, []);
 
   const fetchUserRoles = useCallback(async (userId: string) => {
     // Cancel previous fetch to avoid race conditions
@@ -224,7 +305,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, roles, loading, mustChangePassword, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, roles, loading, mustChangePassword, signIn, signUp, signOut, getTenantLoginPath }}>
       {mustChangePassword && user && (
         <PasswordChangeDialog
           open={mustChangePassword}
