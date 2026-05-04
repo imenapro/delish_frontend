@@ -274,11 +274,6 @@ export default function TenantInventory() {
       }
     >
       <div className="space-y-6">
-        {/* Production Transfer History - Only show for production users */}
-        {isProduction && (
-          <ProductionTransferHistory />
-        )}
-        
         {/* Main Inventory View */}
         {selectedShopId && selectedShop ? (
           <ShopDetailView 

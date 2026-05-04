@@ -21,8 +21,11 @@ import { useReactToPrint } from 'react-to-print';
 import { useStoreContext } from '@/contexts/StoreContext';
 import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency } from '@/utils/currency';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 import { UseMutationResult } from '@tanstack/react-query';
+import { ProductionTransferHistory } from './ProductionTransferHistory';
 
 interface Shop {
   id: string;
@@ -54,6 +57,7 @@ interface Transfer {
   from_shop?: Shop;
   to_shop?: Shop;
   to_shop_id?: string;
+  requester?: { name: string };
 }
 
 interface Transaction {
@@ -68,6 +72,8 @@ interface Transaction {
   reason?: {
     name: string;
   };
+  creator?: { name: string };
+  created_by?: string;
 }
 
 interface ShopDetailViewProps {
@@ -105,12 +111,46 @@ export function ShopDetailView({
   const { store } = useStoreContext();
   const { roles } = useAuth();
   const isSeller = roles.some(r => r.role.toLowerCase() === 'seller');
+  const isProduction = roles.some(r => r.role.toLowerCase() === 'production');
   const isDistributor = roles.some(r => 
     r.role.toLowerCase() === 'distributor' || 
     r.role.toLowerCase() === 'distribution'
   );
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  // Fetch names for transfers and transactions
+  const userIds = useMemo(() => {
+    const ids = new Set<string>();
+    transfers.forEach(t => {
+      // In transfers, requested_by is available in row.original (raw data)
+      // but the interface Transfer might need updating to include it
+      const raw = t as any;
+      if (raw.requested_by) ids.add(raw.requested_by);
+    });
+    transactions.forEach(t => {
+      if (t.created_by) ids.add(t.created_by);
+    });
+    return Array.from(ids);
+  }, [transfers, transactions]);
+
+  const { data: profileNames = {} } = useQuery({
+    queryKey: ['profiles', userIds],
+    queryFn: async () => {
+      if (userIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .in('id', userIds);
+      if (error) throw error;
+      
+      return data.reduce((acc: Record<string, string>, p) => {
+        acc[p.id] = p.name;
+        return acc;
+      }, {});
+    },
+    enabled: userIds.length > 0,
+  });
 
   const inventoryRef = useRef<HTMLDivElement>(null);
   const transfersRef = useRef<HTMLDivElement>(null);
@@ -325,6 +365,14 @@ export function ShopDetailView({
       header: ({ column }) => <DataTableColumnHeader column={column} title="To" />,
     },
     {
+      id: "staff",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Staff" />,
+      cell: ({ row }) => {
+        const raw = row.original as any;
+        return <span className="text-sm">{profileNames[raw.requested_by] || 'System'}</span>;
+      },
+    },
+    {
       accessorKey: "quantity",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Qty" />,
       cell: ({ row }) => <div className="text-right">{row.original.quantity}</div>,
@@ -427,6 +475,11 @@ export function ShopDetailView({
         accessorKey: "reason.name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Reason" />,
         cell: ({ row }) => row.original.reason?.name || '-',
+    },
+    {
+        id: "staff",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Staff" />,
+        cell: ({ row }) => <span className="text-sm">{profileNames[row.original.created_by || ''] || 'System'}</span>,
     },
     {
         accessorKey: "transfer_from_location",
@@ -622,6 +675,9 @@ export function ShopDetailView({
           <TabsTrigger value="inventory">Inventory List</TabsTrigger>
           <TabsTrigger value="transfers">Transfers</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
+          {isProduction && (
+            <TabsTrigger value="production-transfers">Production Transfers</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-4 data-[state=inactive]:hidden" forceMount={true}>
@@ -754,7 +810,7 @@ export function ShopDetailView({
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4 data-[state=inactive]:hidden" forceMount={true}>
-          <div ref={historyRef}>
+          <div ref={historyRef} className="space-y-4">
             <Card>
               <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <CardTitle>Transaction History</CardTitle>
@@ -789,6 +845,12 @@ export function ShopDetailView({
             </Card>
           </div>
         </TabsContent>
+
+        {isProduction && (
+          <TabsContent value="production-transfers" className="space-y-4">
+            <ProductionTransferHistory />
+          </TabsContent>
+        )}
       </Tabs>
       
       <InventoryTransactionDetailsDialog 
