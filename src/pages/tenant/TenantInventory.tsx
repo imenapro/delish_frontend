@@ -267,9 +267,9 @@ export default function TenantInventory() {
       actions={
         <div className="flex gap-2 flex-wrap">
           {businessId && <InventoryBarcodeScanner businessId={businessId} />}
-          {businessId && !isSeller && <TenantInventoryTransactionDialog businessId={businessId} type="in" />}
-          {businessId && !isSeller && <TenantInventoryTransactionDialog businessId={businessId} type="out" />}
-          {businessId && !isSeller && <TenantStockTransferDialog businessId={businessId} />}
+          {businessId && (!isSeller || isProduction) && <TenantInventoryTransactionDialog businessId={businessId} type="in" />}
+          {businessId && (!isSeller || isProduction) && <TenantInventoryTransactionDialog businessId={businessId} type="out" />}
+          {businessId && (!isSeller || isProduction) && <TenantStockTransferDialog businessId={businessId} />}
         </div>
       }
     >

@@ -270,7 +270,7 @@ export function ShopDetailView({
         return value.includes(row.getValue(id))
       },
     },
-    ...((!isSeller || isDistributor) ? [{
+    ...((!isSeller || isDistributor || isProduction) ? [{
       id: "actions",
       header: "Action",
       cell: ({ row }: { row: any }) => (
@@ -280,7 +280,7 @@ export function ShopDetailView({
             type="in"
             initialShopId={shop.id}
             initialProductId={row.original.product_id}
-            restrictToTransferIn={isDistributor}
+            restrictToTransferIn={isDistributor && !isProduction}
             trigger={
               <Button 
                 size="sm" 
@@ -293,7 +293,7 @@ export function ShopDetailView({
               </Button>
             }
           />
-          {!isDistributor && (
+          {(!isDistributor || isProduction) && (
             <TenantInventoryTransactionDialog
               businessId={shop.business_id}
               type="out"
@@ -316,7 +316,7 @@ export function ShopDetailView({
       ),
     }] : []),
     ];
-  }, [shop, store?.currency, isSeller, isDistributor]);
+  }, [shop, store?.currency, isSeller, isDistributor, isProduction]);
 
   const transferColumns: ColumnDef<Transfer>[] = useMemo(() => {
     if (!shop) return [];
