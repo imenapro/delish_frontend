@@ -142,6 +142,13 @@ export function TenantInventoryTransactionDialog({
 
   const allowedTransferShops = allShops?.filter(shop => {
     if (isAdminLike) return true;
+    
+    // Distributor/Distribution role cannot transfer from Production
+    if (isDistributor) {
+      const name = shop.name.toUpperCase();
+      return name !== 'PRODUCTION';
+    }
+
     if (!isProduction) return true;
     
     // Production role can only transfer to/from: themselves, distribution
