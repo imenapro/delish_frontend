@@ -683,6 +683,49 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Left Column: Form Inputs */}
                 <div className="space-y-6">
+                    {/* Payment Method Breakdown */}
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-semibold flex items-center gap-2 border-b pb-2">
+                            <DollarSign className="h-4 w-4" /> Payment Systems Breakdown
+                        </h3>
+                        <Card className="bg-blue-50/50 dark:bg-blue-900/10">
+                            <CardContent className="p-4 space-y-3">
+                                <div className="flex justify-between items-center text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                                        <span>Cash</span>
+                                    </div>
+                                    <span className="font-semibold">{formatCurrency(totalCashSales, currency)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                        <span>Mobile Money</span>
+                                    </div>
+                                    <span className="font-semibold">{formatCurrency(totalMobileMoneySales, currency)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-purple-500" />
+                                        <span>Card Payments</span>
+                                    </div>
+                                    <span className="font-semibold">{formatCurrency(totalCardSales, currency)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-orange-500" />
+                                        <span>Wallet / Credit</span>
+                                    </div>
+                                    <span className="font-semibold">{formatCurrency(totalWalletSales, currency)}</span>
+                                </div>
+                                <div className="border-t pt-2 flex justify-between items-center font-bold">
+                                    <span>Total Sales Revenue</span>
+                                    <span>{formatCurrency(calculatedTotalSales, currency)}</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+
                     {/* Cash Reconciliation */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-semibold flex items-center gap-2 border-b pb-2">
@@ -696,25 +739,15 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                                         <span className="font-semibold">{formatCurrency(session.opening_cash, currency)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-muted-foreground">Cash Sales</span>
-                                        <span className="font-semibold">{formatCurrency(totalCashSales, currency)}</span>
+                                        <span className="text-muted-foreground">Sales (Cash + Mobile)</span>
+                                        <span className="font-semibold">{formatCurrency(totalCashAndMobileMoneySales, currency)}</span>
                                     </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-muted-foreground">Mobile Money Sales</span>
-                                        <span className="font-semibold">{formatCurrency(totalMobileMoneySales, currency)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-muted-foreground">Card Sales</span>
-                                        <span className="font-semibold">{formatCurrency(totalCardSales, currency)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-muted-foreground">Wallet Sales</span>
-                                        <span className="font-semibold">{formatCurrency(totalWalletSales, currency)}</span>
-                                    </div>
-                                    <div className="border-t pt-2 flex justify-between text-sm font-semibold">
-                                        <span>Total Sales</span>
-                                        <span>{formatCurrency(calculatedTotalSales, currency)}</span>
-                                    </div>
+                                    {totalMoneyRefunds > 0 && (
+                                        <div className="flex justify-between text-sm text-red-500">
+                                            <span>Refunds (Cash/Mobile)</span>
+                                            <span>-{formatCurrency(totalMoneyRefunds, currency)}</span>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm text-muted-foreground">Expected Cash Only</span>
@@ -834,7 +867,25 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                             <div className="border-t pt-2">
                                 <div className="flex justify-between font-semibold mb-2">
                                     <span>Total Sales</span>
-                                    <span>{formatCurrency(session.total_sales, currency)}</span>
+                                    <span>{formatCurrency(calculatedTotalSales, currency)}</span>
+                                </div>
+                                <div className="space-y-1 text-xs text-muted-foreground mb-2">
+                                    <div className="flex justify-between">
+                                        <span>Cash Sales:</span>
+                                        <span>{formatCurrency(totalCashSales, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Mobile Money:</span>
+                                        <span>{formatCurrency(totalMobileMoneySales, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Card Payments:</span>
+                                        <span>{formatCurrency(totalCardSales, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Wallet / Credit:</span>
+                                        <span>{formatCurrency(totalWalletSales, currency)}</span>
+                                    </div>
                                 </div>
                                 <div className="flex justify-between text-muted-foreground text-xs mb-1">
                                     <span>Total Invoices</span>
