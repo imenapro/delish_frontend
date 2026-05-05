@@ -40,7 +40,7 @@ interface Transfer {
 
 const ITEMS_PER_PAGE = 10;
 
-export function ProductionTransferHistory() {
+export function DistributionTransferHistory() {
   const { store } = useStoreContext();
   const { roles, user } = useAuth();
   const [dateFilter, setDateFilter] = useState<string>('all');
@@ -54,9 +54,12 @@ export function ProductionTransferHistory() {
   const printRef = useRef<HTMLDivElement>(null);
   
   const businessId = store?.id;
-  const isProduction = roles.some(r => r.role.toLowerCase() === 'production');
+  const isDistributor = roles.some(r => 
+    r.role.toLowerCase() === 'distributor' || 
+    r.role.toLowerCase() === 'distribution'
+  );
   const isManagerial = roles.some(r => ['super_admin', 'store_owner', 'admin'].includes(r.role.toLowerCase()));
-  const canAccess = isProduction || isManagerial;
+  const canAccess = isDistributor || isManagerial;
 
   const { data: allShops = [] } = useQuery({
     queryKey: ['all-shops', businessId],
@@ -74,12 +77,16 @@ export function ProductionTransferHistory() {
   });
 
   const { data: transfers = [], isLoading } = useQuery({
-    queryKey: ['production-transfer-history', businessId, dateFilter, dateRange, statusFilter, shopFilter, staffFilter, onlyMine, canAccess],
+    queryKey: ['distribution-transfer-history', businessId, dateFilter, dateRange, statusFilter, shopFilter, staffFilter, onlyMine, canAccess],
     queryFn: async () => {
       if (!businessId || !canAccess) return [];
 
-      const productionShop = allShops?.find(s => s.name.toUpperCase() === 'PRODUCTION');
-      if (!productionShop) return [];
+      const distributionShops = allShops?.filter(s => 
+        s.name.toUpperCase() === 'DISTRIBUTOR' || s.name.toUpperCase() === 'DISTRIBUTION'
+      );
+      
+      if (!distributionShops || distributionShops.length === 0) return [];
+      const distributionShopIds = distributionShops.map(s => s.id);
 
       let query = supabase
         .from('stock_transfers')
@@ -89,7 +96,7 @@ export function ProductionTransferHistory() {
           from_shop:shops!stock_transfers_from_shop_id_fkey (name),
           to_shop:shops!stock_transfers_to_shop_id_fkey (name)
         `)
-        .eq('from_shop_id', productionShop.id)
+        .or(`from_shop_id.in.(${distributionShopIds.join(',')}),to_shop_id.in.(${distributionShopIds.join(',')})`)
         .order('created_at', { ascending: false });
 
       // Apply "Only Mine" filter
@@ -104,7 +111,7 @@ export function ProductionTransferHistory() {
 
       // Apply shop filter
       if (shopFilter !== 'all') {
-        query = query.eq('to_shop_id', shopFilter);
+        query = query.or(`from_shop_id.eq.${shopFilter},to_shop_id.eq.${shopFilter}`);
       }
 
       // Apply date filter
@@ -143,7 +150,7 @@ export function ProductionTransferHistory() {
       if (error) throw error;
       return data as Transfer[];
     },
-    enabled: !!businessId && (isProduction || isManagerial),
+    enabled: !!businessId && (isDistributor || isManagerial),
   });
 
   // Fetch names for transfers
@@ -183,7 +190,7 @@ export function ProductionTransferHistory() {
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
-    documentTitle: `Production_Transfer_History_${format(new Date(), 'yyyy-MM-dd')}`,
+    documentTitle: `Distribution_Transfer_History_${format(new Date(), 'yyyy-MM-dd')}`,
   });
 
   const handleExportCSV = () => {
@@ -210,7 +217,7 @@ export function ProductionTransferHistory() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `production_transfers_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    link.setAttribute('download', `distribution_transfers_${format(new Date(), 'yyyy-MM-dd')}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -239,7 +246,7 @@ export function ProductionTransferHistory() {
     }
   };
 
-  if (!isProduction && !isManagerial) {
+  if (!canAccess) {
     return (
       <Card>
         <CardHeader>
@@ -248,7 +255,7 @@ export function ProductionTransferHistory() {
             Transfer History
           </CardTitle>
           <CardDescription>
-            This feature is only available for Production or Management users
+            This feature is only available for Distribution or Management users
           </CardDescription>
         </CardHeader>
       </Card>
@@ -261,10 +268,10 @@ export function ProductionTransferHistory() {
         <div>
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
-            Production Transfer History
+            Distribution Transfer History
           </CardTitle>
           <CardDescription>
-            View all transfers initiated from Production
+            View all transfers to and from Distribution
           </CardDescription>
         </div>
         <div className="flex gap-2">
@@ -316,14 +323,14 @@ export function ProductionTransferHistory() {
             </div>
 
             <div className="flex flex-col space-y-2">
-              <Label htmlFor="shop-filter">Destination Shop</Label>
+              <Label htmlFor="shop-filter">Related Shop</Label>
               <Select value={shopFilter} onValueChange={(val) => { setShopFilter(val); setCurrentPage(1); }}>
                 <SelectTrigger id="shop-filter">
                   <SelectValue placeholder="All Shops" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Shops</SelectItem>
-                  {allShops.filter(s => s.name.toUpperCase() !== 'PRODUCTION').map(shop => (
+                  {allShops.filter(s => s.name.toUpperCase() !== 'DISTRIBUTOR' && s.name.toUpperCase() !== 'DISTRIBUTION').map(shop => (
                     <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -349,11 +356,11 @@ export function ProductionTransferHistory() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Switch
-                id="only-mine"
+                id="only-mine-dist"
                 checked={onlyMine}
                 onCheckedChange={(val) => { setOnlyMine(val); setCurrentPage(1); }}
               />
-              <Label htmlFor="only-mine" className="flex items-center gap-2 cursor-pointer">
+              <Label htmlFor="only-mine-dist" className="flex items-center gap-2 cursor-pointer">
                 <User className="h-4 w-4" />
                 Only my transfers
               </Label>
@@ -374,7 +381,7 @@ export function ProductionTransferHistory() {
         {/* Transfer List */}
         <div ref={printRef} className="space-y-4">
           <div className="hidden print:block mb-6">
-            <h1 className="text-2xl font-bold">Production Transfer History</h1>
+            <h1 className="text-2xl font-bold">Distribution Transfer History</h1>
             <p className="text-muted-foreground">Generated on {format(new Date(), 'PPP p')}</p>
           </div>
           {isLoading ? (
@@ -407,7 +414,7 @@ export function ProductionTransferHistory() {
                       
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
+                            <CalendarIcon className="h-3 w-3" />
                             <span>{format(new Date(transfer.created_at), 'MMM dd, yyyy HH:mm')}</span>
                           </div>
                           <div className="flex items-center gap-1">

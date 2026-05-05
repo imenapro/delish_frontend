@@ -26,6 +26,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 import { UseMutationResult } from '@tanstack/react-query';
 import { ProductionTransferHistory } from './ProductionTransferHistory';
+import { DistributionTransferHistory } from './DistributionTransferHistory';
 
 interface Shop {
   id: string;
@@ -116,6 +117,7 @@ export function ShopDetailView({
     r.role.toLowerCase() === 'distributor' || 
     r.role.toLowerCase() === 'distribution'
   );
+  const isManagerial = roles.some(r => ['super_admin', 'store_owner', 'admin'].includes(r.role.toLowerCase()));
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -675,8 +677,11 @@ export function ShopDetailView({
           <TabsTrigger value="inventory">Inventory List</TabsTrigger>
           <TabsTrigger value="transfers">Transfers</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
-          {isProduction && (
+          {(isProduction || isManagerial) && (
             <TabsTrigger value="production-transfers">Production Transfers</TabsTrigger>
+          )}
+          {(isDistributor || isManagerial) && (
+            <TabsTrigger value="distribution-transfers">Distribution Transfers</TabsTrigger>
           )}
         </TabsList>
 
@@ -846,9 +851,15 @@ export function ShopDetailView({
           </div>
         </TabsContent>
 
-        {isProduction && (
+        {(isProduction || isManagerial) && (
           <TabsContent value="production-transfers" className="space-y-4">
             <ProductionTransferHistory />
+          </TabsContent>
+        )}
+
+        {(isDistributor || isManagerial) && (
+          <TabsContent value="distribution-transfers" className="space-y-4">
+            <DistributionTransferHistory />
           </TabsContent>
         )}
       </Tabs>
