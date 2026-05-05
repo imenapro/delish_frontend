@@ -264,7 +264,7 @@ export default function ShiftReport() {
       description="Monitor staff shifts, cash handling, and sales per session"
       actions={
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/${storeSlug}/reports`)}>
+          <Button variant="outline" size="sm" onClick={() => navigate(getTenantRoute('/reports'))}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Reports
           </Button>

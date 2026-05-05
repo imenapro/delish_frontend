@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Calendar as CalendarIcon, Package, ArrowRight, User, Eye, ChevronLeft, ChevronRight, Printer, Download } from 'lucide-react';
+import { Calendar as LucideCalendar, Package, ArrowRight, User, Eye, ChevronLeft, ChevronRight, Printer, Download } from 'lucide-react';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { DateRange } from "react-day-picker";
 import { CalendarDateRangePicker } from '@/components/ui/date-range-picker';
@@ -76,10 +76,10 @@ export function DistributionTransferHistory() {
     enabled: !!businessId,
   });
 
-  const { data: transfers = [], isLoading } = useQuery({
-    queryKey: ['distribution-transfer-history', businessId, dateFilter, dateRange, statusFilter, shopFilter, staffFilter, onlyMine, canAccess],
+  const { data: transfers = [], isLoading: isTransfersLoading } = useQuery({
+    queryKey: ['distribution-transfer-history', businessId, dateFilter, dateRange, statusFilter, shopFilter, staffFilter, onlyMine, canAccess, allShops.length],
     queryFn: async () => {
-      if (!businessId || !canAccess) return [];
+      if (!businessId || !canAccess || allShops.length === 0) return [];
 
       const distributionShops = allShops?.filter(s => 
         s.name.toUpperCase() === 'DISTRIBUTOR' || s.name.toUpperCase() === 'DISTRIBUTION'
@@ -384,7 +384,7 @@ export function DistributionTransferHistory() {
             <h1 className="text-2xl font-bold">Distribution Transfer History</h1>
             <p className="text-muted-foreground">Generated on {format(new Date(), 'PPP p')}</p>
           </div>
-          {isLoading ? (
+          {isTransfersLoading ? (
             <div className="text-center py-8">Loading transfers...</div>
           ) : transfers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -413,15 +413,15 @@ export function DistributionTransferHistory() {
                       </div>
                       
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3" />
-                            <span>{format(new Date(transfer.created_at), 'MMM dd, yyyy HH:mm')}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            <span>By: {profiles[transfer.requested_by] || 'System'}</span>
-                          </div>
+                        <div className="flex items-center gap-1">
+                          <LucideCalendar className="h-3 w-3" />
+                          <span>{format(new Date(transfer.created_at), 'MMM dd, yyyy HH:mm')}</span>
                         </div>
+                        <div className="flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          <span>By: {profiles[transfer.requested_by] || 'System'}</span>
+                        </div>
+                      </div>
                     </div>
                     
                     <Button 

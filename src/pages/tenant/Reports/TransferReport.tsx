@@ -266,7 +266,7 @@ export default function TransferReport() {
       description="Track formal stock movements between shops and their approval status"
       actions={
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/${storeSlug}/reports`)}>
+          <Button variant="outline" size="sm" onClick={() => navigate(getTenantRoute('/reports'))}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Reports
           </Button>
