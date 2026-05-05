@@ -18,3 +18,8 @@ export { default as TenantInvoiceSettingsPage } from './TenantInvoiceSettingsPag
 export { default as InventorySettings } from './InventorySettings';
 export { default as TenantProfile } from './TenantProfile';
 export { default as TenantAuditReports } from './TenantAuditReports';
+export { default as StockMovementReport } from './Reports/StockMovementReport';
+export { default as TransferReport } from './Reports/TransferReport';
+export { default as ExpenseReport } from './Reports/ExpenseReport';
+export { default as SalesReport } from './Reports/SalesReport';
+export { default as ShiftReport } from './Reports/ShiftReport';

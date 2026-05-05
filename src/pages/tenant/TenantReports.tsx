@@ -1,7 +1,7 @@
 import { TenantPageWrapper } from '@/components/tenant/TenantPageWrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, BarChart3, PieChart, Download, Clipboard } from 'lucide-react';
+import { FileText, BarChart3, PieChart, Download, Clipboard, ArrowLeftRight, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 
@@ -21,36 +21,59 @@ export default function TenantReports() {
       }
     >
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate(`/${storeSlug}/reports/sales`)}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Sales Reports</CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Generated this month</p>
+            <div className="text-2xl font-bold">POS Sales</div>
+            <p className="text-xs text-muted-foreground text-blue-600">Daily revenue stats →</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate(`/${storeSlug}/reports/stock-movement`)}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Inventory Reports</CardTitle>
             <PieChart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Available</p>
+            <div className="text-2xl font-bold">Movement</div>
+            <p className="text-xs text-muted-foreground text-blue-600">Stock in/out history →</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate(`/${storeSlug}/reports/transfers`)}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Transfer Reports</CardTitle>
+            <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Inter-shop</div>
+            <p className="text-xs text-muted-foreground text-blue-600">Track stock flow →</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate(`/${storeSlug}/reports/expenses`)}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Financial Reports</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Available</p>
+            <div className="text-2xl font-bold">Expenses</div>
+            <p className="text-xs text-muted-foreground text-blue-600">Analyze spending →</p>
           </CardContent>
         </Card>
 
@@ -68,35 +91,75 @@ export default function TenantReports() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate(`/${storeSlug}/reports/shifts`)}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Custom Reports</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Shift Reports</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Created</p>
+            <div className="text-2xl font-bold">POS Shifts</div>
+            <p className="text-xs text-muted-foreground text-blue-600">Staff session logs →</p>
           </CardContent>
         </Card>
       </div>
 
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>Report Center</CardTitle>
-          <CardDescription>Generate and view business analytics</CardDescription>
+          <CardTitle>Quick Access Reports</CardTitle>
+          <CardDescription>Direct links to detailed system reports</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-center min-h-[300px]">
-          <div className="text-center space-y-4">
-            <BarChart3 className="h-16 w-16 mx-auto text-muted-foreground" />
-            <div>
-              <h3 className="font-semibold text-lg">Analytics & Reports</h3>
-              <p className="text-muted-foreground">Generate detailed business reports and analytics</p>
-            </div>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <Button 
               variant="outline" 
+              className="flex flex-col h-24 gap-2"
+              onClick={() => navigate(`/${storeSlug}/reports/sales`)}
+            >
+              <BarChart3 className="h-5 w-5" />
+              Sales
+            </Button>
+            <Button 
+              variant="outline" 
+              className="flex flex-col h-24 gap-2"
+              onClick={() => navigate(`/${storeSlug}/reports/stock-movement`)}
+            >
+              <PieChart className="h-5 w-5" />
+              Stock Movement
+            </Button>
+            <Button 
+              variant="outline" 
+              className="flex flex-col h-24 gap-2"
+              onClick={() => navigate(`/${storeSlug}/reports/transfers`)}
+            >
+              <ArrowLeftRight className="h-5 w-5" />
+              Transfers
+            </Button>
+            <Button 
+              variant="outline" 
+              className="flex flex-col h-24 gap-2"
+              onClick={() => navigate(`/${storeSlug}/reports/expenses`)}
+            >
+              <FileText className="h-5 w-5" />
+              Expenses
+            </Button>
+            <Button 
+              variant="outline" 
+              className="flex flex-col h-24 gap-2"
+              onClick={() => navigate(`/${storeSlug}/reports/shifts`)}
+            >
+              <Clock className="h-5 w-5" />
+              Shifts
+            </Button>
+            <Button 
+              variant="outline" 
+              className="flex flex-col h-24 gap-2"
               onClick={() => navigate(`/${storeSlug}/reports/audit`)}
             >
-              View Audit Reports
+              <Clipboard className="h-5 w-5" />
+              Audit Logs
             </Button>
           </div>
         </CardContent>

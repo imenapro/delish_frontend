@@ -3,6 +3,7 @@ import { Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
 import { useMenus } from "@/hooks/useMenus";
+import { useStoreContext } from "@/contexts/StoreContext";
 import TenantDashboard from "./pages/TenantDashboard";
 import { WarehouseContent } from "./pages/Warehouse";
 import { StockReportsContent } from "./pages/StockReports";
@@ -32,11 +33,17 @@ import {
   InventorySettings,
   TenantProfile,
   TenantAuditReports,
+  StockMovementReport,
+  TransferReport,
+  ExpenseReport,
+  SalesReport,
+  ShiftReport,
 } from "./pages/tenant";
 
 const HomeRedirect = () => {
   const { roles } = useAuth();
   const { data: menus, isLoading } = useMenus();
+  const { getTenantRoute } = useStoreContext();
 
   if (isLoading) return null;
 
@@ -49,24 +56,24 @@ const HomeRedirect = () => {
 
   // If Seller, default to POS
   if (isSeller) {
-    return <Navigate to="pos" replace />;
+    return <Navigate to={getTenantRoute('/pos')} replace />;
   }
 
   // If Distributor, default to inventory
   if (isDistributor) {
-    return <Navigate to="inventory" replace />;
+    return <Navigate to={getTenantRoute('/inventory')} replace />;
   }
 
   // Otherwise, try to find the first available menu item
   if (menus && menus.length > 0) {
     const firstMenu = menus.find(m => m.can_view !== false);
     if (firstMenu) {
-      return <Navigate to={firstMenu.path} replace />;
+      return <Navigate to={getTenantRoute(firstMenu.path)} replace />;
     }
   }
 
   // Fallback to warehouse if nothing else found
-  return <Navigate to="warehouse" replace />;
+  return <Navigate to={getTenantRoute('/warehouse')} replace />;
 };
 
 export const TenantRoutes = (
@@ -103,6 +110,11 @@ export const TenantRoutes = (
     <Route path="workforce" element={<TenantWorkforce />} />
     <Route path="reports" element={<TenantReports />} />
     <Route path="reports/audit" element={<TenantAuditReports />} />
+    <Route path="reports/stock-movement" element={<StockMovementReport />} />
+    <Route path="reports/transfers" element={<TransferReport />} />
+    <Route path="reports/expenses" element={<ExpenseReport />} />
+    <Route path="reports/sales" element={<SalesReport />} />
+    <Route path="reports/shifts" element={<ShiftReport />} />
     <Route path="delivery" element={<TenantDelivery />} />
     <Route path="staff" element={<TenantStaff />} />
     <Route path="admin" element={<TenantAdmin />} />
