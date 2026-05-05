@@ -26,7 +26,12 @@ import {
   CreditCard,
   Banknote,
   Smartphone,
-  Info
+  Info,
+  Eye,
+  RotateCcw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { DateRange } from "react-day-picker";
@@ -34,8 +39,20 @@ import { CalendarDateRangePicker } from '@/components/ui/date-range-picker';
 import { useReactToPrint } from 'react-to-print';
 import { useNavigate, useParams } from 'react-router-dom';
 import { formatCurrency } from '@/utils/currency';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 const ITEMS_PER_PAGE = 20;
+
+type SortConfig = {
+  key: string;
+  direction: 'asc' | 'desc';
+};
 
 export default function SalesReport() {
   const { store } = useStoreContext();
@@ -51,11 +68,41 @@ export default function SalesReport() {
   });
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [shopFilter, setShopFilter] = useState<string>('all');
+  const [sellerFilter, setSellerFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'created_at', direction: 'desc' });
   
   const businessId = store?.id;
   const isManagerial = roles.some(r => ['super_admin', 'store_owner', 'admin', 'accountant'].includes(r.role.toLowerCase()));
+
+  const handleResetFilters = () => {
+    setDateFilter('30days');
+    setDateRange({
+      from: new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000),
+      to: new Date()
+    });
+    setPaymentFilter('all');
+    setShopFilter('all');
+    setSellerFilter('all');
+    setSearchTerm('');
+    setCurrentPage(1);
+    setSortConfig({ key: 'created_at', direction: 'desc' });
+  };
+
+  const handleSort = (key: string) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+    setCurrentPage(1);
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig.key !== key) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    return sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
 
   // Fetch all shops for filter
   const { data: allShops = [] } = useQuery({
@@ -74,11 +121,41 @@ export default function SalesReport() {
     enabled: !!businessId,
   });
 
+  // Fetch all sellers (profiles with seller role in this business)
+  const { data: allSellers = [] } = useQuery({
+    queryKey: ['all-sellers', businessId],
+    queryFn: async () => {
+      if (!businessId) return [];
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select(`
+          user_id,
+          profile:profiles (id, name)
+        `)
+        .eq('business_id', businessId)
+        .eq('role', 'seller');
+      
+      if (error) throw error;
+      
+      // Filter unique profiles
+      const sellersMap = new Map();
+      data.forEach((r: any) => {
+        if (r.profile) sellersMap.set(r.profile.id, r.profile.name);
+      });
+      
+      return Array.from(sellersMap.entries()).map(([id, name]) => ({ id, name }));
+    },
+    enabled: !!businessId,
+  });
+
   // Fetch sales (orders)
   const { data: sales = [], isLoading } = useQuery({
-    queryKey: ['sales-report-data', businessId, dateFilter, dateRange, paymentFilter, shopFilter, searchTerm],
+    queryKey: ['sales-report-data', businessId, dateFilter, dateRange, paymentFilter, shopFilter, sellerFilter, searchTerm, sortConfig],
     queryFn: async () => {
       if (!businessId || !isManagerial) return [];
+
+      const shopIds = allShops.map(s => s.id);
+      if (shopIds.length === 0) return [];
 
       let query = supabase
         .from('orders')
@@ -93,30 +170,24 @@ export default function SalesReport() {
             subtotal
           )
         `)
-        .eq('shop_id_origin', shopFilter !== 'all' ? shopFilter : allShops[0]?.id) // Placeholder, better to handle business_id if exists
+        .in('shop_id_origin', shopFilter !== 'all' ? [shopFilter] : shopIds)
         .eq('source', 'pos')
-        .order('created_at', { ascending: false });
-        
-      // If business_id is available on orders table, use it
-      // Based on migrations, it might not be there directly but shop_id_origin links to shop which links to business
-      
-      // Let's refine the query to use business_id if possible, or filter by shopIds
-      const shopIds = allShops.map(s => s.id);
-      if (shopFilter !== 'all') {
-        query = supabase.from('orders').select('*, shop:shops!orders_shop_id_origin_fkey(name), seller:profiles!orders_seller_id_fkey(name)')
-          .eq('shop_id_origin', shopFilter)
-          .eq('source', 'pos')
-          .order('created_at', { ascending: false });
-      } else if (shopIds.length > 0) {
-        query = supabase.from('orders').select('*, shop:shops!orders_shop_id_origin_fkey(name), seller:profiles!orders_seller_id_fkey(name)')
-          .in('shop_id_origin', shopIds)
-          .eq('source', 'pos')
-          .order('created_at', { ascending: false });
-      }
+        .order(sortConfig.key, { ascending: sortConfig.direction === 'asc' });
 
       // Apply payment method filter
       if (paymentFilter !== 'all') {
-        query = query.eq('payment_method', paymentFilter);
+        if (paymentFilter === 'momo') {
+          query = query.eq('payment_method', 'mobile_money');
+        } else if (paymentFilter === 'card') {
+          query = query.or('payment_method.eq.card,payment_method.eq.pos_card');
+        } else {
+          query = query.eq('payment_method', paymentFilter);
+        }
+      }
+
+      // Apply seller filter
+      if (sellerFilter !== 'all') {
+        query = query.eq('seller_id', sellerFilter);
       }
 
       // Apply date filter
@@ -130,6 +201,9 @@ export default function SalesReport() {
         let startDate: Date;
         
         switch (dateFilter) {
+          case 'daily':
+            startDate = startOfDay(now);
+            break;
           case '7days':
             startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             break;
@@ -144,6 +218,9 @@ export default function SalesReport() {
         }
         
         query = query.gte('created_at', startDate.toISOString());
+        if (dateFilter === 'daily') {
+          query = query.lte('created_at', endOfDay(now).toISOString());
+        }
       }
 
       const { data, error } = await query;
@@ -169,7 +246,7 @@ export default function SalesReport() {
       orderCount: sales.length,
       avgOrderValue: sales.length > 0 ? sales.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0) / sales.length : 0,
       cashRevenue: sales.filter(s => s.payment_method === 'cash').reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0),
-      momoRevenue: sales.filter(s => s.payment_method === 'momo' || s.payment_method === 'mobile_money').reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0),
+      momoRevenue: sales.filter(s => s.payment_method === 'mobile_money').reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0),
       cardRevenue: sales.filter(s => s.payment_method === 'card' || s.payment_method === 'pos_card').reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0),
     };
   }, [sales]);
@@ -322,14 +399,18 @@ export default function SalesReport() {
 
         {/* Filters */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-lg flex items-center gap-2">
               <Filter className="h-5 w-5" />
               Report Filters
             </CardTitle>
+            <Button variant="ghost" size="sm" onClick={handleResetFilters} className="text-muted-foreground">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset Filters
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
               <div className="flex flex-col space-y-2">
                 <Label htmlFor="date-filter">Date Range</Label>
                 <Select value={dateFilter} onValueChange={(val) => { setDateFilter(val); setCurrentPage(1); }}>
@@ -337,6 +418,7 @@ export default function SalesReport() {
                     <SelectValue placeholder="Select date range" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="daily">Today (Daily)</SelectItem>
                     <SelectItem value="7days">Last 7 days</SelectItem>
                     <SelectItem value="30days">Last 30 days</SelectItem>
                     <SelectItem value="90days">Last 90 days</SelectItem>
@@ -362,6 +444,21 @@ export default function SalesReport() {
               </div>
 
               <div className="flex flex-col space-y-2">
+                <Label htmlFor="seller-filter">Seller</Label>
+                <Select value={sellerFilter} onValueChange={(val) => { setSellerFilter(val); setCurrentPage(1); }}>
+                  <SelectTrigger id="seller-filter">
+                    <SelectValue placeholder="All Sellers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sellers</SelectItem>
+                    {allSellers.map(seller => (
+                      <SelectItem key={seller.id} value={seller.id}>{seller.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col space-y-2">
                 <Label htmlFor="payment-filter">Payment Method</Label>
                 <Select value={paymentFilter} onValueChange={(val) => { setPaymentFilter(val); setCurrentPage(1); }}>
                   <SelectTrigger id="payment-filter">
@@ -370,13 +467,13 @@ export default function SalesReport() {
                   <SelectContent>
                     <SelectItem value="all">All Methods</SelectItem>
                     <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="momo">Mobile Money</SelectItem>
+                    <SelectItem value="momo">Mobile Money (MoMo)</SelectItem>
                     <SelectItem value="card">Bank Card</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="flex flex-col space-y-2">
+              <div className="flex flex-col space-y-2 xl:col-span-2">
                 <Label htmlFor="search">Search Order Code/Phone</Label>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -433,13 +530,38 @@ export default function SalesReport() {
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="p-3 text-left font-semibold">Date & Time</th>
-                        <th className="p-3 text-left font-semibold">Order Code</th>
-                        <th className="p-3 text-right font-semibold">Amount</th>
+                        <th 
+                          className="p-3 text-left font-semibold cursor-pointer hover:bg-muted/80"
+                          onClick={() => handleSort('created_at')}
+                        >
+                          <div className="flex items-center">
+                            Date & Time
+                            {getSortIcon('created_at')}
+                          </div>
+                        </th>
+                        <th 
+                          className="p-3 text-left font-semibold cursor-pointer hover:bg-muted/80"
+                          onClick={() => handleSort('order_code')}
+                        >
+                          <div className="flex items-center">
+                            Order Code
+                            {getSortIcon('order_code')}
+                          </div>
+                        </th>
+                        <th 
+                          className="p-3 text-right font-semibold cursor-pointer hover:bg-muted/80"
+                          onClick={() => handleSort('total_amount')}
+                        >
+                          <div className="flex items-center justify-end">
+                            Amount
+                            {getSortIcon('total_amount')}
+                          </div>
+                        </th>
                         <th className="p-3 text-left font-semibold">Payment</th>
                         <th className="p-3 text-left font-semibold">Shop</th>
                         <th className="p-3 text-left font-semibold">Seller</th>
                         <th className="p-3 text-left font-semibold">Customer</th>
+                        <th className="p-3 text-center font-semibold print:hidden">Details</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -474,6 +596,16 @@ export default function SalesReport() {
                           </td>
                           <td className="p-3 whitespace-nowrap text-xs text-muted-foreground">
                             {order.customer_phone || 'Walk-in'}
+                          </td>
+                          <td className="p-3 text-center print:hidden">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => setSelectedOrder(order)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                           </td>
                         </tr>
                       ))}
@@ -514,6 +646,93 @@ export default function SalesReport() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Order Details Dialog */}
+      <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5 text-primary" />
+              Order Details: {selectedOrder?.order_code}
+            </DialogTitle>
+            <DialogDescription>
+              Placed on {selectedOrder && format(new Date(selectedOrder.created_at), 'PPP p')}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Shop</p>
+                  <p className="font-medium flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {selectedOrder.shop?.name}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Seller</p>
+                  <p className="font-medium flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5" />
+                    {selectedOrder.seller?.name || 'System'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Payment Method</p>
+                  <p className="font-medium flex items-center gap-1.5 capitalize">
+                    {getPaymentIcon(selectedOrder.payment_method)}
+                    {selectedOrder.payment_method}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Customer</p>
+                  <p className="font-medium">
+                    {selectedOrder.customer_phone || 'Walk-in Customer'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 border-b">
+                    <tr>
+                      <th className="p-2 text-left">Product</th>
+                      <th className="p-2 text-center">Qty</th>
+                      <th className="p-2 text-right">Price</th>
+                      <th className="p-2 text-right">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedOrder.order_items?.map((item: any, idx: number) => (
+                      <tr key={idx} className="border-b last:border-0">
+                        <td className="p-2">{item.product?.name}</td>
+                        <td className="p-2 text-center">{item.quantity}</td>
+                        <td className="p-2 text-right font-mono">{formatCurrency(item.unit_price, 'RWF')}</td>
+                        <td className="p-2 text-right font-mono font-medium">{formatCurrency(item.subtotal, 'RWF')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-muted/30 font-bold">
+                    <tr>
+                      <td colSpan={3} className="p-2 text-right">Total Amount</td>
+                      <td className="p-2 text-right font-mono text-primary">
+                        {formatCurrency(selectedOrder.total_amount, 'RWF')}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {selectedOrder.notes && (
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                  <p className="text-xs font-semibold text-blue-700 mb-1">Order Notes</p>
+                  <p className="text-sm text-blue-800 italic">"{selectedOrder.notes}"</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </TenantPageWrapper>
   );
 }

@@ -24,7 +24,10 @@ import {
   ArrowLeftRight,
   ShoppingCart,
   User,
-  MapPin
+  RotateCcw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { DateRange } from "react-day-picker";
@@ -51,9 +54,40 @@ export default function StockMovementReport() {
   const [staffFilter, setStaffFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ 
+    key: 'created_at', 
+    direction: 'desc' 
+  });
   
   const businessId = store?.id;
   const isManagerial = roles.some(r => ['super_admin', 'store_owner', 'admin'].includes(r.role.toLowerCase()));
+
+  const handleResetFilters = () => {
+    setDateFilter('30days');
+    setDateRange({
+      from: new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000),
+      to: new Date()
+    });
+    setStatusFilter('all');
+    setShopFilter('all');
+    setStaffFilter('all');
+    setSearchTerm('');
+    setCurrentPage(1);
+    setSortConfig({ key: 'created_at', direction: 'desc' });
+  };
+
+  const handleSort = (key: string) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+    setCurrentPage(1);
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig.key !== key) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    return sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
 
   // Fetch all shops for filter
   const { data: allShops = [] } = useQuery({
@@ -74,7 +108,7 @@ export default function StockMovementReport() {
 
   // Fetch movements
   const { data: movements = [], isLoading } = useQuery({
-    queryKey: ['stock-movement-report', businessId, dateFilter, dateRange, statusFilter, shopFilter, staffFilter, searchTerm],
+    queryKey: ['stock-movement-report', businessId, dateFilter, dateRange, statusFilter, shopFilter, staffFilter, searchTerm, sortConfig],
     queryFn: async () => {
       if (!businessId || !isManagerial) return [];
 
@@ -87,7 +121,7 @@ export default function StockMovementReport() {
           reason:inventory_reasons (name),
           creator:profiles!inventory_transactions_created_by_fkey (name)
         `)
-        .order('created_at', { ascending: false });
+        .order(sortConfig.key, { ascending: sortConfig.direction === 'asc' });
 
       // Apply shop filter
       if (shopFilter !== 'all') {
@@ -121,6 +155,9 @@ export default function StockMovementReport() {
         let startDate: Date;
         
         switch (dateFilter) {
+          case 'daily':
+            startDate = startOfDay(now);
+            break;
           case '7days':
             startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             break;
@@ -135,6 +172,9 @@ export default function StockMovementReport() {
         }
         
         query = query.gte('created_at', startDate.toISOString());
+        if (dateFilter === 'daily') {
+          query = query.lte('created_at', endOfDay(now).toISOString());
+        }
       }
 
       const { data, error } = await query;
@@ -259,11 +299,15 @@ export default function StockMovementReport() {
       <div className="space-y-6">
         {/* Filters */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-lg flex items-center gap-2">
               <Filter className="h-5 w-5" />
               Report Filters
             </CardTitle>
+            <Button variant="ghost" size="sm" onClick={handleResetFilters} className="text-muted-foreground">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset Filters
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -274,6 +318,7 @@ export default function StockMovementReport() {
                     <SelectValue placeholder="Select date range" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="daily">Today (Daily)</SelectItem>
                     <SelectItem value="7days">Last 7 days</SelectItem>
                     <SelectItem value="30days">Last 30 days</SelectItem>
                     <SelectItem value="90days">Last 90 days</SelectItem>
@@ -390,10 +435,26 @@ export default function StockMovementReport() {
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="p-3 text-left font-semibold">Date & Time</th>
+                        <th 
+                          className="p-3 text-left font-semibold cursor-pointer hover:bg-muted/80"
+                          onClick={() => handleSort('created_at')}
+                        >
+                          <div className="flex items-center">
+                            Date & Time
+                            {getSortIcon('created_at')}
+                          </div>
+                        </th>
                         <th className="p-3 text-left font-semibold">Product</th>
                         <th className="p-3 text-left font-semibold">Type</th>
-                        <th className="p-3 text-right font-semibold">Qty</th>
+                        <th 
+                          className="p-3 text-right font-semibold cursor-pointer hover:bg-muted/80"
+                          onClick={() => handleSort('quantity')}
+                        >
+                          <div className="flex items-center justify-end">
+                            Qty
+                            {getSortIcon('quantity')}
+                          </div>
+                        </th>
                         <th className="p-3 text-left font-semibold">Shop</th>
                         <th className="p-3 text-left font-semibold">Staff</th>
                         <th className="p-3 text-left font-semibold">Reason/Notes</th>

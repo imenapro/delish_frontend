@@ -25,7 +25,11 @@ import {
   CheckCircle2,
   Lock,
   Unlock,
-  DollarSign
+  DollarSign,
+  RotateCcw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { DateRange } from "react-day-picker";
@@ -52,9 +56,39 @@ export default function ShiftReport() {
   const [shopFilter, setShopFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ 
+    key: 'opened_at', 
+    direction: 'desc' 
+  });
   
   const businessId = store?.id;
   const isManagerial = roles.some(r => ['super_admin', 'store_owner', 'admin'].includes(r.role.toLowerCase()));
+
+  const handleResetFilters = () => {
+    setDateFilter('30days');
+    setDateRange({
+      from: new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000),
+      to: new Date()
+    });
+    setStatusFilter('all');
+    setShopFilter('all');
+    setSearchTerm('');
+    setCurrentPage(1);
+    setSortConfig({ key: 'opened_at', direction: 'desc' });
+  };
+
+  const handleSort = (key: string) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+    setCurrentPage(1);
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig.key !== key) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    return sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
 
   // Fetch all shops for filter
   const { data: allShops = [] } = useQuery({
@@ -75,7 +109,7 @@ export default function ShiftReport() {
 
   // Fetch shifts (pos_sessions)
   const { data: sessions = [], isLoading } = useQuery({
-    queryKey: ['shift-report-data', businessId, dateFilter, dateRange, statusFilter, shopFilter, searchTerm],
+    queryKey: ['shift-report-data', businessId, dateFilter, dateRange, statusFilter, shopFilter, searchTerm, sortConfig],
     queryFn: async () => {
       if (!businessId || !isManagerial) return [];
 
@@ -87,7 +121,7 @@ export default function ShiftReport() {
           user:profiles!pos_sessions_user_id_fkey (name)
         `)
         .eq('business_id', businessId)
-        .order('opened_at', { ascending: false });
+        .order(sortConfig.key, { ascending: sortConfig.direction === 'asc' });
 
       // Apply shop filter
       if (shopFilter !== 'all') {
@@ -110,6 +144,9 @@ export default function ShiftReport() {
         let startDate: Date;
         
         switch (dateFilter) {
+          case 'daily':
+            startDate = startOfDay(now);
+            break;
           case '7days':
             startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
             break;
@@ -124,6 +161,9 @@ export default function ShiftReport() {
         }
         
         query = query.gte('opened_at', startDate.toISOString());
+        if (dateFilter === 'daily') {
+          query = query.lte('opened_at', endOfDay(now).toISOString());
+        }
       }
 
       const { data, error } = await query;
@@ -291,11 +331,15 @@ export default function ShiftReport() {
 
         {/* Filters */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-lg flex items-center gap-2">
               <Filter className="h-5 w-5" />
               Report Filters
             </CardTitle>
+            <Button variant="ghost" size="sm" onClick={handleResetFilters} className="text-muted-foreground">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset Filters
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -306,6 +350,7 @@ export default function ShiftReport() {
                     <SelectValue placeholder="Select date range" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="daily">Today (Daily)</SelectItem>
                     <SelectItem value="7days">Last 7 days</SelectItem>
                     <SelectItem value="30days">Last 30 days</SelectItem>
                     <SelectItem value="90days">Last 90 days</SelectItem>
@@ -398,13 +443,45 @@ export default function ShiftReport() {
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="p-3 text-left font-semibold">Opened At</th>
+                        <th 
+                          className="p-3 text-left font-semibold cursor-pointer hover:bg-muted/80"
+                          onClick={() => handleSort('opened_at')}
+                        >
+                          <div className="flex items-center">
+                            Opened At
+                            {getSortIcon('opened_at')}
+                          </div>
+                        </th>
                         <th className="p-3 text-left font-semibold">Closed At</th>
                         <th className="p-3 text-left font-semibold">Staff</th>
                         <th className="p-3 text-left font-semibold">Shop</th>
-                        <th className="p-3 text-right font-semibold">Opening Cash</th>
-                        <th className="p-3 text-right font-semibold">Total Sales</th>
-                        <th className="p-3 text-right font-semibold">Closing Cash</th>
+                        <th 
+                          className="p-3 text-right font-semibold cursor-pointer hover:bg-muted/80"
+                          onClick={() => handleSort('opening_cash')}
+                        >
+                          <div className="flex items-center justify-end">
+                            Opening Cash
+                            {getSortIcon('opening_cash')}
+                          </div>
+                        </th>
+                        <th 
+                          className="p-3 text-right font-semibold cursor-pointer hover:bg-muted/80"
+                          onClick={() => handleSort('total_sales')}
+                        >
+                          <div className="flex items-center justify-end">
+                            Total Sales
+                            {getSortIcon('total_sales')}
+                          </div>
+                        </th>
+                        <th 
+                          className="p-3 text-right font-semibold cursor-pointer hover:bg-muted/80"
+                          onClick={() => handleSort('closing_cash')}
+                        >
+                          <div className="flex items-center justify-end">
+                            Closing Cash
+                            {getSortIcon('closing_cash')}
+                          </div>
+                        </th>
                         <th className="p-3 text-left font-semibold">Status</th>
                       </tr>
                     </thead>
