@@ -68,6 +68,15 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
     order_code: invoice.invoice_number,
   };
 
+  const receiptPayment = {
+    amountPaid: invoice.total_amount,
+    change: 0,
+    splitPayments: invoice.payments?.map((p: any) => ({
+      method: p.payment_method,
+      amount: p.amount
+    }))
+  };
+
   const receiptShop = invoice.shop || { name: 'Shop' };
   
   const receiptBusiness = {
@@ -195,6 +204,38 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
 
       {/* Hidden Print Templates */}
       <div className="hidden">
+        <div ref={thermalPrintRef}>
+          <Receipt 
+            order={receiptOrder}
+            items={items.map((item: any) => ({
+              name: item.name || item.product?.name,
+              quantity: item.quantity,
+              price: item.unit_price,
+              subtotal: item.subtotal || (item.unit_price * item.quantity),
+            }))}
+            shop={receiptShop}
+            business={receiptBusiness}
+            payment={receiptPayment}
+            currency={currency}
+            width="80mm"
+          />
+        </div>
+        <div ref={thermal58PrintRef}>
+          <Receipt 
+            order={receiptOrder}
+            items={items.map((item: any) => ({
+              name: item.name || item.product?.name,
+              quantity: item.quantity,
+              price: item.unit_price,
+              subtotal: item.subtotal || (item.unit_price * item.quantity),
+            }))}
+            shop={receiptShop}
+            business={receiptBusiness}
+            payment={receiptPayment}
+            currency={currency}
+            width="58mm"
+          />
+        </div>
         <div ref={a4PrintRef}>
             <InvoiceTemplateRenderer 
                 templateId={store?.invoiceTemplateId || 'classic'} 

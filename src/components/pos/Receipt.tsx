@@ -46,6 +46,7 @@ interface ReceiptProps {
   payment?: {
     amountPaid: number;
     change: number;
+    splitPayments?: { method: string; amount: number }[];
   };
   onCreateBalanceCase?: () => void;
   width?: string;
@@ -241,11 +242,24 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(
           {/* 4. Payment Information Section */}
           {payment && (
             <div className="border-t border-dotted border-black mt-2 pt-2">
-              <div className="flex justify-between text-[11px]">
-                <span>Amount Paid:</span>
-                <span>{formatCurrency(payment.amountPaid, currency)}</span>
-              </div>
-              <div className="flex justify-between text-[11px] font-bold">
+              {payment.splitPayments && payment.splitPayments.length > 0 ? (
+                <div className="space-y-1 mb-2">
+                  <div className="text-[9px] uppercase font-bold mb-1 underline">Payment Breakdown:</div>
+                  {payment.splitPayments.map((p, i) => (
+                    <div key={i} className="flex justify-between text-[11px]">
+                      <span className="capitalize">{p.method.replace('_', ' ')}:</span>
+                      <span>{formatCurrency(p.amount, currency)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex justify-between text-[11px]">
+                  <span>Amount Paid:</span>
+                  <span>{formatCurrency(payment.amountPaid, currency)}</span>
+                </div>
+              )}
+              
+              <div className="flex justify-between text-[11px] font-bold border-t border-dotted border-black pt-1">
                 <span>Change Due:</span>
                 <span>{formatCurrency(payment.change, currency)}</span>
               </div>

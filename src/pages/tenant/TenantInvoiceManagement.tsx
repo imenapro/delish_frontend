@@ -36,6 +36,7 @@ interface Invoice {
   tax_amount: number;
   items_snapshot: InvoiceItem[];
   notes?: string;
+  payments?: { amount: number; payment_method: string }[];
 }
 
 export default function TenantInvoiceManagement() {
@@ -80,6 +81,10 @@ export default function TenantInvoiceManagement() {
              phone,
              logo_url,
              business_id
+           ),
+           payments (
+             amount,
+             payment_method
            )
          `)
          .eq('id', invoiceId)

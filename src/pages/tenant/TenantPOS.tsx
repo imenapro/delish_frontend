@@ -419,11 +419,13 @@ export default function TenantPOS() {
     mutationFn: async ({ 
       paymentMethod, 
       customerPhone,
-      extras 
+      extras,
+      payments
     }: { 
       paymentMethod: string; 
       customerPhone?: string;
       extras?: PostSaleData;
+      payments?: any[];
     }) => {
       const startTime = performance.now();
       console.log(`[Checkout] Started at ${new Date().toISOString()}`);
@@ -512,7 +514,8 @@ export default function TenantPOS() {
         p_extras: {
             notes: (extras ? `Receipt: ${extras.needReceipt}, Print: ${extras.printReceipt}, SMS: ${extras.smsReceipt}` : ''),
             customer_name: 'Walk-in Customer'
-        }
+        },
+        p_payments: payments || null
       });
 
       const dbWriteTime = performance.now();
@@ -535,7 +538,8 @@ export default function TenantPOS() {
         invoice_number: result.invoice_number,
         created_at: result.created_at || new Date().toISOString(),
         payment_method: paymentMethod,
-        customer_phone: customerPhone
+        customer_phone: customerPhone,
+        payments: payments || [{ method: paymentMethod, amount: total }]
       };
 
       console.log(`[Checkout] Total Duration: ${(performance.now() - startTime).toFixed(2)}ms`);
@@ -1081,10 +1085,11 @@ export default function TenantPOS() {
         onOpenChange={setPaymentDialogOpen}
         cartItems={cart}
         total={cartTotal}
-        onComplete={(method, phone, extras) => createOrderMutation.mutate({ 
+        onComplete={(method, phone, extras, payments) => createOrderMutation.mutate({ 
           paymentMethod: method, 
           customerPhone: phone,
-          extras
+          extras,
+          payments
         })}
         isProcessing={createOrderMutation.isPending}
         currency={currency}
@@ -1162,6 +1167,11 @@ export default function TenantPOS() {
             website: `www.${store?.slug}.kazimas.com`,
             logo_url: store?.logoUrl,
             metadata: { registration_number: '123456789' } // TODO: Get from business settings
+          }}
+          payment={{
+            amountPaid: (lastOrder as any)?.total_amount || 0,
+            change: 0,
+            splitPayments: (lastOrder as any)?.payments
           }}
           currency={currency}
           taxBreakdown={lastTaxBreakdown}

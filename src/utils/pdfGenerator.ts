@@ -20,6 +20,7 @@ interface Order {
   payment_method?: string;
   total_amount: number;
   order_items?: OrderItem[];
+  payments?: { amount: number; payment_method: string }[];
 }
 
 interface InventorySnapshotItem {
@@ -129,25 +130,31 @@ const createShiftReportDoc = ({
     metaY += 6;
   });
 
-  const cashSales = shiftOrders?.reduce((sum, order) => {
-    if (order.payment_method === 'cash') return sum + Number(order.total_amount);
-    return sum;
-  }, 0) || 0;
+  const getTotalsByMethod = () => {
+    let cash = 0, momo = 0, card = 0, wallet = 0;
+    
+    shiftOrders?.forEach(order => {
+      if (order.payments && order.payments.length > 0) {
+        order.payments.forEach((p: any) => {
+          const amount = Number(p.amount) || 0;
+          if (p.payment_method === 'cash') cash += amount;
+          else if (p.payment_method === 'mobile_money') momo += amount;
+          else if (p.payment_method === 'card') card += amount;
+          else if (p.payment_method === 'wallet') wallet += amount;
+        });
+      } else {
+        const amount = Number(order.total_amount) || 0;
+        if (order.payment_method === 'cash') cash += amount;
+        else if (order.payment_method === 'mobile_money') momo += amount;
+        else if (order.payment_method === 'card') card += amount;
+        else if (order.payment_method === 'wallet') wallet += amount;
+      }
+    });
+    
+    return { cash, momo, card, wallet };
+  };
 
-  const mobileMoneySales = shiftOrders?.reduce((sum, order) => {
-    if (order.payment_method === 'mobile_money') return sum + Number(order.total_amount);
-    return sum;
-  }, 0) || 0;
-
-  const cardSales = shiftOrders?.reduce((sum, order) => {
-    if (order.payment_method === 'card') return sum + Number(order.total_amount);
-    return sum;
-  }, 0) || 0;
-
-  const walletSales = shiftOrders?.reduce((sum, order) => {
-    if (order.payment_method === 'wallet') return sum + Number(order.total_amount);
-    return sum;
-  }, 0) || 0;
+  const { cash: cashSales, momo: mobileMoneySales, card: cardSales, wallet: walletSales } = getTotalsByMethod();
 
   const cashAndMobileSales = cashSales + mobileMoneySales;
   const cardAndWalletSales = cardSales + walletSales;
@@ -181,18 +188,26 @@ const createShiftReportDoc = ({
     autoTable(doc, {
       startY: finalY + 20,
       head: [['Order #', 'Time', 'Payment', 'Total', 'Items Purchased']],
-      body: shiftOrders.map(order => [
-        `${order.order_code}`,
-        format(new Date(order.created_at), 'HH:mm'),
-        order.payment_method || '-',
-        formatCurrency(Number(order.total_amount), currency),
-        order.order_items?.map(item => `${item.quantity}x ${formatCurrency(item.unit_price || 0, currency)} ${item.product?.name || 'Item'}`).join(', ') || '-',
-      ]),
+      body: shiftOrders.map(order => {
+        let paymentDisplay = order.payment_method || '-';
+        if (order.payment_method === 'split' && order.payments) {
+          paymentDisplay = order.payments.map(p => `${p.payment_method}: ${formatCurrency(p.amount, currency)}`).join(', ');
+        }
+        
+        return [
+          `${order.order_code}`,
+          format(new Date(order.created_at), 'HH:mm'),
+          paymentDisplay,
+          formatCurrency(Number(order.total_amount), currency),
+          order.order_items?.map(item => `${item.quantity}x ${formatCurrency(item.unit_price || 0, currency)} ${item.product?.name || 'Item'}`).join(', ') || '-',
+        ];
+      }),
       theme: 'grid',
       headStyles: { fillColor: [66, 66, 66] },
       styles: { fontSize: 8, cellPadding: 3 },
       columnStyles: {
-        4: { cellWidth: 100 },
+        2: { cellWidth: 40 }, // Expanded for split payment info
+        4: { cellWidth: 80 },
       },
     });
   }

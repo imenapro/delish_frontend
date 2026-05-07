@@ -321,7 +321,11 @@ export default function TenantFinance() {
       
       const { data, error } = await supabase
         .from('orders')
-        .select('*, order_items(*)')
+        .select(`
+          *,
+          order_items(*),
+          payments(amount, payment_method)
+        `)
         .in('shop_id_origin', shopIds)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -373,7 +377,11 @@ export default function TenantFinance() {
       tax: order.total_amount * TAX_RATE,
       total: order.total_amount,
       currency: currency,
-      paymentMethod: order.payment_method
+      paymentMethod: order.payment_method,
+      payments: order.payments?.map((p: any) => ({
+        method: p.payment_method,
+        amount: p.amount
+      }))
     };
     setSelectedInvoice(invoice);
     setViewInvoiceOpen(true);

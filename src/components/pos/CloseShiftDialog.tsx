@@ -92,7 +92,13 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
 
       const { data: invoices, error } = await supabase
         .from('invoices')
-        .select('*')
+        .select(`
+          *,
+          payments (
+            amount,
+            payment_method
+          )
+        `)
         .eq('shop_id', session.shop_id)
         .eq('staff_id', session.user_id)
         .gte('created_at', session.opened_at)
@@ -152,25 +158,33 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
     return acc;
   }, 0) || 0;
 
-  const totalCashSales = shiftOrders?.reduce((acc, order) => {
-      if (order.payment_method === 'cash') return acc + Number(order.total_amount);
-      return acc;
-  }, 0) || 0;
+  // New accurate calculation using split payments
+  const getTotalsByMethod = () => {
+    let cash = 0, momo = 0, card = 0, wallet = 0;
+    
+    shiftOrders?.forEach(order => {
+      if (order.payments && order.payments.length > 0) {
+        order.payments.forEach((p: any) => {
+          const amount = Number(p.amount) || 0;
+          if (p.payment_method === 'cash') cash += amount;
+          else if (p.payment_method === 'mobile_money') momo += amount;
+          else if (p.payment_method === 'card') card += amount;
+          else if (p.payment_method === 'wallet') wallet += amount;
+        });
+      } else {
+        // Fallback for any legacy data
+        const amount = Number(order.total_amount) || 0;
+        if (order.payment_method === 'cash') cash += amount;
+        else if (order.payment_method === 'mobile_money') momo += amount;
+        else if (order.payment_method === 'card') card += amount;
+        else if (order.payment_method === 'wallet') wallet += amount;
+      }
+    });
+    
+    return { cash, momo, card, wallet };
+  };
 
-  const totalMobileMoneySales = shiftOrders?.reduce((acc, order) => {
-      if (order.payment_method === 'mobile_money') return acc + Number(order.total_amount);
-      return acc;
-  }, 0) || 0;
-
-  const totalCardSales = shiftOrders?.reduce((acc, order) => {
-      if (order.payment_method === 'card') return acc + Number(order.total_amount);
-      return acc;
-  }, 0) || 0;
-
-  const totalWalletSales = shiftOrders?.reduce((acc, order) => {
-      if (order.payment_method === 'wallet') return acc + Number(order.total_amount);
-      return acc;
-  }, 0) || 0;
+  const { cash: totalCashSales, momo: totalMobileMoneySales, card: totalCardSales, wallet: totalWalletSales } = getTotalsByMethod();
 
   const totalCashAndMobileMoneySales = totalCashSales + totalMobileMoneySales;
   const totalCardAndWalletSales = totalCardSales + totalWalletSales;

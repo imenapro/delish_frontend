@@ -226,10 +226,32 @@ export default function SalesReport() {
       const { data, error } = await query;
       if (error) throw error;
       
-      let filteredData = data;
+      // Fetch split payments for these orders
+      const orderIds = data.map(o => o.id);
+      let splitPaymentsMap: Record<string, any[]> = {};
+      
+      if (orderIds.length > 0) {
+        const { data: paymentsData, error: paymentsError } = await supabase
+          .from('payments')
+          .select('order_id, amount, payment_method')
+          .in('order_id', orderIds);
+          
+        if (!paymentsError && paymentsData) {
+          paymentsData.forEach(p => {
+            if (!splitPaymentsMap[p.order_id]) splitPaymentsMap[p.order_id] = [];
+            splitPaymentsMap[p.order_id].push(p);
+          });
+        }
+      }
+
+      let filteredData = data.map(o => ({
+        ...o,
+        split_payments: splitPaymentsMap[o.id] || []
+      }));
+
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
-        filteredData = data.filter(s => 
+        filteredData = filteredData.filter(s => 
           s.order_code?.toLowerCase().includes(term) ||
           s.customer_phone?.toLowerCase().includes(term)
         );
@@ -241,13 +263,37 @@ export default function SalesReport() {
   });
 
   const stats = useMemo(() => {
+    // Calculate accurate revenue per method including split payments
+    let cashRevenue = 0;
+    let momoRevenue = 0;
+    let cardRevenue = 0;
+    let totalRevenue = 0;
+
+    sales.forEach(s => {
+      totalRevenue += (Number(s.total_amount) || 0);
+      
+      if (s.payment_method === 'split' && s.split_payments?.length > 0) {
+        s.split_payments.forEach((p: any) => {
+          const amount = Number(p.amount) || 0;
+          if (p.payment_method === 'cash') cashRevenue += amount;
+          else if (p.payment_method === 'mobile_money') momoRevenue += amount;
+          else if (['card', 'pos_card'].includes(p.payment_method)) cardRevenue += amount;
+        });
+      } else {
+        const amount = Number(s.total_amount) || 0;
+        if (s.payment_method === 'cash') cashRevenue += amount;
+        else if (s.payment_method === 'mobile_money') momoRevenue += amount;
+        else if (['card', 'pos_card'].includes(s.payment_method)) cardRevenue += amount;
+      }
+    });
+
     return {
-      totalRevenue: sales.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0),
+      totalRevenue,
       orderCount: sales.length,
-      avgOrderValue: sales.length > 0 ? sales.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0) / sales.length : 0,
-      cashRevenue: sales.filter(s => s.payment_method === 'cash').reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0),
-      momoRevenue: sales.filter(s => s.payment_method === 'mobile_money').reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0),
-      cardRevenue: sales.filter(s => s.payment_method === 'card' || s.payment_method === 'pos_card').reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0),
+      avgOrderValue: sales.length > 0 ? totalRevenue / sales.length : 0,
+      cashRevenue,
+      momoRevenue,
+      cardRevenue,
     };
   }, [sales]);
 
@@ -679,10 +725,12 @@ export default function SalesReport() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Payment Method</p>
-                  <p className="font-medium flex items-center gap-1.5 capitalize">
-                    {getPaymentIcon(selectedOrder.payment_method)}
-                    {selectedOrder.payment_method}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="capitalize flex items-center gap-1.5">
+                      {getPaymentIcon(selectedOrder.payment_method)}
+                      {selectedOrder.payment_method?.replace('_', ' ')}
+                    </Badge>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Customer</p>
@@ -691,6 +739,28 @@ export default function SalesReport() {
                   </p>
                 </div>
               </div>
+
+              {/* Split Payments Breakdown */}
+              {selectedOrder.payment_method === 'split' && selectedOrder.split_payments?.length > 0 && (
+                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border">
+                  <h4 className="text-sm font-bold mb-3 uppercase tracking-wider text-primary">Payment Breakdown</h4>
+                  <div className="space-y-2">
+                    {selectedOrder.split_payments.map((p: any, i: number) => (
+                      <div key={i} className="flex justify-between items-center text-sm">
+                        <div className="flex items-center gap-2">
+                          {getPaymentIcon(p.payment_method)}
+                          <span className="capitalize">{p.payment_method?.replace('_', ' ')}</span>
+                        </div>
+                        <span className="font-mono font-bold">{formatCurrency(p.amount, 'RWF')}</span>
+                      </div>
+                    ))}
+                    <div className="border-t pt-2 mt-2 flex justify-between font-bold text-base">
+                      <span>Total Paid</span>
+                      <span>{formatCurrency(selectedOrder.total_amount, 'RWF')}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">

@@ -8,12 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Banknote, CreditCard, Smartphone, Wallet, ShieldCheck, Lock, AlertCircle } from 'lucide-react';
+import { Banknote, CreditCard, Smartphone, Wallet, ShieldCheck, Lock, AlertCircle, Plus, Trash2, Split } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { CartItem } from './POSCart';
 import { POSPostSaleDialog, PostSaleData } from './POSPostSaleDialog';
 import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // Regex patterns for card types
 const CARD_PATTERNS = {
@@ -92,12 +93,18 @@ const cardSchema = z.object({
   cvv: z.string().min(3, 'Invalid CVV').max(4, 'Invalid CVV').regex(/^[0-9]+$/, 'Must be numeric'),
 });
 
+interface PaymentEntry {
+  method: string;
+  amount: number;
+  details?: any;
+}
+
 interface POSPaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   cartItems: CartItem[];
   total: number;
-  onComplete: (paymentMethod: string, customerPhone?: string, extras?: PostSaleData) => void;
+  onComplete: (paymentMethod: string, customerPhone?: string, extras?: PostSaleData, payments?: PaymentEntry[]) => void;
   isProcessing: boolean;
   currency?: string;
 }
@@ -111,7 +118,11 @@ export function POSPaymentDialog({
   isProcessing,
   currency = DEFAULT_SYSTEM_CURRENCY
 }: POSPaymentDialogProps) {
+  const [activeTab, setActiveTab] = useState<string>('single');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
+  const [splitPayments, setSplitPayments] = useState<PaymentEntry[]>([
+    { method: 'cash', amount: total }
+  ]);
   const [customerPhone, setCustomerPhone] = useState('');
   const [cashReceived, setCashReceived] = useState('');
   const [showPostSale, setShowPostSale] = useState(false);
@@ -141,11 +152,13 @@ export function POSPaymentDialog({
     if (!open) {
       setShowPostSale(false);
       setPaymentMethod('cash');
+      setSplitPayments([{ method: 'cash', amount: total }]);
+      setActiveTab('single');
       setCashReceived('');
       setCustomerPhone('');
       form.reset();
     }
-  }, [open, form]);
+  }, [open, total, form]);
 
   useEffect(() => {
     // When switching to card, reset form
@@ -154,9 +167,27 @@ export function POSPaymentDialog({
     }
   }, [paymentMethod, form]);
 
-  const change = paymentMethod === 'cash' && cashReceived 
+  const splitTotal = splitPayments.reduce((sum, p) => sum + p.amount, 0);
+  const splitRemaining = total - splitTotal;
+
+  const change = activeTab === 'single' && paymentMethod === 'cash' && cashReceived 
     ? parseFloat(cashReceived) - total 
     : 0;
+
+  const addPaymentMethod = () => {
+    if (splitRemaining <= 0) return;
+    setSplitPayments([...splitPayments, { method: 'mobile_money', amount: splitRemaining }]);
+  };
+
+  const removePaymentMethod = (index: number) => {
+    setSplitPayments(splitPayments.filter((_, i) => i !== index));
+  };
+
+  const updateSplitPayment = (index: number, field: keyof PaymentEntry, value: any) => {
+    const updated = [...splitPayments];
+    updated[index] = { ...updated[index], [field]: value };
+    setSplitPayments(updated);
+  };
 
   const handleCardSubmit = async (values: z.infer<typeof cardSchema>) => {
     setIsVerifying(true);
@@ -185,32 +216,49 @@ export function POSPaymentDialog({
   };
 
   const handleInitialComplete = () => {
-    if (paymentMethod === 'card') {
+    if (activeTab === 'single' && paymentMethod === 'card') {
       form.handleSubmit(handleCardSubmit)();
       return;
     }
-    // Instead of completing immediately, show the post-sale options
+    
+    // Check if split payments are balanced
+    if (activeTab === 'split' && Math.abs(splitRemaining) > 0.01) {
+      toast.error('Payment not balanced', {
+        description: `Please ensure the total amount is covered. Remaining: ${formatCurrency(splitRemaining, currency)}`
+      });
+      return;
+    }
+
     setShowPostSale(true);
   };
 
   const handleFinalComplete = (data: PostSaleData) => {
     // Play checkout success sound when completing the payment
     playSound('checkout-success');
-    onComplete(paymentMethod, customerPhone || undefined, data);
+    const finalMethod = activeTab === 'single' ? paymentMethod : 'split';
+    const finalPayments = activeTab === 'single' 
+      ? [{ method: paymentMethod, amount: total }] 
+      : splitPayments;
+      
+    onComplete(finalMethod, customerPhone || undefined, data, finalPayments);
   };
 
   const canComplete = () => {
-    if (paymentMethod === 'cash') {
-      return parseFloat(cashReceived) >= total;
+    if (activeTab === 'single') {
+      if (paymentMethod === 'cash') {
+        return parseFloat(cashReceived) >= total;
+      }
+      if (paymentMethod === 'mobile_money') {
+        return customerPhone.length >= 10;
+      }
+      if (paymentMethod === 'card') {
+        // Form validation is handled by handleSubmit, but we can disable button if invalid
+        return form.formState.isValid;
+      }
+      return true;
+    } else {
+      return Math.abs(splitRemaining) < 0.01;
     }
-    if (paymentMethod === 'mobile_money') {
-      return customerPhone.length >= 10;
-    }
-    if (paymentMethod === 'card') {
-      // Form validation is handled by handleSubmit, but we can disable button if invalid
-      return form.formState.isValid;
-    }
-    return true;
   };
 
   const getCardIcon = (type: CardType) => {
@@ -247,7 +295,7 @@ export function POSPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md md:max-w-lg">
         <DialogHeader>
           <DialogTitle>Complete Payment</DialogTitle>
           <DialogDescription>
@@ -255,7 +303,14 @@ export function POSPaymentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="single">Single Method</TabsTrigger>
+            <TabsTrigger value="split">Split Payment</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="single" className="space-y-6 py-4">
+            <div className="space-y-6">
           {/* Payment Method Selection */}
           <div className="space-y-3">
             <Label>Payment Method</Label>
@@ -444,20 +499,84 @@ export function POSPaymentDialog({
             </div>
           )}
 
-          {/* Customer Phone (optional for receipt) */}
-          {paymentMethod !== 'mobile_money' && (
-            <div className="space-y-2">
-              <Label htmlFor="customerPhone">Customer Phone (optional)</Label>
-              <Input
-                id="customerPhone"
-                type="tel"
-                placeholder="For receipt (optional)"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-              />
+              {/* Customer Phone (optional for receipt) */}
+              {paymentMethod !== 'mobile_money' && (
+                <div className="space-y-2">
+                  <Label htmlFor="customerPhone">Customer Phone (optional)</Label>
+                  <Input
+                    id="customerPhone"
+                    type="tel"
+                    placeholder="For receipt (optional)"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </TabsContent>
+
+          <TabsContent value="split" className="space-y-6 py-4">
+            <div className="space-y-4">
+              {splitPayments.map((p, index) => (
+                <div key={index} className="flex items-end gap-3 p-3 border rounded-lg bg-slate-50 dark:bg-slate-900">
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-xs">Method</Label>
+                    <select 
+                      className="w-full h-10 px-3 py-2 text-sm border rounded-md bg-background"
+                      value={p.method}
+                      onChange={(e) => updateSplitPayment(index, 'method', e.target.value)}
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="mobile_money">Mobile Money</option>
+                      <option value="card">Card</option>
+                      <option value="wallet">Wallet</option>
+                    </select>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-xs">Amount</Label>
+                    <Input 
+                      type="number" 
+                      value={p.amount}
+                      onChange={(e) => updateSplitPayment(index, 'amount', parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-destructive h-10 w-10"
+                    onClick={() => removePaymentMethod(index)}
+                    disabled={splitPayments.length <= 1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+
+              <Button 
+                variant="outline" 
+                className="w-full border-dashed" 
+                onClick={addPaymentMethod}
+                disabled={splitRemaining <= 0}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Payment Method
+              </Button>
+
+              <div className="p-4 rounded-lg bg-primary/5 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Amount Paid:</span>
+                  <span className="font-medium">{formatCurrency(splitTotal, currency)}</span>
+                </div>
+                <div className="flex justify-between font-bold border-t pt-2">
+                  <span>Remaining:</span>
+                  <span className={splitRemaining > 0 ? 'text-orange-500' : splitRemaining < 0 ? 'text-destructive' : 'text-green-500'}>
+                    {formatCurrency(splitRemaining, currency)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
