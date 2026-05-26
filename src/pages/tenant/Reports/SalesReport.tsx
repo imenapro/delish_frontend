@@ -39,13 +39,7 @@ import { CalendarDateRangePicker } from '@/components/ui/date-range-picker';
 import { useReactToPrint } from 'react-to-print';
 import { useNavigate, useParams } from 'react-router-dom';
 import { formatCurrency } from '@/utils/currency';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { ViewInvoiceDialog } from '@/components/invoices/ViewInvoiceDialog';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -55,7 +49,7 @@ type SortConfig = {
 };
 
 export default function SalesReport() {
-  const { store } = useStoreContext();
+  const { store, getTenantRoute } = useStoreContext();
   const { roles } = useAuth();
   const { storeSlug } = useParams();
   const navigate = useNavigate();
@@ -71,7 +65,7 @@ export default function SalesReport() {
   const [sellerFilter, setSellerFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'created_at', direction: 'desc' });
   
   const businessId = store?.id;
@@ -148,8 +142,8 @@ export default function SalesReport() {
     enabled: !!businessId,
   });
 
-  // Fetch sales (orders)
-  const { data: sales = [], isLoading } = useQuery({
+  // Fetch invoice history (POS Sales)
+  const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['sales-report-data', businessId, dateFilter, dateRange, paymentFilter, shopFilter, sellerFilter, searchTerm, sortConfig],
     queryFn: async () => {
       if (!businessId || !isManagerial) return [];
@@ -158,20 +152,13 @@ export default function SalesReport() {
       if (shopIds.length === 0) return [];
 
       let query = supabase
-        .from('orders')
+        .from('invoices')
         .select(`
           *,
-          shop:shops!orders_shop_id_origin_fkey (name),
-          seller:profiles!orders_seller_id_fkey (name),
-          order_items (
-            product:products (name),
-            quantity,
-            unit_price,
-            subtotal
-          )
+          shop:shops!invoices_shop_id_fkey (name, logo_url, address, phone, owner_email),
+          staff:profiles!invoices_staff_id_fkey (name)
         `)
-        .in('shop_id_origin', shopFilter !== 'all' ? [shopFilter] : shopIds)
-        .eq('source', 'pos')
+        .in('shop_id', shopFilter !== 'all' ? [shopFilter] : shopIds)
         .order(sortConfig.key, { ascending: sortConfig.direction === 'asc' });
 
       // Apply payment method filter
@@ -187,7 +174,7 @@ export default function SalesReport() {
 
       // Apply seller filter
       if (sellerFilter !== 'all') {
-        query = query.eq('seller_id', sellerFilter);
+        query = query.eq('staff_id', sellerFilter);
       }
 
       // Apply date filter
@@ -226,34 +213,35 @@ export default function SalesReport() {
       const { data, error } = await query;
       if (error) throw error;
       
-      // Fetch split payments for these orders
-      const orderIds = data.map(o => o.id);
-      let splitPaymentsMap: Record<string, any[]> = {};
+      // Fetch split payments for these invoices
+      const invoiceIds = data.map((i: any) => i.id);
+      const paymentsMap: Record<string, any[]> = {};
       
-      if (orderIds.length > 0) {
+      if (invoiceIds.length > 0) {
         const { data: paymentsData, error: paymentsError } = await supabase
           .from('payments')
-          .select('order_id, amount, payment_method')
-          .in('order_id', orderIds);
+          .select('invoice_id, amount, payment_method')
+          .in('invoice_id', invoiceIds);
           
         if (!paymentsError && paymentsData) {
           paymentsData.forEach(p => {
-            if (!splitPaymentsMap[p.order_id]) splitPaymentsMap[p.order_id] = [];
-            splitPaymentsMap[p.order_id].push(p);
+            if (!p.invoice_id) return;
+            if (!paymentsMap[p.invoice_id]) paymentsMap[p.invoice_id] = [];
+            paymentsMap[p.invoice_id].push(p);
           });
         }
       }
 
-      let filteredData = data.map(o => ({
-        ...o,
-        split_payments: splitPaymentsMap[o.id] || []
+      let filteredData = data.map((invoice: any) => ({
+        ...invoice,
+        payments: paymentsMap[invoice.id] || []
       }));
 
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         filteredData = filteredData.filter(s => 
-          s.order_code?.toLowerCase().includes(term) ||
-          s.customer_phone?.toLowerCase().includes(term)
+          s.invoice_number?.toLowerCase().includes(term) ||
+          s.customer_info?.phone?.toLowerCase?.().includes(term)
         );
       }
 
@@ -269,11 +257,11 @@ export default function SalesReport() {
     let cardRevenue = 0;
     let totalRevenue = 0;
 
-    sales.forEach(s => {
+    invoices.forEach((s: any) => {
       totalRevenue += (Number(s.total_amount) || 0);
       
-      if (s.payment_method === 'split' && s.split_payments?.length > 0) {
-        s.split_payments.forEach((p: any) => {
+      if (s.payment_method === 'split' && s.payments?.length > 0) {
+        s.payments.forEach((p: any) => {
           const amount = Number(p.amount) || 0;
           if (p.payment_method === 'cash') cashRevenue += amount;
           else if (p.payment_method === 'mobile_money') momoRevenue += amount;
@@ -289,20 +277,20 @@ export default function SalesReport() {
 
     return {
       totalRevenue,
-      orderCount: sales.length,
-      avgOrderValue: sales.length > 0 ? totalRevenue / sales.length : 0,
+      invoiceCount: invoices.length,
+      avgInvoiceValue: invoices.length > 0 ? totalRevenue / invoices.length : 0,
       cashRevenue,
       momoRevenue,
       cardRevenue,
     };
-  }, [sales]);
+  }, [invoices]);
 
-  const paginatedSales = useMemo(() => {
+  const paginatedInvoices = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return sales.slice(start, start + ITEMS_PER_PAGE);
-  }, [sales, currentPage]);
+    return invoices.slice(start, start + ITEMS_PER_PAGE);
+  }, [invoices, currentPage]);
 
-  const totalPages = Math.ceil(sales.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(invoices.length / ITEMS_PER_PAGE);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -310,17 +298,17 @@ export default function SalesReport() {
   });
 
   const handleExportCSV = () => {
-    if (sales.length === 0) return;
+    if (invoices.length === 0) return;
 
-    const headers = ['Date', 'Order Code', 'Amount', 'Payment', 'Shop', 'Seller', 'Customer Phone'];
-    const csvData = sales.map(s => [
+    const headers = ['Date', 'Invoice Number', 'Amount', 'Payment', 'Shop', 'Staff', 'Customer Phone'];
+    const csvData = invoices.map((s: any) => [
       format(new Date(s.created_at), 'yyyy-MM-dd HH:mm'),
-      s.order_code || '-',
+      s.invoice_number || '-',
       s.total_amount,
       s.payment_method,
       s.shop?.name || 'Unknown',
-      s.seller?.name || 'System',
-      s.customer_phone || 'Walk-in'
+      s.staff?.name || 'System',
+      s.customer_info?.phone || 'Walk-in'
     ]);
 
     const csvContent = [
@@ -364,18 +352,18 @@ export default function SalesReport() {
   return (
     <TenantPageWrapper
       title="POS Sales Report"
-      description="Track revenue, orders, and payment methods across all shops"
+      description="Track revenue, invoices, and payment methods across all shops"
       actions={
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => navigate(getTenantRoute('/reports'))}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Reports
           </Button>
-          <Button variant="outline" size="sm" onClick={handlePrint} disabled={sales.length === 0}>
+          <Button variant="outline" size="sm" onClick={handlePrint} disabled={invoices.length === 0}>
             <Printer className="h-4 w-4 mr-2" />
             Print
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={sales.length === 0}>
+          <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={invoices.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -394,7 +382,7 @@ export default function SalesReport() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{formatCurrency(stats.totalRevenue, 'RWF')}</div>
-              <p className="text-xs text-muted-foreground">{stats.orderCount} orders</p>
+              <p className="text-xs text-muted-foreground">{stats.invoiceCount} invoices</p>
             </CardContent>
           </Card>
           <Card>
@@ -434,11 +422,11 @@ export default function SalesReport() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <ShoppingCart className="w-4 h-4 text-purple-500" />
-                Avg Order
+                Avg Invoice
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-lg font-bold">{formatCurrency(stats.avgOrderValue, 'RWF')}</div>
+              <div className="text-lg font-bold">{formatCurrency(stats.avgInvoiceValue, 'RWF')}</div>
             </CardContent>
           </Card>
         </div>
@@ -520,7 +508,7 @@ export default function SalesReport() {
               </div>
 
               <div className="flex flex-col space-y-2 xl:col-span-2">
-                <Label htmlFor="search">Search Order Code/Phone</Label>
+                <Label htmlFor="search">Search Invoice Number/Phone</Label>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -549,7 +537,7 @@ export default function SalesReport() {
         {/* Results Table */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Order History ({sales.length} records)</CardTitle>
+            <CardTitle className="text-lg">Invoice History ({invoices.length} records)</CardTitle>
           </CardHeader>
           <CardContent>
             <div ref={printRef} className="space-y-4">
@@ -564,9 +552,9 @@ export default function SalesReport() {
               {isLoading ? (
                 <div className="text-center py-12">
                   <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
-                  <p className="text-muted-foreground">Loading sales data...</p>
+                  <p className="text-muted-foreground">Loading invoice data...</p>
                 </div>
-              ) : sales.length === 0 ? (
+              ) : invoices.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-20" />
                   No records found for the selected criteria
@@ -587,11 +575,11 @@ export default function SalesReport() {
                         </th>
                         <th 
                           className="p-3 text-left font-semibold cursor-pointer hover:bg-muted/80"
-                          onClick={() => handleSort('order_code')}
+                          onClick={() => handleSort('invoice_number')}
                         >
                           <div className="flex items-center">
-                            Order Code
-                            {getSortIcon('order_code')}
+                            Invoice Number
+                            {getSortIcon('invoice_number')}
                           </div>
                         </th>
                         <th 
@@ -605,50 +593,50 @@ export default function SalesReport() {
                         </th>
                         <th className="p-3 text-left font-semibold">Payment</th>
                         <th className="p-3 text-left font-semibold">Shop</th>
-                        <th className="p-3 text-left font-semibold">Seller</th>
+                        <th className="p-3 text-left font-semibold">Staff</th>
                         <th className="p-3 text-left font-semibold">Customer</th>
                         <th className="p-3 text-center font-semibold print:hidden">Details</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {paginatedSales.map((order) => (
-                        <tr key={order.id} className="border-b hover:bg-muted/30 transition-colors print:break-inside-avoid">
+                      {paginatedInvoices.map((invoice: any) => (
+                        <tr key={invoice.id} className="border-b hover:bg-muted/30 transition-colors print:break-inside-avoid">
                           <td className="p-3 whitespace-nowrap">
-                            {format(new Date(order.created_at), 'MMM dd, HH:mm')}
+                            {format(new Date(invoice.created_at), 'MMM dd, HH:mm')}
                           </td>
                           <td className="p-3 font-mono font-medium text-xs">
-                            {order.order_code}
+                            {invoice.invoice_number || '-'}
                           </td>
                           <td className="p-3 text-right font-mono font-bold">
-                            {formatCurrency(Number(order.total_amount), 'RWF')}
+                            {formatCurrency(Number(invoice.total_amount), 'RWF')}
                           </td>
                           <td className="p-3">
                             <div className="flex items-center gap-1.5 capitalize text-xs">
-                              {getPaymentIcon(order.payment_method)}
-                              {order.payment_method}
+                              {getPaymentIcon(invoice.payment_method)}
+                              {invoice.payment_method}
                             </div>
                           </td>
                           <td className="p-3 whitespace-nowrap">
                             <div className="flex items-center gap-1.5 text-xs">
                               <MapPin className="h-3 w-3 text-muted-foreground" />
-                              {order.shop?.name || 'Unknown'}
+                              {invoice.shop?.name || 'Unknown'}
                             </div>
                           </td>
                           <td className="p-3 whitespace-nowrap text-xs">
                             <div className="flex items-center gap-1.5">
                               <User className="h-3 w-3 text-muted-foreground" />
-                              {order.seller?.name || 'System'}
+                              {invoice.staff?.name || 'System'}
                             </div>
                           </td>
                           <td className="p-3 whitespace-nowrap text-xs text-muted-foreground">
-                            {order.customer_phone || 'Walk-in'}
+                            {invoice.customer_info?.phone || 'Walk-in'}
                           </td>
                           <td className="p-3 text-center print:hidden">
                             <Button 
                               variant="ghost" 
                               size="icon" 
                               className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              onClick={() => setSelectedOrder(order)}
+                              onClick={() => setSelectedInvoice(invoice)}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -665,7 +653,7 @@ export default function SalesReport() {
             {!isLoading && totalPages > 1 && (
               <div className="flex items-center justify-between pt-6 border-t mt-4 print:hidden">
                 <div className="text-sm text-muted-foreground">
-                  Page {currentPage} of {totalPages} ({sales.length} total records)
+                  Page {currentPage} of {totalPages} ({invoices.length} total records)
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -693,116 +681,13 @@ export default function SalesReport() {
         </Card>
       </div>
 
-      {/* Order Details Dialog */}
-      <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5 text-primary" />
-              Order Details: {selectedOrder?.order_code}
-            </DialogTitle>
-            <DialogDescription>
-              Placed on {selectedOrder && format(new Date(selectedOrder.created_at), 'PPP p')}
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedOrder && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">Shop</p>
-                  <p className="font-medium flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {selectedOrder.shop?.name}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">Seller</p>
-                  <p className="font-medium flex items-center gap-1.5">
-                    <User className="h-3.5 w-3.5" />
-                    {selectedOrder.seller?.name || 'System'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">Payment Method</p>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="capitalize flex items-center gap-1.5">
-                      {getPaymentIcon(selectedOrder.payment_method)}
-                      {selectedOrder.payment_method?.replace('_', ' ')}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">Customer</p>
-                  <p className="font-medium">
-                    {selectedOrder.customer_phone || 'Walk-in Customer'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Split Payments Breakdown */}
-              {selectedOrder.payment_method === 'split' && selectedOrder.split_payments?.length > 0 && (
-                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border">
-                  <h4 className="text-sm font-bold mb-3 uppercase tracking-wider text-primary">Payment Breakdown</h4>
-                  <div className="space-y-2">
-                    {selectedOrder.split_payments.map((p: any, i: number) => (
-                      <div key={i} className="flex justify-between items-center text-sm">
-                        <div className="flex items-center gap-2">
-                          {getPaymentIcon(p.payment_method)}
-                          <span className="capitalize">{p.payment_method?.replace('_', ' ')}</span>
-                        </div>
-                        <span className="font-mono font-bold">{formatCurrency(p.amount, 'RWF')}</span>
-                      </div>
-                    ))}
-                    <div className="border-t pt-2 mt-2 flex justify-between font-bold text-base">
-                      <span>Total Paid</span>
-                      <span>{formatCurrency(selectedOrder.total_amount, 'RWF')}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 border-b">
-                    <tr>
-                      <th className="p-2 text-left">Product</th>
-                      <th className="p-2 text-center">Qty</th>
-                      <th className="p-2 text-right">Price</th>
-                      <th className="p-2 text-right">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedOrder.order_items?.map((item: any, idx: number) => (
-                      <tr key={idx} className="border-b last:border-0">
-                        <td className="p-2">{item.product?.name}</td>
-                        <td className="p-2 text-center">{item.quantity}</td>
-                        <td className="p-2 text-right font-mono">{formatCurrency(item.unit_price, 'RWF')}</td>
-                        <td className="p-2 text-right font-mono font-medium">{formatCurrency(item.subtotal, 'RWF')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-muted/30 font-bold">
-                    <tr>
-                      <td colSpan={3} className="p-2 text-right">Total Amount</td>
-                      <td className="p-2 text-right font-mono text-primary">
-                        {formatCurrency(selectedOrder.total_amount, 'RWF')}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {selectedOrder.notes && (
-                <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                  <p className="text-xs font-semibold text-blue-700 mb-1">Order Notes</p>
-                  <p className="text-sm text-blue-800 italic">"{selectedOrder.notes}"</p>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ViewInvoiceDialog
+        open={!!selectedInvoice}
+        onOpenChange={(open) => {
+          if (!open) setSelectedInvoice(null);
+        }}
+        invoice={selectedInvoice}
+      />
     </TenantPageWrapper>
   );
 }

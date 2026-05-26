@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Dialog,
@@ -52,7 +52,7 @@ interface ViewShiftReportDialogProps {
     shop?: {
         name: string;
         logo_url?: string | null;
-        address: string;
+        address?: string;
         phone?: string | null;
         owner_email?: string | null;
     };
@@ -74,7 +74,7 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
     queryFn: async () => {
       if (!session) return [];
 
-      const endTime = new Date().toISOString();
+      const endTime = (session.closed_at ? new Date(session.closed_at) : new Date()).toISOString();
 
       const { data: invoices, error } = await supabase
         .from('invoices')
@@ -127,6 +127,109 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
     enabled: !!session && open,
   });
 
+  const { data: inventoryTransactions = [], isLoading: isLoadingTransactions } = useQuery({
+    queryKey: ['session-inventory-transactions', session?.id],
+    queryFn: async () => {
+      if (!session) return [];
+      const endTime = (session.closed_at ? new Date(session.closed_at) : new Date()).toISOString();
+      const { data, error } = await supabase
+        .from('inventory_transactions')
+        .select('product_id, quantity, created_at')
+        .eq('shop_id', session.shop_id)
+        .gte('created_at', session.opened_at)
+        .lte('created_at', endTime)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!session && open,
+  });
+
+  const inventoryReconciliation = useMemo(() => {
+    if (!session) return [];
+
+    const snapshots = Array.isArray(inventorySnapshot) ? inventorySnapshot : [];
+
+    let openingSnapshots: any[] = [];
+    let closingSnapshots: any[] = [];
+
+    if (snapshots.length > 0) {
+      const sorted = [...snapshots].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      const firstTime = new Date(sorted[0].created_at).getTime();
+      const lastTime = new Date(sorted[sorted.length - 1].created_at).getTime();
+
+      openingSnapshots = sorted.filter(snap => Math.abs(new Date(snap.created_at).getTime() - firstTime) < 5000);
+      closingSnapshots = sorted.filter(snap => Math.abs(new Date(snap.created_at).getTime() - lastTime) < 5000);
+    }
+
+    const openingMap = new Map<string, any>();
+    openingSnapshots.forEach(s => openingMap.set(s.product_id, s));
+
+    const closingMap = new Map<string, any>();
+    closingSnapshots.forEach(s => closingMap.set(s.product_id, s));
+
+    const addedMap = new Map<string, number>();
+    (inventoryTransactions || []).forEach((tx: any) => {
+      const current = addedMap.get(tx.product_id) || 0;
+      addedMap.set(tx.product_id, current + (Number(tx.quantity) || 0));
+    });
+
+    const soldMap = new Map<string, { quantity: number; unit_price: number; name: string }>();
+    (shiftOrders || []).forEach((invoice: any) => {
+      const sourceItems = Array.isArray(invoice.items_snapshot) ? invoice.items_snapshot : (invoice.order_items || []);
+      sourceItems.forEach((item: any) => {
+        const productId = item.product_id || item.product?.id;
+        if (!productId) return;
+        const qty = Number(item.quantity) || 0;
+        const unitPrice = Number(item.unit_price ?? item.price ?? 0) || 0;
+        const name = item.product?.name || item.product_name || item.name || 'Unknown';
+        const existing = soldMap.get(productId) || { quantity: 0, unit_price: unitPrice, name };
+        existing.quantity += qty;
+        existing.unit_price = unitPrice || existing.unit_price;
+        existing.name = name || existing.name;
+        soldMap.set(productId, existing);
+      });
+    });
+
+    const productIds = new Set<string>();
+    openingMap.forEach((_, k) => productIds.add(k));
+    closingMap.forEach((_, k) => productIds.add(k));
+    addedMap.forEach((_, k) => productIds.add(k));
+    soldMap.forEach((_, k) => productIds.add(k));
+
+    return Array.from(productIds).map((productId) => {
+      const open = openingMap.get(productId);
+      const close = closingMap.get(productId);
+      const sold = soldMap.get(productId);
+
+      const openingStock = Number(open?.quantity) || 0;
+      const closingStock = Number(close?.quantity) || 0;
+      const addedStock = addedMap.get(productId) || 0;
+      const soldQty = sold?.quantity || 0;
+      const unitPrice = sold?.unit_price || 0;
+      const productName = open?.product_name || close?.product_name || sold?.name || 'Unknown';
+
+      return {
+        product_id: productId,
+        product_name: productName,
+        opening_stock: openingStock,
+        added_stock: addedStock,
+        sold_quantity: soldQty,
+        closing_stock: closingStock,
+        unit_price: unitPrice,
+        current_stock_value: closingStock * unitPrice,
+        expected_closing: openingStock + addedStock - soldQty,
+      };
+    }).sort((a, b) => a.product_name.localeCompare(b.product_name));
+  }, [session, inventorySnapshot, inventoryTransactions, shiftOrders]);
+
+  const reconciliationTotals = useMemo(() => {
+    const totalValue = inventoryReconciliation.reduce((sum, item) => sum + (Number(item.current_stock_value) || 0), 0);
+    const totalVariance = inventoryReconciliation.reduce((sum, item) => sum + ((Number(item.closing_stock) || 0) - (Number(item.expected_closing) || 0)), 0);
+    return { totalValue, totalVariance };
+  }, [inventoryReconciliation]);
+
   if (!session) return null;
 
   const totalCashSales = shiftOrders?.reduce((acc, order) => {
@@ -162,9 +265,57 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
         expectedCash,
         description: session.notes || undefined,
         currency,
-        inventorySnapshot: inventorySnapshot || undefined
+        inventorySnapshot: inventorySnapshot || undefined,
+        inventoryReconciliation: inventoryReconciliation || undefined
     });
     setIsGeneratingPdf(false);
+  };
+
+  const handleExportReconciliationCSV = () => {
+    if (!inventoryReconciliation || inventoryReconciliation.length === 0) return;
+
+    const headers = [
+      'Product',
+      'Starting Stock',
+      'Added Stock',
+      'Sold',
+      'Ending Stock',
+      'Expected Ending',
+      'Variance',
+      'Unit Price',
+      'Ending Value'
+    ];
+
+    const rows = inventoryReconciliation.map((item: any) => {
+      const variance = (Number(item.closing_stock) || 0) - (Number(item.expected_closing) || 0);
+      return [
+        item.product_name || 'Unknown',
+        Number(item.opening_stock) || 0,
+        Number(item.added_stock) || 0,
+        Number(item.sold_quantity) || 0,
+        Number(item.closing_stock) || 0,
+        Number(item.expected_closing) || 0,
+        variance,
+        Number(item.unit_price) || 0,
+        Number(item.current_stock_value) || 0
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row: any[]) => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `shift_reconciliation_${format(new Date(session.opened_at), 'yyyyMMdd_HHmm')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const getShiftDuration = () => {
@@ -190,10 +341,28 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
             <CardHeader className="py-3 px-4 bg-muted/30 shrink-0 border-b">
                 <div className="flex justify-between items-center">
                     <CardTitle className="text-sm font-medium">Shift Summary</CardTitle>
-                    <Button variant="outline" size="sm" onClick={handleGeneratePDF} disabled={isGeneratingPdf || isLoadingOrders} className="h-8 gap-2">
-                         {isGeneratingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                         Export PDF
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleExportReconciliationCSV}
+                          disabled={isLoadingOrders || isLoadingSnapshot || isLoadingTransactions || inventoryReconciliation.length === 0}
+                          className="h-8 gap-2"
+                        >
+                          <Download className="h-3 w-3" />
+                          Export CSV
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleGeneratePDF}
+                          disabled={isGeneratingPdf || isLoadingOrders || isLoadingSnapshot || isLoadingTransactions}
+                          className="h-8 gap-2"
+                        >
+                             {isGeneratingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                             Export PDF
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent className="p-0 flex-1 overflow-hidden flex flex-col min-h-0">
@@ -376,6 +545,70 @@ export function ViewShiftReportDialog({ open, onOpenChange, session }: ViewShift
                                             </tbody>
                                         </table>
                                     </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Inventory Reconciliation */}
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Inventory Reconciliation</h4>
+                                <span className="text-xs bg-secondary px-2 py-0.5 rounded-full">{inventoryReconciliation.length} Items</span>
+                            </div>
+
+                            {(isLoadingOrders || isLoadingSnapshot || isLoadingTransactions) ? (
+                                <div className="flex justify-center py-4">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : (
+                                <div className="border rounded-lg bg-card overflow-hidden">
+                                    <div className="max-h-[260px] overflow-y-auto">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-muted/50 sticky top-0">
+                                                <tr className="border-b">
+                                                    <th className="text-left px-3 py-2 font-medium">Product</th>
+                                                    <th className="text-right px-3 py-2 font-medium whitespace-nowrap">Start</th>
+                                                    <th className="text-right px-3 py-2 font-medium whitespace-nowrap">Added</th>
+                                                    <th className="text-right px-3 py-2 font-medium whitespace-nowrap">Sold</th>
+                                                    <th className="text-right px-3 py-2 font-medium whitespace-nowrap">End</th>
+                                                    <th className="text-right px-3 py-2 font-medium whitespace-nowrap">Variance</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {inventoryReconciliation.map((item) => {
+                                                    const variance = (Number(item.closing_stock) || 0) - (Number(item.expected_closing) || 0);
+                                                    return (
+                                                        <tr key={item.product_id} className="border-b last:border-0 hover:bg-muted/20">
+                                                            <td className="px-3 py-2 truncate max-w-[220px]">{item.product_name}</td>
+                                                            <td className="px-3 py-2 text-right font-mono">{Number(item.opening_stock)}</td>
+                                                            <td className="px-3 py-2 text-right font-mono">{Number(item.added_stock)}</td>
+                                                            <td className="px-3 py-2 text-right font-mono text-red-600">-{Number(item.sold_quantity)}</td>
+                                                            <td className="px-3 py-2 text-right font-mono font-bold">{Number(item.closing_stock)}</td>
+                                                            <td className={`px-3 py-2 text-right font-mono ${variance === 0 ? 'text-muted-foreground' : variance > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                {variance > 0 ? '+' : ''}{variance}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                                {inventoryReconciliation.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={6} className="px-3 py-4 text-center text-muted-foreground italic">
+                                                            No reconciliation data available for this session.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {inventoryReconciliation.length > 0 && (
+                                <div className="mt-2 p-2 bg-muted/30 rounded flex justify-between items-center">
+                                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">Total Variance</span>
+                                    <span className={`text-sm font-bold ${reconciliationTotals.totalVariance === 0 ? 'text-muted-foreground' : reconciliationTotals.totalVariance > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {reconciliationTotals.totalVariance > 0 ? '+' : ''}{reconciliationTotals.totalVariance}
+                                    </span>
                                 </div>
                             )}
                         </div>

@@ -37,6 +37,7 @@ import { CalendarDateRangePicker } from '@/components/ui/date-range-picker';
 import { useReactToPrint } from 'react-to-print';
 import { useNavigate, useParams } from 'react-router-dom';
 import { formatCurrency } from '@/utils/currency';
+import { ViewShiftReportDialog } from '@/components/shifts/ViewShiftReportDialog';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -52,10 +53,14 @@ export default function ShiftReport() {
     from: new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000),
     to: new Date()
   });
+  const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [shopFilter, setShopFilter] = useState<string>('all');
+  const [staffFilter, setStaffFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedSession, setSelectedSession] = useState<any | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ 
     key: 'opened_at', 
     direction: 'desc' 
@@ -70,8 +75,10 @@ export default function ShiftReport() {
       from: new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000),
       to: new Date()
     });
+    setPaymentFilter('all');
     setStatusFilter('all');
     setShopFilter('all');
+    setStaffFilter('all');
     setSearchTerm('');
     setCurrentPage(1);
     setSortConfig({ key: 'opened_at', direction: 'desc' });
@@ -107,9 +114,37 @@ export default function ShiftReport() {
     enabled: !!businessId,
   });
 
+  // Fetch all sellers (profiles with seller role in this business) for staff filter
+  const { data: allStaff = [] } = useQuery({
+    queryKey: ['all-shift-staff', businessId],
+    queryFn: async () => {
+      if (!businessId) return [];
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select(`
+          user_id,
+          profile:profiles (id, name)
+        `)
+        .eq('business_id', businessId)
+        .eq('role', 'seller');
+
+      if (error) throw error;
+
+      const staffMap = new Map<string, string>();
+      (data || []).forEach((r: any) => {
+        if (r.profile?.id && r.profile?.name) staffMap.set(r.profile.id, r.profile.name);
+      });
+
+      return Array.from(staffMap.entries())
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+    enabled: !!businessId,
+  });
+
   // Fetch shifts (pos_sessions)
   const { data: sessions = [], isLoading } = useQuery({
-    queryKey: ['shift-report-data', businessId, dateFilter, dateRange, statusFilter, shopFilter, searchTerm, sortConfig],
+    queryKey: ['shift-report-data', businessId, dateFilter, dateRange, paymentFilter, statusFilter, shopFilter, staffFilter, searchTerm, sortConfig],
     queryFn: async () => {
       if (!businessId || !isManagerial) return [];
 
@@ -117,7 +152,7 @@ export default function ShiftReport() {
         .from('pos_sessions')
         .select(`
           *,
-          shop:shops (name),
+          shop:shops (name, logo_url, address, phone, owner_email),
           user:profiles!pos_sessions_user_id_fkey (name)
         `)
         .eq('business_id', businessId)
@@ -126,6 +161,11 @@ export default function ShiftReport() {
       // Apply shop filter
       if (shopFilter !== 'all') {
         query = query.eq('shop_id', shopFilter);
+      }
+
+      // Apply staff filter
+      if (staffFilter !== 'all') {
+        query = query.eq('user_id', staffFilter);
       }
 
       // Apply status filter
@@ -176,6 +216,67 @@ export default function ShiftReport() {
           s.user?.name?.toLowerCase().includes(term) ||
           s.notes?.toLowerCase().includes(term)
         );
+      }
+
+      if (paymentFilter !== 'all' && filteredData.length > 0) {
+        const nowIso = new Date().toISOString();
+        const shopIds = Array.from(new Set(filteredData.map(s => s.shop_id))).filter(Boolean);
+        const staffIds = Array.from(new Set(filteredData.map(s => s.user_id))).filter(Boolean);
+
+        const minOpenedAt = filteredData
+          .map(s => s.opened_at)
+          .filter(Boolean)
+          .sort()[0];
+
+        const maxClosedAt = filteredData
+          .map(s => (s.closed_at || nowIso))
+          .filter(Boolean)
+          .sort()
+          .slice(-1)[0];
+
+        if (shopIds.length > 0) {
+          let invoiceQuery = supabase
+            .from('invoices')
+            .select('payment_method, created_at, shop_id, staff_id')
+            .in('shop_id', shopIds)
+            .gte('created_at', minOpenedAt)
+            .lte('created_at', maxClosedAt);
+
+          if (staffIds.length > 0) {
+            invoiceQuery = invoiceQuery.in('staff_id', staffIds);
+          }
+
+          const { data: invoices, error: invError } = await invoiceQuery;
+          if (invError) throw invError;
+
+          const invoicesByKey = new Map<string, any[]>();
+          (invoices || []).forEach(inv => {
+            const key = `${inv.shop_id || ''}|${inv.staff_id || ''}`;
+            const list = invoicesByKey.get(key) || [];
+            list.push(inv);
+            invoicesByKey.set(key, list);
+          });
+
+          const matchesPayment = (method: string | null) => {
+            const m = (method || '').toLowerCase();
+            if (paymentFilter === 'momo') return m === 'mobile_money';
+            if (paymentFilter === 'card') return m === 'card' || m === 'pos_card';
+            return m === paymentFilter;
+          };
+
+          filteredData = filteredData.filter(s => {
+            const key = `${s.shop_id || ''}|${s.user_id || ''}`;
+            const list = invoicesByKey.get(key) || [];
+            const start = new Date(s.opened_at).getTime();
+            const end = new Date(s.closed_at || nowIso).getTime();
+            return list.some(inv => {
+              const t = new Date(inv.created_at).getTime();
+              return t >= start && t <= end && matchesPayment(inv.payment_method);
+            });
+          });
+        } else {
+          filteredData = [];
+        }
       }
 
       return filteredData;
@@ -342,7 +443,7 @@ export default function ShiftReport() {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               <div className="flex flex-col space-y-2">
                 <Label htmlFor="date-filter">Date Range</Label>
                 <Select value={dateFilter} onValueChange={(val) => { setDateFilter(val); setCurrentPage(1); }}>
@@ -356,6 +457,53 @@ export default function ShiftReport() {
                     <SelectItem value="90days">Last 90 days</SelectItem>
                     <SelectItem value="custom">Pick from date to date</SelectItem>
                     <SelectItem value="all">All time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+               <div className="flex flex-col space-y-2">
+                <Label htmlFor="shop-filter">Shop</Label>
+                <Select value={shopFilter} onValueChange={(val) => { setShopFilter(val); setCurrentPage(1); }}>
+                  <SelectTrigger id="shop-filter">
+                    <SelectValue placeholder="Select Shop" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Shops</SelectItem>
+                    {allShops.map(shop => (
+                      <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col space-y-2">
+                <Label htmlFor="staff-filter">Staff</Label>
+                <Select value={staffFilter} onValueChange={(val) => { setStaffFilter(val); setCurrentPage(1); }}>
+                  <SelectTrigger id="staff-filter">
+                    <SelectValue placeholder="All Staff" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Staff</SelectItem>
+                    {allStaff.map((u: any) => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col space-y-2">
+                <Label htmlFor="payment-filter">Payment Method</Label>
+                <Select value={paymentFilter} onValueChange={(val) => { setPaymentFilter(val); setCurrentPage(1); }}>
+                  <SelectTrigger id="payment-filter">
+                    <SelectValue placeholder="All Payments" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Payments</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="momo">Mobile Money</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="wallet">Wallet / Credit</SelectItem>
+                    <SelectItem value="split">Split</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -374,20 +522,7 @@ export default function ShiftReport() {
                 </Select>
               </div>
 
-              <div className="flex flex-col space-y-2">
-                <Label htmlFor="shop-filter">Shop</Label>
-                <Select value={shopFilter} onValueChange={(val) => { setShopFilter(val); setCurrentPage(1); }}>
-                  <SelectTrigger id="shop-filter">
-                    <SelectValue placeholder="Select Shop" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Shops</SelectItem>
-                    {allShops.map(shop => (
-                      <SelectItem key={shop.id} value={shop.id}>{shop.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+             
 
               <div className="flex flex-col space-y-2">
                 <Label htmlFor="search">Search Staff/Notes</Label>
@@ -483,6 +618,7 @@ export default function ShiftReport() {
                           </div>
                         </th>
                         <th className="p-3 text-left font-semibold">Status</th>
+                        <th className="p-3 text-left font-semibold print:hidden">Details</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -517,6 +653,18 @@ export default function ShiftReport() {
                           </td>
                           <td className="p-3">
                             {getStatusBadge(session.status)}
+                          </td>
+                          <td className="p-3 print:hidden">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedSession(session);
+                                setIsDetailsOpen(true);
+                              }}
+                            >
+                              View Details
+                            </Button>
                           </td>
                         </tr>
                       ))}
@@ -557,6 +705,15 @@ export default function ShiftReport() {
           </CardContent>
         </Card>
       </div>
+
+      <ViewShiftReportDialog
+        open={isDetailsOpen}
+        onOpenChange={(open) => {
+          setIsDetailsOpen(open);
+          if (!open) setSelectedSession(null);
+        }}
+        session={selectedSession}
+      />
     </TenantPageWrapper>
   );
 }

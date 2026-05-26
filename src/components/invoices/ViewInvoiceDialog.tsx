@@ -94,7 +94,7 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
       businessName: invoice.shop?.name || store?.name || 'Business Name',
       businessAddress: invoice.shop?.address,
       businessPhone: invoice.shop?.phone,
-      businessEmail: invoice.shop?.email,
+      businessEmail: invoice.shop?.email || invoice.shop?.owner_email || store?.ownerEmail,
       businessLogo: invoice.shop?.logo_url || store?.logoUrl,
       customerName: customer?.name || 'Guest',
       customerAddress: customer?.address,
@@ -284,4 +284,3 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
     </>
   );
 }
-

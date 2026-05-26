@@ -30,6 +30,7 @@ import {
   TenantShiftManagement,
   TenantInvoiceManagement,
   TenantInvoiceSettingsPage,
+  TenantCollections,
   InventorySettings,
   TenantProfile,
   TenantAuditReports,
@@ -106,7 +107,14 @@ export const TenantRoutes = (
     <Route path="commands" element={<CommandsDashboard />} />
     <Route path="inventory" element={<TenantInventory />} />
     <Route path="inventory/settings" element={<InventorySettings />} />
-    <Route path="finance" element={<TenantFinance />} />
+    <Route
+      path="finance/*"
+      element={
+        <ProtectedRoute requiredPermission="finance.access">
+          <TenantFinance />
+        </ProtectedRoute>
+      }
+    />
     <Route path="workforce" element={<TenantWorkforce />} />
     <Route path="reports" element={<TenantReports />} />
     <Route path="reports/audit" element={<TenantAuditReports />} />

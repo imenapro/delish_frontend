@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/accordion";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Clock, DollarSign, CheckCircle, FileText, Download, Mail, Plus, X, Loader2 } from 'lucide-react';
+import { Clock, DollarSign, CheckCircle, FileText, Download, Mail, Plus, X, Loader2, Wallet, Smartphone, CreditCard, Banknote, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -75,6 +75,8 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const { storeSlug } = useParams();
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [closingCash, setClosingCash] = useState('');
+  const [closingMomo, setClosingMomo] = useState('');
+  const [closingCard, setClosingCard] = useState('');
   const [description, setDescription] = useState('');
   const [additionalRecipients, setAdditionalRecipients] = useState<string[]>([]);
   const [newRecipient, setNewRecipient] = useState('');
@@ -197,7 +199,10 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const expectedCashOnly = session.opening_cash + totalCashSales - totalMoneyRefunds;
   const expectedCashWithMobile = session.opening_cash + totalCashAndMobileMoneySales - totalMoneyRefunds;
   const closingCashNum = parseFloat(closingCash) || 0;
-  const difference = closingCashNum - expectedCashWithMobile;
+  const closingMomoNum = parseFloat(closingMomo) || 0;
+  const closingCardNum = parseFloat(closingCard) || 0;
+  const totalReportedCollection = closingCashNum + closingMomoNum + closingCardNum;
+  const difference = (closingCashNum + closingMomoNum) - expectedCashWithMobile;
 
   // Fetch Branch Manager, Finance Staff, and Current User Email
   const { data: emails } = useQuery({
@@ -535,6 +540,30 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
 
       if (error) throw error;
 
+      // Handle Money Collection System (MCS) Reporting
+      if (store?.enableMoneyCollection) {
+        const { error: collectionError } = await supabase
+          .from('daily_collections')
+          .insert({
+            business_id: store.id,
+            shop_id: session.shop_id,
+            session_id: session.id,
+            seller_id: session.user_id,
+            reported_amount: totalReportedCollection,
+            expected_amount: expectedCashWithMobile + totalCardSales,
+            cash_amount: closingCashNum,
+            momo_amount: closingMomoNum,
+            card_amount: closingCardNum,
+            seller_notes: description,
+            status: 'pending'
+          });
+
+        if (collectionError) {
+          console.error("Failed to create collection report:", collectionError);
+          toast.warning("Shift closed, but failed to create money collection report. Please contact support.");
+        }
+      }
+
       // Save Inventory Snapshot
       if (inventory && inventory.length > 0) {
         const snapshotData = inventory.map(item => ({
@@ -673,7 +702,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
     return `${hours}h ${minutes}m`;
   };
 
-  const isFormValid = closingCash && description.length >= 50 && isVerified;
+  const isFormValid = closingCash && closingMomo && closingCard && description.length >= 50 && isVerified;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -743,7 +772,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                     {/* Cash Reconciliation */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-semibold flex items-center gap-2 border-b pb-2">
-                            <DollarSign className="h-4 w-4" /> Cash Reconciliation
+                            <DollarSign className="h-4 w-4" /> {store?.enableMoneyCollection ? 'Financial Reporting' : 'Cash Reconciliation'}
                         </h3>
                         <Card className="bg-muted/30">
                             <CardContent className="p-4 space-y-4">
@@ -763,34 +792,91 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-muted-foreground">Expected Cash Only</span>
-                                    <span className="font-semibold">{formatCurrency(expectedCashOnly, currency)}</span>
-                                </div>
-                                <div className="text-[11px] text-muted-foreground">Opening cash + cash sales</div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-muted-foreground">Expected Cash + Mobile Money</span>
+                                <div className="flex justify-between items-center border-t pt-2">
+                                    <span className="text-sm text-muted-foreground">Expected Cash + Mobile</span>
                                     <span className="text-xl font-bold">{formatCurrency(expectedCashWithMobile, currency)}</span>
                                 </div>
-                                <div className="text-[11px] text-muted-foreground">
-                                    Opening cash + cash sales + mobile money sales.
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="closing-cash">Actual Cash Count *</Label>
-                                    <Input
-                                        id="closing-cash"
-                                        type="number"
-                                        placeholder="Enter amount"
-                                        value={closingCash}
-                                        onChange={(e) => setClosingCash(e.target.value)}
-                                        className={difference !== 0 && closingCash ? (difference < 0 ? 'border-red-500' : 'border-green-500') : ''}
-                                    />
-                                    {closingCash && (
-                                        <div className={`text-sm font-medium text-right ${difference === 0 ? 'text-green-600' : difference > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                            Difference: {difference > 0 ? '+' : ''}{formatCurrency(difference, currency)}
+                                
+                                {true ? (
+                                    <div className="space-y-4 pt-4 border-t">
+                                        <div className="rounded-md bg-blue-50 p-3 flex items-start gap-3 border border-blue-200 mb-2">
+                                            <ShieldCheck className="h-5 w-5 text-blue-600 mt-0.5" />
+                                            <div className="text-xs text-blue-800">
+                                                <p className="font-medium mb-1">Financial Reconciliation</p>
+                                                Please enter the physical counts for each payment method to complete your shift report.
+                                            </div>
                                         </div>
-                                    )}
-                                </div>
+                                        
+                                        <div className="grid grid-cols-1 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="closing-cash" className="flex items-center gap-2">
+                                                    <Banknote className="h-4 w-4 text-green-600" /> Physical Cash Count *
+                                                </Label>
+                                                <Input
+                                                    id="closing-cash"
+                                                    type="number"
+                                                    placeholder="Physical cash on hand"
+                                                    value={closingCash}
+                                                    onChange={(e) => setClosingCash(e.target.value)}
+                                                />
+                                            </div>
+                                            
+                                            <div className="space-y-2">
+                                                <Label htmlFor="closing-momo" className="flex items-center gap-2">
+                                                    <Smartphone className="h-4 w-4 text-blue-600" /> Mobile Money Count *
+                                                </Label>
+                                                <Input
+                                                    id="closing-momo"
+                                                    type="number"
+                                                    placeholder="Total from MOMO reports"
+                                                    value={closingMomo}
+                                                    onChange={(e) => setClosingMomo(e.target.value)}
+                                                />
+                                            </div>
+                                            
+                                            <div className="space-y-2">
+                                                <Label htmlFor="closing-card" className="flex items-center gap-2">
+                                                    <CreditCard className="h-4 w-4 text-purple-600" /> Card Terminal Count *
+                                                </Label>
+                                                <Input
+                                                    id="closing-card"
+                                                    type="number"
+                                                    placeholder="Total from card terminal"
+                                                    value={closingCard}
+                                                    onChange={(e) => setClosingCard(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-800 space-y-2">
+                                            <div className="flex justify-between text-sm">
+                                                <span>Total Reported:</span>
+                                                <span className="font-bold">{formatCurrency(totalReportedCollection, currency)}</span>
+                                            </div>
+                                            <div className={`flex justify-between text-sm font-medium ${difference === 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                <span>Reconciliation Diff:</span>
+                                                <span>{difference > 0 ? '+' : ''}{formatCurrency(difference, currency)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 pt-2 border-t">
+                                        <Label htmlFor="closing-cash">Actual Cash Count *</Label>
+                                        <Input
+                                            id="closing-cash"
+                                            type="number"
+                                            placeholder="Enter amount"
+                                            value={closingCash}
+                                            onChange={(e) => setClosingCash(e.target.value)}
+                                            className={difference !== 0 && closingCash ? (difference < 0 ? 'border-red-500' : 'border-green-500') : ''}
+                                        />
+                                        {closingCash && (
+                                            <div className={`text-sm font-medium text-right ${difference === 0 ? 'text-green-600' : difference > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                Difference: {difference > 0 ? '+' : ''}{formatCurrency(difference, currency)}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </div>

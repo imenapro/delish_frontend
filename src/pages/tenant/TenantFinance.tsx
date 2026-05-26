@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TenantPageWrapper } from '@/components/tenant/TenantPageWrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,24 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, TrendingUp, TrendingDown, Wallet, Receipt, Percent, Activity, Wifi, WifiOff, RefreshCw, AlertCircle } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Wallet, Receipt, Percent, Activity, Wifi, WifiOff, RefreshCw, AlertCircle, HandCoins } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useStoreContext } from '@/contexts/StoreContext';
+import { useAuth } from '@/hooks/useAuth';
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, startOfDay, isAfter } from 'date-fns';
-import { formatCurrency } from '@/utils/currency';
+import { formatCurrency, DEFAULT_SYSTEM_CURRENCY } from '@/utils/currency';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const TAX_RATE = 0.18; // 18% VAT
-
-interface Expense {
-  id: string;
-  description: string;
-  category: string;
-  expense_date: string;
-  amount: number;
-  status: string;
-}
 
 import { ExpenseDialog } from '@/components/finance/ExpenseDialog';
 import { ExpensesManager } from '@/components/finance/ExpensesManager';
@@ -35,9 +28,25 @@ import { InvoiceData } from '@/components/invoices/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Eye } from 'lucide-react';
 
+import { MoneyCollectionsManager } from '@/components/finance/MoneyCollectionsManager';
+
 export default function TenantFinance() {
   const { store } = useStoreContext();
+  const location = useLocation();
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState('overview');
+  
+  // Update active tab based on URL path
+  useEffect(() => {
+    if (location.pathname.endsWith('/collections') || location.pathname.includes('/collections')) {
+      setActiveTab('collections');
+    } else if (location.pathname.endsWith('/invoices') || location.pathname.includes('/invoices')) {
+      setActiveTab('invoices');
+    } else if (location.pathname.endsWith('/expenses') || location.pathname.includes('/expenses')) {
+      setActiveTab('expenses');
+    }
+  }, [location.pathname]);
+
   const [period, setPeriod] = useState('this_month');
   const [viewInvoiceOpen, setViewInvoiceOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceData | null>(null);
@@ -96,152 +105,33 @@ export default function TenantFinance() {
     if (!store?.id || shopIds.length === 0) return;
 
     const channel = supabase
-      .channel('finance-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-        },
-        (payload) => {
-          // Check if the order belongs to one of our shops
-          const order = payload.new as any;
-          if (order && shopIds.includes(order.shop_id_origin)) {
-            // Invalidate relevant queries
-            queryClient.invalidateQueries({ queryKey: ['sales-pulse'] });
-            queryClient.invalidateQueries({ queryKey: ['tenant-finance-revenue'] });
-            queryClient.invalidateQueries({ queryKey: ['tenant-invoices'] });
-            setLastUpdated(new Date());
-            
-            if (payload.eventType === 'INSERT') {
-              toast.success(`New order received: ${formatCurrency(order.total_amount, currency)}`);
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'expenses',
-        },
-        (payload) => {
-           const expense = payload.new as any;
-           if (expense && shopIds.includes(expense.shop_id)) {
-             queryClient.invalidateQueries({ queryKey: ['tenant-finance-expenses'] });
-             queryClient.invalidateQueries({ queryKey: ['tenant-finance-revenue'] }); // Net profit changes
-             setLastUpdated(new Date());
-           }
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          setIsLive(true);
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setIsLive(false);
-          toast.error('Real-time connection lost. Retrying...');
-        }
-      });
+      .channel('finance-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        if (isLive) refreshData();
+      })
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [store?.id, JSON.stringify(shopIds), queryClient, currency]);
+  }, [store?.id, shopIds, isLive]);
 
-  // Client-side Pulse Calculation (replacing broken RPC)
-   const { data: pulseData, isLoading: pulseLoading } = useQuery({
-     queryKey: ['sales-pulse', store?.id, shopIds],
-     queryFn: async () => {
-       if (!store?.id || shopIds.length === 0) return { 
-         global: { daily: 0, weekly: 0, monthly: 0 }, 
-         shops: [] 
-       };
-       
-       const now = new Date();
-       const todayStart = startOfDay(now);
-       const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-       const monthStart = startOfMonth(now);
-       
-       // We need data from the earliest of these
-       const earliestDate = new Date(Math.min(weekStart.getTime(), monthStart.getTime()));
- 
-       // Function to fetch all orders recursively to bypass 1000 row limit
-       const fetchAllOrders = async () => {
-         let allOrders: any[] = [];
-         let page = 0;
-         const pageSize = 1000;
-         let hasMore = true;
-         
-         console.log('Fetching orders for shops:', shopIds);
-         console.log('Earliest Date:', earliestDate.toISOString());
-
-         while (hasMore) {
-           let query = supabase
-             .from('orders')
-             .select('total_amount, created_at, shop_id_origin')
-             .in('status', ['confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered'])
-             .range(page * pageSize, (page + 1) * pageSize - 1);
-
-           // Only apply shop filter if we have shops (redundant with RLS but good for optimization)
-           if (shopIds.length > 0) {
-              query = query.in('shop_id_origin', shopIds);
-           }
-           
-           // TEMPORARY: Commenting out date filter to debug "Zero Data" issue
-           // .gte('created_at', earliestDate.toISOString())
-
-           const { data, error } = await query;
-             
-           if (error) {
-             console.error('Order fetch error:', error);
-             throw error;
-           }
-           
-           console.log(`Page ${page} fetched: ${data?.length} orders`);
-
-           if (data && data.length > 0) {
-             allOrders = [...allOrders, ...data];
-             if (data.length < pageSize) hasMore = false;
-             page++;
-           } else {
-             hasMore = false;
-           }
-         }
-         console.log('Total orders fetched:', allOrders.length);
-         return allOrders;
-       };
-
-       const orders = await fetchAllOrders();
-       
-       // Global stats
-      const global = {
-        daily: orders.filter(o => new Date(o.created_at) >= todayStart).reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0),
-        weekly: orders.filter(o => new Date(o.created_at) >= weekStart).reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0),
-        monthly: orders.filter(o => new Date(o.created_at) >= monthStart).reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0),
-      };
-
-       // Shop stats
-       const shopStats = shops.map(shop => {
-         const shopOrders = orders.filter(o => o.shop_id_origin === shop.id);
-         return {
-           shop_id: shop.id,
-           shop_name: shop.name,
-          daily: shopOrders.filter(o => new Date(o.created_at) >= todayStart).reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0),
-          weekly: shopOrders.filter(o => new Date(o.created_at) >= weekStart).reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0),
-          monthly: shopOrders.filter(o => new Date(o.created_at) >= monthStart).reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0),
-        };
+  // Fetch Sales Pulse
+  const { data: pulseData } = useQuery({
+    queryKey: ['sales-pulse', store?.id, shopIds],
+    queryFn: async () => {
+      if (!store?.id || shopIds.length === 0) return { shops: [] };
+      const { data, error } = await supabase.rpc('get_sales_pulse', {
+        p_business_id: store.id
       });
- 
-       return { global, shops: shopStats };
-     },
-     enabled: !!store?.id && shopIds.length > 0 && shops.length > 0,
-     // Refetch every minute for "pulse" feel
-     refetchInterval: 60000 
-   });
+      if (error) throw error;
+      return { shops: data || [] };
+    },
+    enabled: !!store?.id && shopIds.length > 0,
+  });
 
-  const { data: revenueData, isLoading: revenueLoading } = useQuery({
+  // Fetch revenue summary
+  const { data: revenueData, isLoading } = useQuery({
     queryKey: ['tenant-finance-revenue', store?.id, period, shopIds],
     queryFn: async () => {
       if (!store?.id || shopIds.length === 0) return { gross: 0, tax: 0, net: 0, orderCount: 0 };
@@ -345,20 +235,26 @@ export default function TenantFinance() {
         .from('audit_logs')
         .select('*')
         .or('action.ilike.%ORDER%,action.ilike.%EXPENSE%')
+        .eq('business_id', store.id)
         .order('created_at', { ascending: false })
-        .limit(50);
-        
-      if (error) {
-        console.warn('Audit logs fetch failed:', error);
-        return [];
-      }
-      return data || [];
+        .limit(20);
+
+      if (error) throw error;
+      return data;
     },
-    enabled: !!store?.id
+    enabled: !!store?.id,
   });
 
-  // Calculate net profit
   const netProfit = (revenueData?.net || 0) - (expenseData?.approved || 0);
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'delivered': return 'bg-green-100 text-green-700';
+      case 'pending': return 'bg-yellow-100 text-yellow-700';
+      case 'confirmed': return 'bg-blue-100 text-blue-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
 
   const handleViewInvoice = (order: any) => {
     const invoice: InvoiceData = {
@@ -387,42 +283,27 @@ export default function TenantFinance() {
     setViewInvoiceOpen(true);
   };
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: 'bg-warning text-warning-foreground',
-      approved: 'bg-success text-success-foreground',
-      rejected: 'bg-destructive text-destructive-foreground',
-    };
-    return colors[status] || 'bg-secondary';
-  };
-
-  const isLoading = revenueLoading || expenseLoading;
-
   return (
     <TenantPageWrapper
       title="Finance"
       description="Track revenue, expenses, and financial performance"
-      actions={
+    >
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-2">
-          {isLive ? (
-            <Badge variant="outline" className="border-green-500 text-green-500 flex gap-1 items-center animate-pulse">
-              <Wifi className="h-3 w-3" /> Live
-            </Badge>
-          ) : (
-             <Badge variant="outline" className="border-red-500 text-red-500 flex gap-1 items-center">
-              <WifiOff className="h-3 w-3" /> Offline
-            </Badge>
-          )}
-          <Button variant="outline" size="sm" onClick={refreshData} title="Refresh Data">
-            <RefreshCw className="h-4 w-4" />
+          <Badge variant={isLive ? "default" : "outline"} className={isLive ? "bg-green-500" : ""}>
+            <div className={isLive ? "w-2 h-2 rounded-full bg-white animate-pulse mr-2" : "w-2 h-2 rounded-full bg-gray-400 mr-2"} />
+            {isLive ? 'Live' : 'Manual'}
+          </Badge>
+          <Button variant="ghost" size="icon" onClick={refreshData} disabled={isLoading}>
+            <RefreshCw className={isLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
           </Button>
-          <span className="text-xs text-muted-foreground hidden md:inline-block">
-            Updated: {lastUpdated.toLocaleTimeString()}
-          </span>
-          <ExpenseDialog />
-          <Select value={period} onValueChange={setPeriod}>
+          <span className="text-xs text-muted-foreground">Updated: {format(lastUpdated, 'h:mm:ss a')}</span>
+        </div>
+        <div className="flex items-center gap-2">
+           <ExpenseDialog onExpenseCreated={refreshData} />
+           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-[180px]">
-              <SelectValue />
+              <SelectValue placeholder="Select Period" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="this_month">This Month</SelectItem>
@@ -431,70 +312,16 @@ export default function TenantFinance() {
             </SelectContent>
           </Select>
         </div>
-      }
-    >
-      {shops.length === 0 && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>No Shops Accessible</AlertTitle>
-          <AlertDescription>
-            We couldn't find any shops linked to your account. This is likely due to permissions.
-            Please run the migration '20260206000003_fix_shops_rls.sql' to fix access.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Global Sales Pulse - Always Visible */}
-      <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-4">Global Sales Pulse</h2>
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card className="border-l-4 border-l-green-500">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Daily Sales</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {pulseLoading ? '...' : formatCurrency(pulseData?.global?.daily || 0, currency)}
-              </div>
-              <p className="text-xs text-muted-foreground">Today</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-l-blue-500">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Weekly Sales</CardTitle>
-              <TrendingUp className="h-4 w-4 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {pulseLoading ? '...' : formatCurrency(pulseData?.global?.weekly || 0, currency)}
-              </div>
-              <p className="text-xs text-muted-foreground">This Week</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-l-purple-500">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Monthly Sales</CardTitle>
-              <TrendingUp className="h-4 w-4 text-purple-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {pulseLoading ? '...' : formatCurrency(pulseData?.global?.monthly || 0, currency)}
-              </div>
-              <p className="text-xs text-muted-foreground">This Month</p>
-            </CardContent>
-          </Card>
-        </div>
       </div>
 
-      {/* Tabs for detailed view */}
-      <Tabs defaultValue="overview" className="mt-6">
-        <TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-8 h-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
+          {store?.enableMoneyCollection && <TabsTrigger value="collections">Collections</TabsTrigger>}
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
-            <TabsTrigger value="accounts">Accounts</TabsTrigger>
-            <TabsTrigger value="budgets">Budgets</TabsTrigger>
+          <TabsTrigger value="accounts">Accounts</TabsTrigger>
+          <TabsTrigger value="budgets">Budgets</TabsTrigger>
           <TabsTrigger value="payment-methods">Payment Methods</TabsTrigger>
           <TabsTrigger value="audit-logs">Audit Logs</TabsTrigger>
         </TabsList>
@@ -504,7 +331,7 @@ export default function TenantFinance() {
           <div className="mb-8">
             <h2 className="text-lg font-semibold mb-4">Shop Performance</h2>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {pulseData?.shops?.map((shop) => (
+              {pulseData?.shops?.map((shop: any) => (
                 <Card key={shop.shop_id}>
                   <CardHeader>
                     <CardTitle className="text-base">{shop.shop_name}</CardTitle>
@@ -532,7 +359,6 @@ export default function TenantFinance() {
 
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-4">Financial Overview (Selected Period)</h2>
-            {/* Summary Cards */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -638,34 +464,6 @@ export default function TenantFinance() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="expenses">
-          <ExpensesManager
-            title="Expenses"
-            description="All expense records for the selected period"
-            shopIds={shopIds}
-            dateRange={dateRange}
-          />
-        </TabsContent>
-
-        <TabsContent value="accounts" className="space-y-6">
-          <FinancialAccountsManager />
-        </TabsContent>
-
-        <TabsContent value="budgets" className="space-y-6">
-          <ExpenseBudgetsManager />
-        </TabsContent>
-        <TabsContent value="payment-methods">
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment Methods</CardTitle>
-              <CardDescription>Manage your accepted payment methods and payouts</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <TenantPaymentMethods />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="invoices">
           <Card>
             <CardHeader>
@@ -714,6 +512,41 @@ export default function TenantFinance() {
           </Card>
         </TabsContent>
 
+        {store?.enableMoneyCollection && (
+          <TabsContent value="collections">
+            <MoneyCollectionsManager />
+          </TabsContent>
+        )}
+
+        <TabsContent value="expenses">
+          <ExpensesManager
+            title="Expenses"
+            description="All expense records for the selected period"
+            shopIds={shopIds}
+            dateRange={dateRange}
+          />
+        </TabsContent>
+
+        <TabsContent value="accounts" className="space-y-6">
+          <FinancialAccountsManager />
+        </TabsContent>
+
+        <TabsContent value="budgets" className="space-y-6">
+          <ExpenseBudgetsManager />
+        </TabsContent>
+
+        <TabsContent value="payment-methods">
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment Methods</CardTitle>
+              <CardDescription>Manage your accepted payment methods and payouts</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TenantPaymentMethods />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="audit-logs">
            <Card>
             <CardHeader>
@@ -733,11 +566,13 @@ export default function TenantFinance() {
                 <TableBody>
                   {auditLogs?.map((log: any) => (
                     <TableRow key={log.id}>
-                      <TableCell>{format(new Date(log.created_at), 'MMM dd, HH:mm:ss')}</TableCell>
-                      <TableCell><Badge variant="outline">{log.action}</Badge></TableCell>
+                      <TableCell>{format(new Date(log.created_at), 'MMM dd, HH:mm')}</TableCell>
                       <TableCell>
-                        <div className="max-w-[400px] truncate" title={log.details}>
-                           {log.details}
+                        <Badge variant="outline">{log.action}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-[300px] truncate" title={JSON.stringify(log.details)}>
+                          {typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}
                         </div>
                       </TableCell>
                       <TableCell>{log.performed_by?.slice(0,8) || 'System'}</TableCell>
@@ -756,6 +591,14 @@ export default function TenantFinance() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {selectedInvoice && (
+        <ViewInvoiceDialog
+          open={viewInvoiceOpen}
+          onOpenChange={setViewInvoiceOpen}
+          invoice={selectedInvoice as any}
+        />
+      )}
     </TenantPageWrapper>
   );
 }

@@ -45,6 +45,7 @@ export interface Store {
   invoiceTemplateId?: string;
   invoiceSettings?: InvoiceSettings;
   disableShiftOpeningCash?: boolean;
+  enableMoneyCollection?: boolean;
 }
 
 interface StoreContextType {
@@ -134,6 +135,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               fontFamily: 'Inter'
             },
             disableShiftOpeningCash: business.disable_shift_opening_cash ?? false,
+            enableMoneyCollection: business.enable_money_collection ?? false,
           });
         } else {
           setStore(null);
@@ -187,11 +189,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const getTenantRoute = (path: string): string => {
     if (!store) return path;
     const hostname = window.location.hostname;
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
     if (isCustomDomain(hostname)) {
-      // Ensure path starts with /
-      return path.startsWith('/') ? path : `/${path}`;
+      return normalizedPath;
     }
-    return `/${store.slug}${path}`;
+    return `/${store.slug}${normalizedPath}`;
   };
 
   return (
