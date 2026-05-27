@@ -76,7 +76,6 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const currency = store?.currency || DEFAULT_SYSTEM_CURRENCY;
   const [closingCash, setClosingCash] = useState('');
   const [closingMomo, setClosingMomo] = useState('');
-  const [closingCard, setClosingCard] = useState('');
   const [description, setDescription] = useState('');
   const [additionalRecipients, setAdditionalRecipients] = useState<string[]>([]);
   const [newRecipient, setNewRecipient] = useState('');
@@ -200,8 +199,8 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
   const expectedCashWithMobile = session.opening_cash + totalCashAndMobileMoneySales - totalMoneyRefunds;
   const closingCashNum = parseFloat(closingCash) || 0;
   const closingMomoNum = parseFloat(closingMomo) || 0;
-  const closingCardNum = parseFloat(closingCard) || 0;
-  const totalReportedCollection = closingCashNum + closingMomoNum + closingCardNum;
+  const closingCardNum = 0;
+  const totalReportedCollection = closingCashNum + closingMomoNum;
   const difference = (closingCashNum + closingMomoNum) - expectedCashWithMobile;
 
   // Fetch Branch Manager, Finance Staff, and Current User Email
@@ -550,7 +549,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
             session_id: session.id,
             seller_id: session.user_id,
             reported_amount: totalReportedCollection,
-            expected_amount: expectedCashWithMobile + totalCardSales,
+            expected_amount: expectedCashWithMobile,
             cash_amount: closingCashNum,
             momo_amount: closingMomoNum,
             card_amount: closingCardNum,
@@ -702,7 +701,7 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
     return `${hours}h ${minutes}m`;
   };
 
-  const isFormValid = closingCash && closingMomo && closingCard && description.length >= 50 && isVerified;
+  const isFormValid = closingCash && closingMomo && description.length >= 50 && isVerified;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -831,19 +830,6 @@ export function CloseShiftDialog({ open, onOpenChange, session, onShiftClosed }:
                                                     placeholder="Total from MOMO reports"
                                                     value={closingMomo}
                                                     onChange={(e) => setClosingMomo(e.target.value)}
-                                                />
-                                            </div>
-                                            
-                                            <div className="space-y-2">
-                                                <Label htmlFor="closing-card" className="flex items-center gap-2">
-                                                    <CreditCard className="h-4 w-4 text-purple-600" /> Card Terminal Count *
-                                                </Label>
-                                                <Input
-                                                    id="closing-card"
-                                                    type="number"
-                                                    placeholder="Total from card terminal"
-                                                    value={closingCard}
-                                                    onChange={(e) => setClosingCard(e.target.value)}
                                                 />
                                             </div>
                                         </div>
