@@ -126,7 +126,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const subscriptionEndDate = business.subscription_end_date || business.trial_end_date;
           const status = business.status || 'active';
           const normalizedStatus = status.trim().toLowerCase();
-          const isBlockedStatus = ['suspended', 'expired'].includes(normalizedStatus);
 
           setStore({
             id: business.id,
@@ -145,11 +144,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             status,
             suspendedAt: business.suspended_at || undefined,
             accessReactivatedAt: business.access_reactivated_at || undefined,
-            suspensionDate: business.suspended_at || (isBlockedStatus
-              ? normalizedStatus === 'suspended'
-                ? business.updated_at || subscriptionEndDate || undefined
-                : subscriptionEndDate || business.updated_at || undefined
-              : subscriptionEndDate || undefined),
+            suspensionDate: normalizedStatus === 'expired'
+              ? subscriptionEndDate || business.suspended_at || business.updated_at || undefined
+              : normalizedStatus === 'suspended'
+                ? business.suspended_at || business.updated_at || subscriptionEndDate || undefined
+                : subscriptionEndDate || undefined,
             locale: business.locale || 'en',
             customDomain: business.custom_domain,
             currency: business.currency || 'USD',

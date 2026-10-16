@@ -52,7 +52,6 @@ export function EditStoreDialog({ open, onOpenChange, store, onSubmit }: EditSto
         ? undefined
         : isReactivating ? new Date().toISOString() : store.accessReactivatedAt,
     });
-    toast.success('Store updated successfully!');
   };
 
   return (
