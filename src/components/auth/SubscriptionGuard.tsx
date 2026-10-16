@@ -4,7 +4,7 @@ import { useStoreContext } from '@/contexts/StoreContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Clock, Mail, ShieldAlert } from 'lucide-react';
+import { Clock, Mail, Phone, ShieldAlert } from 'lucide-react';
 import { MAIN_DOMAIN, isCustomDomain } from '@/utils/domainMapping';
 
 interface SubscriptionGuardProps {
@@ -100,6 +100,13 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
               >
                 <Mail className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Contact support at imenabrain@gmail.com.
+              </a>
+              <a
+                href="tel:+250788848493"
+                className="mt-2 inline-flex max-w-full items-center justify-center gap-2 break-all text-sm text-primary underline-offset-4 hover:underline"
+              >
+                <Phone className="h-4 w-4 shrink-0" aria-hidden="true" />
+                +250788848493
               </a>
             </div>
           </CardContent>
