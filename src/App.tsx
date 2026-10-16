@@ -21,12 +21,14 @@ import { FaviconManager } from "@/components/FaviconManager";
 import { TenantRoutes } from "./TenantRoutes";
 import { isCustomDomain } from "./utils/domainMapping";
 
-import Warehouse from "./pages/Warehouse";
-import ProductionStock from "./pages/ProductionStock";
-import StockReports from "./pages/StockReports";
-import Suppliers from "./pages/Suppliers";
-import Recipes from "./pages/Recipes";
-import FinishedProducts from "./pages/FinishedProducts";
+import { WarehouseContent } from "./pages/Warehouse";
+import { ProductionStockContent } from "./pages/ProductionStock";
+import { StockReportsContent } from "./pages/StockReports";
+import { SuppliersContent } from "./pages/Suppliers";
+import { RecipesContent } from "./pages/Recipes";
+import { FinishedProductsContent } from "./pages/FinishedProducts";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { SubscriptionGuard } from "./components/auth/SubscriptionGuard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -100,12 +102,36 @@ const App = () => {
                 </>
               )}
 
-                <Route path="/warehouse" element={<Warehouse />} />
-                <Route path="/production-stock" element={<ProductionStock />} />
-                <Route path="/stock-reports" element={<StockReports />} />
-                <Route path="/suppliers" element={<Suppliers />} />
-                <Route path="/recipes" element={<Recipes />} />
-                <Route path="/finished-products" element={<FinishedProducts />} />
+                <Route path="/warehouse" element={
+                  <ProtectedRoute requiredPermission="warehouse.access">
+                    <SubscriptionGuard><WarehouseContent /></SubscriptionGuard>
+                  </ProtectedRoute>
+                } />
+                <Route path="/production-stock" element={
+                  <ProtectedRoute requiredPermission="production_stock.access">
+                    <SubscriptionGuard><ProductionStockContent /></SubscriptionGuard>
+                  </ProtectedRoute>
+                } />
+                <Route path="/stock-reports" element={
+                  <ProtectedRoute requiredPermission="stock_reports.access">
+                    <SubscriptionGuard><StockReportsContent /></SubscriptionGuard>
+                  </ProtectedRoute>
+                } />
+                <Route path="/suppliers" element={
+                  <ProtectedRoute requiredPermission="suppliers.access">
+                    <SubscriptionGuard><SuppliersContent /></SubscriptionGuard>
+                  </ProtectedRoute>
+                } />
+                <Route path="/recipes" element={
+                  <ProtectedRoute requiredPermission="recipes.access">
+                    <SubscriptionGuard><RecipesContent /></SubscriptionGuard>
+                  </ProtectedRoute>
+                } />
+                <Route path="/finished-products" element={
+                  <ProtectedRoute requiredPermission="finished_products.access">
+                    <SubscriptionGuard><FinishedProductsContent /></SubscriptionGuard>
+                  </ProtectedRoute>
+                } />
 
             </Routes>
           </StoreProvider>

@@ -18,7 +18,14 @@ export function EditStoreDialog({ open, onOpenChange, store, onSubmit }: EditSto
   const [formData, setFormData] = useState(store);
 
   useEffect(() => {
-    setFormData(store);
+    const status = store.status.toLowerCase();
+    const endTime = new Date(store.subscriptionEndDate).getTime();
+    const expiredByDate = status !== 'bought' && Number.isFinite(endTime) && endTime < Date.now();
+    const statusForForm = expiredByDate && !['suspended', 'expired'].includes(status)
+      ? 'expired'
+      : store.status;
+
+    setFormData({ ...store, status: statusForForm });
   }, [store]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -29,7 +36,22 @@ export function EditStoreDialog({ open, onOpenChange, store, onSubmit }: EditSto
       return;
     }
 
-    onSubmit(formData);
+    const nextStatus = formData.status.toLowerCase();
+    const isSuspendedStatus = ['suspended', 'expired'].includes(nextStatus);
+    const currentStatus = store.status.toLowerCase();
+    const endTime = new Date(store.subscriptionEndDate).getTime();
+    const wasExpiredByDate = currentStatus !== 'bought' && Number.isFinite(endTime) && endTime < Date.now();
+    const isReactivating = ['active', 'bought'].includes(nextStatus) && (
+      ['suspended', 'expired'].includes(currentStatus) || Boolean(store.suspendedAt) || wasExpiredByDate
+    );
+
+    onSubmit({
+      ...formData,
+      suspendedAt: isSuspendedStatus ? formData.suspendedAt || new Date().toISOString() : undefined,
+      accessReactivatedAt: isSuspendedStatus
+        ? undefined
+        : isReactivating ? new Date().toISOString() : store.accessReactivatedAt,
+    });
     toast.success('Store updated successfully!');
   };
 
@@ -108,7 +130,7 @@ export function EditStoreDialog({ open, onOpenChange, store, onSubmit }: EditSto
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
               <Select
-                value={formData.status}
+                value={formData.status.toLowerCase()}
                 onValueChange={(value: 'active' | 'expiring_soon' | 'expired' | 'suspended') => setFormData({ ...formData, status: value })}
               >
                 <SelectTrigger id="status">

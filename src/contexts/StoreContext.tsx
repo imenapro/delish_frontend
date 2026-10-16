@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback 
 import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getStoreSlugFromDomain, isCustomDomain } from '@/utils/domainMapping';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface ThemeConfig {
   logoUrl?: string;
@@ -38,7 +39,10 @@ export interface Store {
   planType: 'trial' | 'monthly' | 'quarterly' | 'annual';
   subscriptionStartDate: string;
   subscriptionEndDate: string;
-  status: 'active' | 'expiring_soon' | 'expired' | 'suspended';
+  status: string;
+  suspendedAt?: string;
+  accessReactivatedAt?: string;
+  suspensionDate?: string;
   locale: 'pt' | 'en' | 'fr';
   customDomain?: string;
   currency: string;
@@ -63,20 +67,22 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const { user, loading: authLoading } = useAuth();
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expirationCheckTime, setExpirationCheckTime] = useState(() => Date.now());
 
   const loadStore = useCallback(async () => {
     const hostname = window.location.hostname;
     const manualSlug = getStoreSlugFromDomain(hostname);
     const isCustom = isCustomDomain(hostname);
+
+    const standaloneTenantRoutes = ['warehouse', 'production-stock', 'stock-reports', 'suppliers', 'recipes', 'finished-products'];
     
     // Ignore legacy routes that are not tenant routes
-    const legacyRoutes = ['super-admin', 'auth', 'pos', 'shops', 'products', 'orders', 'kitchen', 'delivery', 'inventory', 'finance', 'workforce', 'reports', 'admin', 'staff-management', 'wallet', 'chat', 'register'];
+    const legacyRoutes = ['super-admin', 'auth', 'pos', 'shops', 'products', 'orders', 'kitchen', 'delivery', 'inventory', 'finance', 'workforce', 'reports', 'admin', 'staff-management', 'wallet', 'chat', 'register', ...standaloneTenantRoutes];
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
       let query = supabase.from('businesses').select('*');
       let shouldFetch = false;
       
@@ -89,8 +95,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } else {
         const pathParts = location.pathname.split('/').filter(Boolean);
         const slugFromPath = pathParts[0];
-        
-        if (slugFromPath && !legacyRoutes.includes(slugFromPath)) {
+
+        if (slugFromPath && standaloneTenantRoutes.includes(slugFromPath) && user) {
+          const { data: businessIds, error: businessIdsError } = await supabase.rpc('get_user_businesses', {
+            _user_id: user.id,
+          });
+
+          if (businessIdsError) {
+            console.error('[StoreContext] Error loading user businesses:', businessIdsError);
+          } else {
+            const uniqueBusinessIds = [...new Set(businessIds || [])];
+            if (uniqueBusinessIds.length === 1) {
+              query = query.eq('id', uniqueBusinessIds[0]);
+              shouldFetch = true;
+            }
+          }
+        } else if (slugFromPath && !legacyRoutes.includes(slugFromPath)) {
           query = query.ilike('slug', slugFromPath);
           shouldFetch = true;
         }
@@ -103,6 +123,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           console.error('[StoreContext] Error loading business:', error);
           setStore(null);
         } else if (business) {
+          const subscriptionEndDate = business.subscription_end_date || business.trial_end_date;
+          const status = business.status || 'active';
+          const isBlockedStatus = ['suspended', 'expired'].includes(status.toLowerCase());
+
           setStore({
             id: business.id,
             name: business.name,
@@ -116,8 +140,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ownerEmail: business.owner_email,
             planType: business.plan_type || 'trial',
             subscriptionStartDate: business.subscription_start_date || business.trial_start_date,
-            subscriptionEndDate: business.subscription_end_date || business.trial_end_date,
-            status: business.status || 'active',
+            subscriptionEndDate,
+            status,
+            suspendedAt: business.suspended_at || undefined,
+            accessReactivatedAt: business.access_reactivated_at || undefined,
+            suspensionDate: business.suspended_at || (isBlockedStatus
+              ? business.updated_at || subscriptionEndDate || undefined
+              : subscriptionEndDate || undefined),
             locale: business.locale || 'en',
             customDomain: business.custom_domain,
             currency: business.currency || 'USD',
@@ -148,11 +177,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setStore(null);
     }
     setLoading(false);
-  }, [location.pathname]);
+  }, [location.pathname, user?.id]);
 
   useEffect(() => {
+    if (authLoading) return;
     loadStore();
-  }, [loadStore]);
+  }, [authLoading, loadStore]);
+
+  useEffect(() => {
+    const endTime = store?.subscriptionEndDate ? new Date(store.subscriptionEndDate).getTime() : NaN;
+    if (!Number.isFinite(endTime) || endTime <= Date.now()) return;
+
+    const timeoutId = window.setTimeout(
+      () => setExpirationCheckTime(Date.now()),
+      endTime - Date.now() + 1,
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [store?.subscriptionEndDate]);
 
 
 
@@ -165,8 +206,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return diffDays;
   };
 
-  const isExpired = store ? (store.status === 'Bought' ? false : new Date(store.subscriptionEndDate) < new Date()) : false;
-  const daysUntilExpiration = store?.status === 'Bought' ? 36500 : calculateDaysUntilExpiration();
+  const normalizedStatus = store?.status.trim().toLowerCase();
+  const isLifetimeAccount = normalizedStatus === 'bought';
+  const statusBlocksAccess = normalizedStatus === 'suspended' || normalizedStatus === 'expired';
+  const subscriptionEndTime = store?.subscriptionEndDate ? new Date(store.subscriptionEndDate).getTime() : NaN;
+  const accessReactivatedTime = store?.accessReactivatedAt ? new Date(store.accessReactivatedAt).getTime() : NaN;
+  const wasReactivatedAfterExpiration = Number.isFinite(accessReactivatedTime)
+    && Number.isFinite(subscriptionEndTime)
+    && accessReactivatedTime >= subscriptionEndTime;
+  const isExpired = Boolean(store && (
+    statusBlocksAccess || (!isLifetimeAccount && Number.isFinite(subscriptionEndTime)
+      && subscriptionEndTime < expirationCheckTime && !wasReactivatedAfterExpiration)
+  ));
+  const daysUntilExpiration = isLifetimeAccount ? 36500 : calculateDaysUntilExpiration();
+
+  useEffect(() => {
+    if (!isExpired) return;
+
+    const refreshBlockedStore = () => {
+      if (document.visibilityState === 'visible') void loadStore();
+    };
+    const intervalId = window.setInterval(refreshBlockedStore, 30_000);
+    window.addEventListener('focus', refreshBlockedStore);
+    document.addEventListener('visibilitychange', refreshBlockedStore);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshBlockedStore);
+      document.removeEventListener('visibilitychange', refreshBlockedStore);
+    };
+  }, [isExpired, loadStore]);
 
   const themeConfig: ThemeConfig = {
     logoUrl: store?.logoUrl,

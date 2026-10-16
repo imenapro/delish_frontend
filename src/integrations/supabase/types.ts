@@ -96,6 +96,7 @@ export type Database = {
           created_date: string | null
           currency: string | null
           custom_domain: string | null
+          access_reactivated_at: string | null
           deleted_by: string | null
           deleted_date: string | null
           deleted_status: boolean | null
@@ -114,6 +115,7 @@ export type Database = {
           slogan: string | null
           slug: string | null
           status: string | null
+          suspended_at: string | null
           subscription_end_date: string | null
           subscription_start_date: string | null
           timezone: string | null
@@ -133,6 +135,7 @@ export type Database = {
           created_date?: string | null
           currency?: string | null
           custom_domain?: string | null
+          access_reactivated_at?: string | null
           deleted_by?: string | null
           deleted_date?: string | null
           deleted_status?: boolean | null
@@ -151,6 +154,7 @@ export type Database = {
           slogan?: string | null
           slug?: string | null
           status?: string | null
+          suspended_at?: string | null
           subscription_end_date?: string | null
           subscription_start_date?: string | null
           timezone?: string | null
@@ -170,6 +174,7 @@ export type Database = {
           created_date?: string | null
           currency?: string | null
           custom_domain?: string | null
+          access_reactivated_at?: string | null
           deleted_by?: string | null
           deleted_date?: string | null
           deleted_status?: boolean | null
@@ -188,6 +193,7 @@ export type Database = {
           slogan?: string | null
           slug?: string | null
           status?: string | null
+          suspended_at?: string | null
           subscription_end_date?: string | null
           subscription_start_date?: string | null
           timezone?: string | null

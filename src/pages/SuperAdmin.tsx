@@ -62,6 +62,8 @@ export default function SuperAdmin() {
         subscriptionStartDate: b.subscription_start_date || new Date().toISOString(),
         subscriptionEndDate: b.subscription_end_date || new Date().toISOString(),
         status: (b.status as any) || 'active',
+        suspendedAt: b.suspended_at || undefined,
+        accessReactivatedAt: b.access_reactivated_at || undefined,
         locale: 'en',
         customDomain: undefined
       }));
@@ -109,6 +111,7 @@ export default function SuperAdmin() {
 
   const handleEditStore = async (updatedStore: StoreType) => {
     try {
+      const isSuspendedStatus = ['suspended', 'expired'].includes(updatedStore.status.toLowerCase());
       const { error } = await supabase
         .from('businesses')
         .update({
@@ -118,6 +121,10 @@ export default function SuperAdmin() {
           secondary_color: updatedStore.secondaryColor,
           plan_type: updatedStore.planType,
           status: updatedStore.status,
+          suspended_at: isSuspendedStatus ? updatedStore.suspendedAt || new Date().toISOString() : null,
+          access_reactivated_at: isSuspendedStatus
+            ? null
+            : updatedStore.accessReactivatedAt || selectedStore?.accessReactivatedAt || null,
           subscription_start_date: updatedStore.subscriptionStartDate,
           subscription_end_date: updatedStore.subscriptionEndDate
         })

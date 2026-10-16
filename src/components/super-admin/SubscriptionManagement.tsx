@@ -40,6 +40,37 @@ interface SubscriptionManagementProps {
   onUpdateStore: (store: Store) => void;
 }
 
+function getEffectiveSubscriptionStatus(store: Store, subscription?: BusinessSubscription) {
+  const businessStatus = store.status.toLowerCase();
+  const storedSubscriptionStatus = subscription?.status || store.status;
+  const currentStatus = ['suspended', 'expired'].includes(businessStatus)
+    ? store.status
+    : storedSubscriptionStatus;
+  const normalizedStatus = currentStatus.toLowerCase();
+  const endDate = subscription?.end_date || store.subscriptionEndDate;
+  const endTime = endDate ? new Date(endDate).getTime() : NaN;
+  const reactivatedAt = store.accessReactivatedAt ? new Date(store.accessReactivatedAt).getTime() : NaN;
+  const wasReactivatedAfterExpiration = Number.isFinite(reactivatedAt)
+    && Number.isFinite(endTime)
+    && reactivatedAt >= endTime;
+  const expiredByDate = normalizedStatus !== 'bought'
+    && Number.isFinite(endTime)
+    && endTime < Date.now()
+    && !wasReactivatedAfterExpiration;
+
+  if (expiredByDate && !['suspended', 'expired'].includes(normalizedStatus)) return 'Expired';
+
+  const statusLabels: Record<string, string> = {
+    active: 'Active',
+    bought: 'Bought',
+    pending: 'Pending',
+    expired: 'Expired',
+    suspended: 'Suspended',
+    cancelled: 'Cancelled',
+  };
+  return statusLabels[normalizedStatus] || currentStatus;
+}
+
 export function SubscriptionManagement({ stores, onUpdateStore }: SubscriptionManagementProps) {
   const [activeTab, setActiveTab] = useState('subscriptions');
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -161,7 +192,7 @@ function SubscriptionsList({
     setSelectedStore(store);
     setFormData({
       planId: sub?.plan_id || '',
-      status: sub?.status || store.status || 'Active',
+      status: getEffectiveSubscriptionStatus(store, sub) || 'Active',
       startDate: sub?.start_date ? new Date(sub.start_date).toISOString().split('T')[0] : (store.subscriptionStartDate ? new Date(store.subscriptionStartDate).toISOString().split('T')[0] : ''),
       endDate: sub?.end_date ? new Date(sub.end_date).toISOString().split('T')[0] : (store.subscriptionEndDate ? new Date(store.subscriptionEndDate).toISOString().split('T')[0] : ''),
     });
@@ -172,6 +203,24 @@ function SubscriptionsList({
     if (!selectedStore) return;
 
     try {
+      const nextStatus = formData.status.toLowerCase();
+      const isSuspendedStatus = ['suspended', 'expired'].includes(nextStatus);
+      const currentSubscription = subscriptions.find(s => s.business_id === selectedStore.id);
+      const currentStatus = getEffectiveSubscriptionStatus(selectedStore, currentSubscription).toLowerCase();
+      const now = new Date();
+      const isReactivating = ['active', 'bought'].includes(nextStatus) && (
+        ['suspended', 'expired'].includes(currentStatus) ||
+        Boolean(selectedStore.suspendedAt) ||
+        (currentStatus !== 'bought' && Number.isFinite(new Date(currentSubscription?.end_date || selectedStore.subscriptionEndDate).getTime())
+          && new Date(currentSubscription?.end_date || selectedStore.subscriptionEndDate).getTime() < now.getTime())
+      );
+      const suspensionTimestamp = isSuspendedStatus
+        ? selectedStore.suspendedAt || now.toISOString()
+        : undefined;
+      const reactivationTimestamp = isSuspendedStatus
+        ? undefined
+        : isReactivating ? now.toISOString() : selectedStore.accessReactivatedAt;
+
       // 1. Upsert subscription_statuses
       const { error: subError } = await supabase
         .from('subscription_statuses')
@@ -194,7 +243,9 @@ function SubscriptionsList({
           status: formData.status, // Sync status
           plan_type: plans.find(p => p.id === formData.planId)?.name.toLowerCase() || 'custom',
           subscription_start_date: new Date(formData.startDate).toISOString(),
-          subscription_end_date: formData.endDate ? new Date(formData.endDate).toISOString() : null
+          subscription_end_date: formData.endDate ? new Date(formData.endDate).toISOString() : null,
+          suspended_at: suspensionTimestamp || null,
+          access_reactivated_at: reactivationTimestamp || null,
         })
         .eq('id', selectedStore.id);
 
@@ -204,6 +255,8 @@ function SubscriptionsList({
       onUpdateStore({
         ...selectedStore,
         status: formData.status as any,
+        suspendedAt: suspensionTimestamp,
+        accessReactivatedAt: reactivationTimestamp,
         subscriptionStartDate: new Date(formData.startDate).toISOString(),
         subscriptionEndDate: formData.endDate ? new Date(formData.endDate).toISOString() : ''
       });
@@ -224,7 +277,7 @@ function SubscriptionsList({
     // Prefer subscription table data, fall back to store data
     return {
       ...store,
-      currentStatus: sub?.status || store.status,
+      currentStatus: getEffectiveSubscriptionStatus(store, sub),
       currentPlanId: sub?.plan_id,
       currentStartDate: sub?.start_date || store.subscriptionStartDate,
       currentEndDate: sub?.end_date || store.subscriptionEndDate
